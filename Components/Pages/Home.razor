@@ -1,0 +1,166 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using System.Text.Json
+@inject NavigationManager NavigationManager
+@inject MSPChallenge_Client_Browser.Services.SessionState SessionState
+@inject MSPChallenge_Client_Browser.Services.MspApiClient ApiClient
+
+<PageTitle>MSP Challenge</PageTitle>
+
+<h1>Join an MSP Challenge Session</h1>
+
+<div class="mb-3">
+    <label for="serverAddress" class="form-label">Server Address</label>
+    <div class="input-group">
+        <input id="serverAddress" class="form-control" type="text"
+               @bind="serverAddress" @bind:event="oninput"
+               @onkeydown="@(async (e) => { if (e.Key == "Enter") await FetchGameListAsync(); })"
+               placeholder="server.mspchallenge.info" />
+        <button class="btn btn-primary" @onclick="FetchGameListAsync" disabled="@isLoading">
+            @(isLoading ? "Loading..." : "Confirm")
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (!string.IsNullOrEmpty(serverDescription))
+{
+    <div class="alert alert-info">@serverDescription</div>
+}
+
+@if (sessions is not null)
+{
+    @if (sessions.Count == 0)
+    {
+        <p>No sessions are available on this server.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Edition</th>
+                    <th>State</th>
+                    <th>Players Active</th>
+                    <th>Current Month</th>
+                    <th>End Month</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var session in sessions)
+                {
+                    <tr>
+                        <td>@GetString(session, "name")</td>
+                        <td>@GetString(session, "edition_name")</td>
+                        <td>@GetString(session, "game_state")</td>
+                        <td>@GetString(session, "players_active")</td>
+                        <td>@GetString(session, "current_month_formatted")</td>
+                        <td>@GetString(session, "end_month_formatted")</td>
+                        <td><button class="btn btn-success btn-sm" @onclick="() => ConnectToSession(session)">Connect</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string serverAddress = "server.mspchallenge.info";
+    private bool isLoading;
+    private string? errorMessage;
+    private string? serverDescription;
+    private List<JsonElement>? sessions;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FetchGameListAsync();
+    }
+
+    private async Task FetchGameListAsync()
+    {
+        if (string.IsNullOrWhiteSpace(serverAddress))
+        {
+            errorMessage = "Please enter a server address.";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+        serverDescription = null;
+        sessions = null;
+
+        try
+        {
+            var host = serverAddress.Trim().TrimEnd('/');
+            if (!host.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !host.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                host = "https://" + host;
+            }
+
+            var root = await ApiClient.GetAsync($"{host}/manager/gamelist");
+
+            if (root.ValueKind != JsonValueKind.Object ||
+                !root.TryGetProperty("payload", out var payload) ||
+                payload.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidOperationException("Unexpected response format from server.");
+            }
+
+            if (payload.TryGetProperty("server_description", out var desc))
+                serverDescription = desc.GetString();
+
+            if (!payload.TryGetProperty("sessionslist", out var list) ||
+                list.ValueKind != JsonValueKind.Array)
+            {
+                throw new InvalidOperationException("No session list found in server response.");
+            }
+
+            sessions = list.EnumerateArray().ToList();
+        }
+        catch (MSPChallenge_Client_Browser.Services.MspApiException ex)
+        {
+            errorMessage = $"Could not reach the server: {ex.Message}";
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Could not reach the server: {ex.Message}";
+        }
+        catch (JsonException)
+        {
+            errorMessage = "The server returned an unexpected response format.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ConnectToSession(JsonElement session)
+    {
+        SessionState.SessionId = session.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0;
+        SessionState.GameServerAddress = GetString(session, "game_server_address");
+        NavigationManager.NavigateTo("/session");
+    }
+
+    private static string GetString(JsonElement element, params string[] candidates)
+    {
+        foreach (var name in candidates)
+        {
+            if (element.TryGetProperty(name, out var prop))
+                return prop.ToString();
+        }
+        return string.Empty;
+    }
+}
+
