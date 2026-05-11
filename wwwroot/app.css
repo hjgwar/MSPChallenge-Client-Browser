@@ -86,36 +86,79 @@ html, body {
     word-break: break-word;
 }
 
-.btn-back {
+/* ── Left-edge icon sidebar ─────────────────────────────────────────────── */
+.map-sidebar {
     position: fixed;
-    top: 0.75rem;
-    right: 0.75rem;
-    z-index: 9999;
-    background-color: #212529;
-    color: #f8f9fa;
+    left: 0;
+    top: 0;
+    width: 44px;
+    height: 100vh;
+    z-index: 9100;
+    background: rgba(22, 27, 34, 0.92);
+    backdrop-filter: blur(6px);
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem 0;
+    gap: 0.25rem;
+}
+
+.sidebar-btn {
+    width: 34px;
+    height: 34px;
     border: none;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.8125rem;
+    background: none;
+    color: #6c757d;
     border-radius: 0.375rem;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
 }
 
-.btn-back:hover {
-    background-color: #343a40;
-    color: #fff;
+.sidebar-btn svg {
+    width: 18px;
+    height: 18px;
 }
 
-/* Shared wrapper that stacks layer panel + legend bottom-left */
-.map-panel-stack {
+.sidebar-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: #dee2e6;
+}
+
+.sidebar-btn--active {
+    background: rgba(116, 192, 252, 0.15);
+    color: #74c0fc;
+}
+
+.sidebar-btn--active:hover {
+    background: rgba(116, 192, 252, 0.25);
+    color: #a5d8ff;
+}
+
+.sidebar-separator {
+    width: 26px;
+    height: 1px;
+    background: rgba(255,255,255,0.12);
+    margin: 0.2rem 0;
+    flex-shrink: 0;
+}
+
+/* Container for panels that float to the right of the sidebar */
+.map-sidebar-panels {
     position: fixed;
-    bottom: 1rem;
-    left: 1rem;
+    left: 48px;
+    top: 1rem;
     z-index: 9000;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     max-height: calc(100vh - 2rem);
-    align-items: stretch;
+    width: 260px;
 }
 
 /* Layer selection panel */
@@ -124,8 +167,8 @@ html, body {
     color: #f8f9fa;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem 0.6rem;
-    min-width: 180px;
-    max-width: 260px;
+    width: 100%;
+    box-sizing: border-box;
     max-height: 60vh;
     overflow-y: auto;
     font-size: 0.8125rem;
@@ -247,8 +290,8 @@ html, body {
     color: #f8f9fa;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem 0.6rem;
-    min-width: 180px;
-    max-width: 260px;
+    width: 100%;
+    box-sizing: border-box;
     max-height: 35vh;
     overflow-y: auto;
     font-size: 0.8125rem;
@@ -338,6 +381,22 @@ html, body {
 .legend-hide-btn:hover {
     background: rgba(220, 53, 69, 0.25);
     color: #ff6b6b;
+}
+
+/* ⓘ wiki info link — used in layer panel rows and legend rows/headers */
+.info-icon-link {
+    flex-shrink: 0;
+    color: #74c0fc;
+    font-size: 0.75rem;
+    line-height: 1;
+    text-decoration: none;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.info-icon-link:hover {
+    opacity: 1;
+    color: #a5d8ff;
 }
 
 .legend-row {

@@ -7,10 +7,6 @@
 
 <PageTitle>MSP Challenge – Session</PageTitle>
 
-<button class="btn-back" @onclick="@(() => NavigationManager.NavigateTo("/"))">
-    &larr; Back to Server Login
-</button>
-
 <h1>Connect to Session</h1>
 
 @if (isLoading)
@@ -53,6 +49,9 @@
         <button type="submit" class="btn btn-primary"
                 disabled="@(isConnecting || string.IsNullOrWhiteSpace(selectedCountry) || string.IsNullOrWhiteSpace(username) || (NeedsPassword && string.IsNullOrWhiteSpace(password)))">
             @(isConnecting ? "Connecting..." : "Connect")
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="@(() => NavigationManager.NavigateTo("/"))">
+            Cancel
         </button>
     </form>
 }

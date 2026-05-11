@@ -11,16 +11,42 @@
 
 <PageTitle>MSP Challenge – Game</PageTitle>
 
-<button class="btn-back" @onclick="@(() => NavigationManager.NavigateTo("/"))">
-    &larr; Back to Server Login
-</button>
-
 <div id="map" class="map-viewport"></div>
 
-@* Layer selection + legend panels – bottom-left stack *@
-@if (_layerEntries.Count > 0)
-{
-    <div class="map-panel-stack">
+@* Left-edge icon sidebar *@
+<nav class="map-sidebar">
+    <button class="sidebar-btn" title="Home"
+            @onclick="@(() => NavigationManager.NavigateTo("/"))">
+        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 1L1 7h2v7h4v-4h2v4h4V7h2L8 1z"/>
+        </svg>
+    </button>
+    <div class="sidebar-separator"></div>
+    <button class="sidebar-btn @(_layerPanelOpen ? "sidebar-btn--active" : "")"
+            title="Layers"
+            @onclick="@(() => _layerPanelOpen = !_layerPanelOpen)">
+        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 1l7 3.5-7 3.5L1 4.5 8 1z"/>
+            <path d="M1 8.5l7 3.5 7-3.5"/>
+            <path d="M1 12l7 3.5L15 12"/>
+        </svg>
+    </button>
+    <button class="sidebar-btn @(_legendPanelOpen ? "sidebar-btn--active" : "")"
+            title="Legend"
+            @onclick="@(() => _legendPanelOpen = !_legendPanelOpen)">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="3" width="4" height="4" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/>
+            <line x1="8" y1="5" x2="14" y2="5"/>
+            <rect x="2" y="9" width="4" height="4" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+        </svg>
+    </button>
+</nav>
+
+@* Floating panels attached to the sidebar *@
+<div class="map-sidebar-panels">
+    @if (_layerPanelOpen && _layerEntries.Count > 0)
+    {
         <div class="layer-panel">
             <div class="layer-panel-title">Layers</div>
             <input class="layer-search" type="search" placeholder="Search layers…"
@@ -46,6 +72,10 @@
                                     <input type="checkbox" checked="@entry.Visible"
                                            @onchange="@(async e => await ToggleLayerAsync(entry, (bool)e.Value!))" />
                                     <span class="layer-panel-name" title="@entry.Tooltip">@entry.DisplayName</span>
+                                    @if (entry.MediaUrl is not null)
+                                    {
+                                        <a class="info-icon-link" href="@entry.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
+                                    }
                                 </label>
                             }
                         </details>
@@ -53,42 +83,50 @@
                 </details>
             }
         </div>
+    }
 
-        @if (_legendOrder.Count > 0)
-        {
-            <div class="legend-panel">
-                <div class="legend-panel-title">Legend</div>
-                @for (int i = _legendOrder.Count - 1; i >= 0; i--)
-                {
-                    var entry = _legendOrder[i];
-                    var idx = i; // capture for lambdas
-                    <div class="legend-layer">
-                        <div class="legend-layer-header">
-                            <div class="legend-move-buttons">
-                                <button class="legend-move-btn" title="Move layer up (render on top)"
-                                        disabled="@(idx == _legendOrder.Count - 1)"
-                                        @onclick="@(async () => await MoveLayerAsync(entry, 1))">&#9650;</button>
-                                <button class="legend-move-btn" title="Move layer down (render below)"
-                                        disabled="@(idx == 0)"
-                                        @onclick="@(async () => await MoveLayerAsync(entry, -1))">&#9660;</button>
-                            </div>
-                            <span class="legend-layer-name" title="@entry.Tooltip">@entry.DisplayName</span>
-                            <button class="legend-hide-btn" title="Hide layer"
-                                    @onclick="@(async () => await ToggleLayerAsync(entry, false))">&#10005;</button>
+    @if (_legendPanelOpen && _legendOrder.Count > 0)
+    {
+        <div class="legend-panel">
+            <div class="legend-panel-title">Legend</div>
+            @for (int i = _legendOrder.Count - 1; i >= 0; i--)
+            {
+                var entry = _legendOrder[i];
+                var idx = i; // capture for lambdas
+                <div class="legend-layer">
+                    <div class="legend-layer-header">
+                        <div class="legend-move-buttons">
+                            <button class="legend-move-btn" title="Move layer up (render on top)"
+                                    disabled="@(idx == _legendOrder.Count - 1)"
+                                    @onclick="@(async () => await MoveLayerAsync(entry, 1))">&#9650;</button>
+                            <button class="legend-move-btn" title="Move layer down (render below)"
+                                    disabled="@(idx == 0)"
+                                    @onclick="@(async () => await MoveLayerAsync(entry, -1))">&#9660;</button>
                         </div>
-                        @foreach (var td in entry.TypeDefs)
+                        <span class="legend-layer-name" title="@entry.Tooltip">@entry.DisplayName</span>
+                        @if (entry.MediaUrl is not null)
                         {
-                            <div class="legend-row">
-                                <span class="legend-swatch" style="background:@HexToCss(td.Color);"></span>
-                                <span class="legend-label">@td.Label</span>
-                            </div>
+                            <a class="info-icon-link" href="@entry.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
                         }
+                        <button class="legend-hide-btn" title="Hide layer"
+                                @onclick="@(async () => await ToggleLayerAsync(entry, false))">&#10005;</button>
                     </div>
-                }
-            </div>
-        }
-    </div>
-}
+                    @foreach (var td in entry.TypeDefs)
+                    {
+                        <div class="legend-row">
+                            <span class="legend-swatch" style="background:@HexToCss(td.Color);"></span>
+                            <span class="legend-label">@td.Label</span>
+                            @if (td.MediaUrl is not null)
+                            {
+                                <a class="info-icon-link" href="@td.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
 
 @if (_popupVisible)
 {
@@ -148,6 +186,7 @@
         public string Category    { get; init; } = "";
         public string Subcategory { get; init; } = "";
         public string Tooltip     { get; init; } = "";
+        public string? MediaUrl   { get; init; }
         public bool   IsBaseLayer  { get; init; }
         public bool   IsToggleable { get; init; }
         public bool   Visible     { get; set; }
@@ -156,7 +195,7 @@
         public IReadOnlyDictionary<string, string> PropertyDisplayNames { get; init; } = new Dictionary<string, string>();
     }
 
-    private sealed record TypeDef(string Label, string Color);
+    private sealed record TypeDef(string Label, string Color, string? MediaUrl = null);
 
     private IJSObjectReference? _mapModule;
     private DotNetObjectReference<Game>? _dotNetRef;
@@ -171,6 +210,13 @@
     private bool   _popupVisible;
     private string _popupLayerName = "";
     private readonly List<(string Label, string Value)> _popupProps = new();
+
+    // Sidebar panel open/close state
+    private bool _layerPanelOpen  = true;
+    private bool _legendPanelOpen = true;
+
+    // Wiki base URL (from Game/Meta response; may be absent in some game configs)
+    private string _wikiBaseUrl = "";
 
     // Loading state
     private bool   _isLoading = true;
@@ -214,7 +260,13 @@
             // 1. Policy and simulation settings (fetched for server-side processing; not yet consumed)
             await ApiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/PolicySimSettings");
 
-            // 2. Full layer metadata for this user via Game/Meta
+            // 2. Game config — contains wiki_base_url and other session-wide settings
+            var configRoot = await ApiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/Config");
+            var configPayload = GetPayload(configRoot);
+            if (configPayload.TryGetProperty("wiki_base_url", out var wbuProp) && wbuProp.GetString() is { Length: > 0 } wbu)
+                _wikiBaseUrl = wbu.TrimEnd('/');
+
+            // 3. Full layer metadata for this user via Game/Meta
             var metaRoot    = await ApiClient.PostFormAsync(
                 $"{baseAddress}/{sessionId}/api/Game/Meta",
                 new[] { new KeyValuePair<string, string>("user", SessionState.CountryId.ToString()) });
@@ -246,6 +298,11 @@
             // Sort visible layers by layer_depth ascending (lower depth = rendered below)
             _legendOrder.Sort((a, b) => a.Depth.CompareTo(b.Depth));
             await SyncZIndicesAsync();
+
+            // Fit the initial view to the _PLAYAREA layer so its bounds fill the viewport
+            var playArea = _layerEntries.FirstOrDefault(e => e.IsBaseLayer);
+            if (playArea is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("fitToPlayArea", playArea.LayerId);
         }
         catch (MSPChallenge_Client_Browser.Services.MspApiException ex)
         {
@@ -418,6 +475,8 @@
             var toggleable  = layer.TryGetProperty("layer_toggleable",  out var lt2) && lt2.ValueKind == JsonValueKind.Number ? lt2.GetInt32() != 0 : true;
             var isBase      = layerName.IndexOf("_PLAYAREA", StringComparison.OrdinalIgnoreCase) >= 0;
             var displayName = !string.IsNullOrWhiteSpace(layerShort) ? layerShort : FallbackDisplayName(layerName);
+            var layerMedia  = layer.TryGetProperty("layer_media", out var lm) ? lm.GetString() ?? "" : "";
+            var layerMediaUrl = ResolveWikiUrl(layerMedia);
 
             // Build legend type definitions from layer_type
             var typeDefs = new List<TypeDef>();
@@ -425,10 +484,12 @@
             {
                 foreach (var td in ltDefArr.EnumerateArray())
                 {
-                    var label = td.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
-                    var col   = td.TryGetProperty(colorProp,     out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
+                    var label    = td.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
+                    var col      = td.TryGetProperty(colorProp,     out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
+                    var tdMedia  = td.TryGetProperty("media",       out var tm) ? tm.GetString() ?? "" : "";
+                    var tdMediaUrl = ResolveWikiUrl(tdMedia);
                     if (!string.IsNullOrWhiteSpace(label))
-                        typeDefs.Add(new TypeDef(label, col));
+                        typeDefs.Add(new TypeDef(label, col, tdMediaUrl));
                 }
             }
 
@@ -452,6 +513,7 @@
                 Category             = category,
                 Subcategory          = subcategory,
                 Tooltip              = tooltip,
+                MediaUrl             = layerMediaUrl,
                 IsBaseLayer          = isBase,
                 IsToggleable         = toggleable,
                 Visible              = visible,
@@ -547,6 +609,21 @@
             root.TryGetProperty("payload", out var payload))
             return payload;
         return root;
+    }
+
+    /// <summary>
+    /// Converts a "wiki://PageName" media reference into a full URL using _wikiBaseUrl.
+    /// Returns null if the input is empty or _wikiBaseUrl is not configured.
+    /// </summary>
+    private string? ResolveWikiUrl(string? media)
+    {
+        if (string.IsNullOrWhiteSpace(media) || string.IsNullOrWhiteSpace(_wikiBaseUrl))
+            return null;
+        const string prefix = "wiki://";
+        var page = media.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? media[prefix.Length..]
+            : media;
+        return string.IsNullOrWhiteSpace(page) ? null : $"{_wikiBaseUrl}/{page}";
     }
 
     [Microsoft.JSInterop.JSInvokable]

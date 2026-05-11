@@ -278,6 +278,36 @@ export function fitToLayer(layerId) {
     }
 }
 
+/**
+ * Fit the view to the given layer with no padding so that either the horizontal
+ * or vertical edges of the layer extent align exactly with the viewport edges.
+ * Used for the _PLAYAREA layer to set the initial view.
+ */
+function fitExtentCover(extent) {
+    const view     = map.getView();
+    const mapSize  = map.getSize();   // [width, height] in CSS px
+    const extW     = ol.extent.getWidth(extent);
+    const extH     = ol.extent.getHeight(extent);
+    // "cover": use the smaller resolution (higher zoom) so no empty space remains
+    const res      = Math.min(extW / mapSize[0], extH / mapSize[1]);
+    view.setCenter(ol.extent.getCenter(extent));
+    view.setResolution(res);
+}
+
+export function fitToPlayArea(layerId) {
+    if (vectorLayers[layerId]) {
+        const extent = vectorLayers[layerId].getSource().getExtent();
+        if (!ol.extent.isEmpty(extent)) {
+            fitExtentCover(extent);
+        }
+    } else if (rasterLayers[layerId]) {
+        const extent = rasterLayers[layerId].getSource().getImageExtent();
+        if (extent) {
+            fitExtentCover(extent);
+        }
+    }
+}
+
 export function setView(lat, lng, zoom) {
     if (!map) return;
     const center = ol.proj.transform([lng, lat], 'EPSG:4326', 'EPSG:3035');
