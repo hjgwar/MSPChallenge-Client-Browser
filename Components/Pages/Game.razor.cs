@@ -32,6 +32,7 @@ public partial class Game : IAsyncDisposable
 
     // Loading state
     private bool   _isLoading = true;
+    private bool   _loadingFading = false;
     private string _loadingStatus = "Initialising…";
 
     protected override async Task OnInitializedAsync()
@@ -55,11 +56,21 @@ public partial class Game : IAsyncDisposable
 
         await LoadGameDataAsync();
 
-        _isLoading = false;
-        StateHasChanged();
+        await HideLoadingAsync();
 
         _dotNetRef = DotNetObjectReference.Create(this);
         await _mapModule.InvokeVoidAsync("registerClickHandler", _dotNetRef);
+        await _mapModule.InvokeVoidAsync("initLegendDrag", _dotNetRef);
+    }
+
+    private async Task HideLoadingAsync()
+    {
+        _loadingFading = true;
+        StateHasChanged();
+        await Task.Delay(650);
+        _isLoading = false;
+        _loadingFading = false;
+        StateHasChanged();
     }
 
     private async Task LoadGameDataAsync()
@@ -119,15 +130,13 @@ public partial class Game : IAsyncDisposable
         {
             errorMessage = ex.Message;
             errorDetail  = $"HTTP {ex.StatusCode}\n{ex}";
-            _isLoading = false;
-            StateHasChanged();
+            await HideLoadingAsync();
         }
         catch (Exception ex)
         {
             errorMessage = $"Error loading map data: {ex.Message}";
             errorDetail  = ex.ToString();
-            _isLoading = false;
-            StateHasChanged();
+            await HideLoadingAsync();
         }
     }
 
@@ -340,14 +349,15 @@ public partial class Game : IAsyncDisposable
         await SyncZIndicesAsync();
     }
 
-    private async Task MoveLayerAsync(LayerEntry entry, int delta)
+    [JSInvokable]
+    public async Task ReorderLegend(int from, int to)
     {
-        var idx    = _legendOrder.IndexOf(entry);
-        var newIdx = idx + delta;
-        if (newIdx < 0 || newIdx >= _legendOrder.Count) return;
-        _legendOrder.RemoveAt(idx);
-        _legendOrder.Insert(newIdx, entry);
+        if (from == to || from < 0 || to < 0 || from >= _legendOrder.Count || to >= _legendOrder.Count) return;
+        var item = _legendOrder[from];
+        _legendOrder.RemoveAt(from);
+        _legendOrder.Insert(to, item);
         await SyncZIndicesAsync();
+        StateHasChanged();
     }
 
     /// <summary>Assigns z-indices so that _legendOrder[0] = bottom, last = top.</summary>

@@ -381,6 +381,50 @@ export function unregisterClickHandler() {
     _dotNetRef = null;
 }
 
+// ── Legend drag-to-reorder ───────────────────────────────────────────────────
+// All drag logic runs client-side; only the final from→to indices are sent
+// to Blazor via invokeMethodAsync, avoiding SignalR flooding from dragover.
+
+let _legendDotNetRef = null;
+let _legendDragFromIdx = null;
+let _legendListenersAttached = false;
+
+export function initLegendDrag(dotNetRef) {
+    _legendDotNetRef = dotNetRef; // always update — stale ref after hot reload would silently fail
+    if (_legendListenersAttached) return;
+    _legendListenersAttached = true;
+
+    document.addEventListener('dragstart', e => {
+        const row = e.target.closest('.legend-layer[data-legend-idx]');
+        if (!row) return;
+        _legendDragFromIdx = parseInt(row.dataset.legendIdx, 10);
+        // Firefox requires setData to be called or drag won't fire drop
+        e.dataTransfer.setData('text/plain', String(_legendDragFromIdx));
+        e.dataTransfer.effectAllowed = 'move';
+    });
+
+    document.addEventListener('dragover', e => {
+        const row = e.target.closest('.legend-layer[data-legend-idx]');
+        if (row) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+    });
+
+    document.addEventListener('drop', e => {
+        const row = e.target.closest('.legend-layer[data-legend-idx]');
+        if (!row || _legendDragFromIdx === null) { _legendDragFromIdx = null; return; }
+        e.preventDefault();
+        const toIdx = parseInt(row.dataset.legendIdx, 10);
+        const fromIdx = _legendDragFromIdx;
+        _legendDragFromIdx = null;
+        if (fromIdx === toIdx) return;
+        _legendDotNetRef.invokeMethodAsync('ReorderLegend', fromIdx, toIdx);
+    });
+
+    document.addEventListener('dragend', () => { _legendDragFromIdx = null; });
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function hexToRgba(hex, alpha) {

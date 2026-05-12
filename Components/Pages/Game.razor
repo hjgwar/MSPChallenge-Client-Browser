@@ -90,21 +90,25 @@
             {
                 var entry = _legendOrder[i];
                 var idx = i; // capture for lambdas
-                <div class="legend-layer">
+                <div class="legend-layer" draggable="true" data-legend-idx="@idx">
                     <div class="legend-layer-header">
-                        <div class="legend-move-buttons">
-                            <button class="legend-move-btn" title="Move layer up (render on top)"
-                                    disabled="@(idx == _legendOrder.Count - 1)"
-                                    @onclick="@(async () => await MoveLayerAsync(entry, 1))">&#9650;</button>
-                            <button class="legend-move-btn" title="Move layer down (render below)"
-                                    disabled="@(idx == 0)"
-                                    @onclick="@(async () => await MoveLayerAsync(entry, -1))">&#9660;</button>
-                        </div>
-                        <span class="legend-layer-name" title="@entry.Tooltip">@entry.DisplayName</span>
-                        @if (entry.MediaUrl is not null)
-                        {
-                            <a class="info-icon-link" href="@entry.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
-                        }
+                        <span class="legend-drag-handle" title="Drag to reorder">
+                            <svg viewBox="0 0 8 12" width="10" height="14" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="2" cy="2" r="1"/>
+                                <circle cx="6" cy="2" r="1"/>
+                                <circle cx="2" cy="6" r="1"/>
+                                <circle cx="6" cy="6" r="1"/>
+                                <circle cx="2" cy="10" r="1"/>
+                                <circle cx="6" cy="10" r="1"/>
+                            </svg>
+                        </span>
+                        <span class="legend-name-group">
+                            <span class="legend-layer-name" title="@entry.Tooltip">@entry.DisplayName</span>
+                            @if (entry.MediaUrl is not null)
+                            {
+                                <a class="info-icon-link" href="@entry.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
+                            }
+                        </span>
                         <button class="legend-hide-btn" title="Hide layer"
                                 @onclick="@(async () => await ToggleLayerAsync(entry, false))">&#10005;</button>
                     </div>
@@ -153,12 +157,16 @@
     </div>
 }
 
-@if (_isLoading)
+@if (_isLoading || _loadingFading)
 {
-    <div class="map-loading-overlay">
-        <div class="map-loading-card">
-            <div class="map-loading-spinner"></div>
-            <div class="map-loading-status">@_loadingStatus</div>
+    var splashClass = "splash-overlay" + (_loadingFading ? " splash-overlay--out" : "");
+    <div class="@splashClass">
+        <div class="splash-vignette"></div>
+        <div class="splash-content">
+            <div class="splash-logo">MSP <em>Challenge</em></div>
+            <div class="splash-tagline">Marine Spatial Planning</div>
+            <div class="splash-bar-wrap"><div class="splash-bar"></div></div>
+            <div class="splash-status">@_loadingStatus</div>
         </div>
     </div>
 }
