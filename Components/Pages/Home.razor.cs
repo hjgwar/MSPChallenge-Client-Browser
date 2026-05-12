@@ -84,6 +84,7 @@ public partial class Home
     {
         SessionState.SessionId = session.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0;
         SessionState.GameServerAddress = GetString(session, "game_server_address");
+        SessionState.GameWsServerAddress = GetString(session, "game_ws_server_address");
         NavigationManager.NavigateTo("/session");
     }
 

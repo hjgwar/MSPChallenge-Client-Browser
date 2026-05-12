@@ -160,7 +160,7 @@ function applyRasterColorMap(dataUrl, colorMap, minCutoff, interpolate) {
                 const grey = d[i]; // R channel (greyscale source: R = G = B)
 
                 // Minimum value cutoff: make low-value pixels fully transparent
-                if (minCutoff !== null && minCutoff !== undefined && grey <= minCutoff) {
+                if (minCutoff !== null && minCutoff !== undefined && grey < minCutoff) {
                     d[i + 3] = 0;
                     continue;
                 }

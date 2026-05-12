@@ -141,9 +141,15 @@ public partial class Session
                 return;
             }
 
-            SessionState.ApiAccessToken = accessToken.GetString() ?? string.Empty;
+            SessionState.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
             SessionState.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
-            SessionState.CountryId = countryId;
+            SessionState.CountryId       = countryId;
+
+            if (payload.TryGetProperty("user_id", out var userIdEl) &&
+                userIdEl.ValueKind == JsonValueKind.Number)
+                SessionState.UserId = userIdEl.GetInt32();
+            else
+                SessionState.UserId = countryId; // fallback
 
             NavigationManager.NavigateTo("/game");
         }

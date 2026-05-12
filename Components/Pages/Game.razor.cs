@@ -26,14 +26,50 @@ public partial class Game : IAsyncDisposable
     // Sidebar panel open/close state
     private bool _layerPanelOpen  = true;
     private bool _legendPanelOpen = true;
+    private bool _usersPanelOpen;
+
+    // Online users panel
+    private record UserEntry(string Name, int CountryId, string Colour);
+    private List<UserEntry> _users = new();
+    private bool   _usersLoading;
+    private string? _usersError;
+    private readonly Dictionary<int, string> _countryColours = new();
+    private readonly Dictionary<int, string> _countryNames   = new();
 
     // Wiki base URL (from Game/Config; may be absent in some game configs)
     private string _wikiBaseUrl = "";
+
+    // Game start year (month 0 = Jan of this year)
+    private int _gameStartYear = 2000;
 
     // Loading state
     private bool   _isLoading = true;
     private bool   _loadingFading = false;
     private string _loadingStatus = "Initialising…";
+    private readonly TaskCompletionSource _firstWsMessageTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // WebSocket (address comes from session listing, stored in SessionState)
+
+    // Plans panel
+    private bool _plansPanelOpen;
+    private List<PlanEntry> _plans = new();
+
+    // Dev console log (capped list of recent raw WS messages)
+    private const int WsLogMaxEntries = 100;
+    private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = new();
+    private string? _wsSelectedRaw;
+    private bool    _wsLogVisible = true;
+
+    private static string PrettyPrintJson(string raw)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            return JsonSerializer.Serialize(doc.RootElement,
+                new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch { return raw; }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -54,7 +90,16 @@ public partial class Game : IAsyncDisposable
         // Default view centred on North Sea – will be replaced once _PLAYAREA bounds are known
         await _mapModule.InvokeVoidAsync("initMap", "map", 54.5, 3.5, 6);
 
+        WsService.MessageReceived += OnWsMessageReceived;
+
         await LoadGameDataAsync();
+
+        if (!_firstWsMessageTcs.Task.IsCompleted)
+        {
+            _loadingStatus = "Waiting for game data…";
+            StateHasChanged();
+            await _firstWsMessageTcs.Task;
+        }
 
         await HideLoadingAsync();
 
@@ -73,6 +118,49 @@ public partial class Game : IAsyncDisposable
         StateHasChanged();
     }
 
+    private async Task LoadUsersAsync()
+    {
+        _usersLoading = true;
+        _usersError = null;
+        StateHasChanged();
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var url = $"{baseAddress}/{SessionState.SessionId}/api/User/List";
+            bool isAdmin = SessionState.CountryId == 1 || SessionState.CountryId == 2;
+            JsonElement root = isAdmin
+                ? await ApiClient.GetAsync(url)
+                : await ApiClient.PostFormAsync(url, new[] { new KeyValuePair<string, string>("country_id", SessionState.CountryId.ToString()) });
+            var payload = root.TryGetProperty("payload", out var p) ? p : root;
+            var list = new List<UserEntry>();
+            if (payload.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var u in payload.EnumerateArray())
+                {
+                    var name = u.TryGetProperty("user_name",       out var n) ? n.GetString() ?? "" : "";
+                    var cid  = u.TryGetProperty("user_country_id", out var c)
+                        ? (c.ValueKind == JsonValueKind.Number ? c.GetInt32()
+                           : int.TryParse(c.GetString(), out var parsed) ? parsed : 0)
+                        : 0;
+                    var col  = _countryColours.GetValueOrDefault(cid, "#6c757d");
+                    list.Add(new UserEntry(name, cid, col));
+                }
+            }
+            _users = isAdmin
+                ? list.OrderBy(u => u.CountryId).ThenBy(u => u.Name).ToList()
+                : list.OrderBy(u => u.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            _usersError = ex.Message;
+        }
+        finally
+        {
+            _usersLoading = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task LoadGameDataAsync()
     {
         try
@@ -88,6 +176,36 @@ public partial class Game : IAsyncDisposable
             var configPayload = GetPayload(configRoot);
             if (configPayload.TryGetProperty("wiki_base_url", out var wbuProp) && wbuProp.GetString() is { Length: > 0 } wbu)
                 _wikiBaseUrl = wbu.TrimEnd('/');
+
+            if (configPayload.TryGetProperty("start", out var startProp))
+                _gameStartYear = startProp.ValueKind == JsonValueKind.Number
+                    ? startProp.GetInt32()
+                    : int.TryParse(startProp.GetString(), out var sy) ? sy : 2000;
+
+            // Load country id → colour mapping from the countries layer
+            if (configPayload.TryGetProperty("countries", out var countriesEl) &&
+                countriesEl.GetString() is { Length: > 0 } countriesLayerName)
+            {
+                var metaRoot2 = await ApiClient.PostFormAsync(
+                    $"{baseAddress}/{sessionId}/api/Layer/MetaByName",
+                    new[] { new KeyValuePair<string, string>("name", countriesLayerName) });
+                var metaPayload2 = GetPayload(metaRoot2);
+                if (metaPayload2.TryGetProperty("layer_type", out var layerTypes) &&
+                    layerTypes.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var lt in layerTypes.EnumerateArray())
+                    {
+                        if (lt.TryGetProperty("value", out var ltVal) && ltVal.ValueKind == JsonValueKind.Number)
+                        {
+                            var cid2 = ltVal.GetInt32();
+                            if (lt.TryGetProperty("polygonColor", out var ltCol) && ltCol.GetString() is { Length: > 0 } col)
+                                _countryColours[cid2] = col;
+                            if (lt.TryGetProperty("displayName", out var ltDn) && ltDn.GetString() is { Length: > 0 } dn)
+                                _countryNames[cid2] = dn;
+                        }
+                    }
+                }
+            }
 
             // 3. Full layer metadata for this user via Game/Meta
             var metaRoot    = await ApiClient.PostFormAsync(
@@ -125,6 +243,24 @@ public partial class Game : IAsyncDisposable
             var playArea = _layerEntries.FirstOrDefault(e => e.IsBaseLayer);
             if (playArea is not null && _mapModule is not null)
                 await _mapModule.InvokeVoidAsync("fitToPlayArea", playArea.LayerId);
+
+            // Connect WebSocket — last loading step
+            if (!string.IsNullOrEmpty(SessionState.GameWsServerAddress))
+            {
+                _loadingStatus = "Connecting to game server…";
+                StateHasChanged();
+                await WsService.ConnectAndSubscribeAsync(
+                    SessionState.GameWsServerAddress,
+                    SessionState.ApiAccessToken,
+                    SessionState.SessionId,
+                    teamId: SessionState.CountryId,
+                    userId: SessionState.UserId);
+                // Loading screen held open until first message arrives (signalled via _firstWsMessageTcs)
+            }
+            else
+            {
+                _firstWsMessageTcs.TrySetResult(); // no WS — nothing to wait for
+            }
         }
         catch (MspApiException ex)
         {
@@ -368,6 +504,19 @@ public partial class Game : IAsyncDisposable
             await _mapModule.InvokeVoidAsync("setLayerZIndex", _legendOrder[i].LayerId, i + 1);
     }
 
+    /// <summary>Inline style for the users sidebar button: tinted with the country colour.</summary>
+    private static string CountryBtnStyle(string hex, bool active)
+    {
+        if (string.IsNullOrEmpty(hex) || !hex.StartsWith('#')) return "";
+        var h = hex.TrimStart('#');
+        if (h.Length < 6) return "";
+        int r = Convert.ToInt32(h[..2], 16);
+        int g = Convert.ToInt32(h[2..4], 16);
+        int b = Convert.ToInt32(h[4..6], 16);
+        double a = active ? 0.40 : 0.20;
+        return $"background:rgba({r},{g},{b},{a:F2});color:#fff;";
+    }
+
     /// <summary>Converts #RRGGBB or #RRGGBBAA hex to a CSS rgba() string.</summary>
     private static string HexToCss(string hex)
     {
@@ -461,8 +610,115 @@ public partial class Game : IAsyncDisposable
         catch { /* ignore parse errors */ }
     }
 
+    private void OnWsMessageReceived(WsMessage msg)
+    {
+        _firstWsMessageTcs.TrySetResult();
+
+        lock (_wsLog)
+        {
+            _wsLog.Insert(0, (msg.HeaderName, msg.RawJson, msg.ReceivedAt));
+            if (_wsLog.Count > WsLogMaxEntries)
+                _wsLog.RemoveAt(_wsLog.Count - 1);
+        }
+
+        switch (msg.HeaderName)
+        {
+            case "Game/Latest":
+                ParseGameLatest(msg.Payload);
+                break;
+        }
+        // Batch/ExecuteBatch and ImmersiveSessions/Update are stored by the service;
+        // add processing here as needed.
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ParseGameLatest(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("plan", out var plansEl) ||
+            plansEl.ValueKind != JsonValueKind.Array)
+            return;
+
+        foreach (var p in plansEl.EnumerateArray())
+        {
+            var id        = GetIntProp(p, "id");
+            var name      = GetStringProp(p, "name")      ?? $"Plan {id}";
+            var state     = GetStringProp(p, "state")     ?? "";
+            var country   = GetIntProp(p, "country");
+            var startdate = GetIntProp(p, "startdate");
+
+            var entry = new PlanEntry(id, name, state, country, startdate);
+            var idx   = _plans.FindIndex(e => e.PlanId == id);
+            if (idx >= 0)
+                _plans[idx] = entry;
+            else
+                _plans.Add(entry);
+        }
+        _plans.Sort((a, b) =>
+        {
+            var sp = PlanStatePriority(a.State).CompareTo(PlanStatePriority(b.State));
+            if (sp != 0) return sp;
+            var dp = a.StartDate.CompareTo(b.StartDate);
+            return dp != 0 ? dp : a.PlanId.CompareTo(b.PlanId);
+        });
+    }
+
+    private static readonly string[] OrderedPlanStates =
+    [
+        "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "IMPLEMENTED", "ARCHIVED"
+    ];
+
+    private static int PlanStatePriority(string state) => state.ToUpperInvariant() switch
+    {
+        "DESIGN"        => 0,
+        "CONSULTATION"  => 1,
+        "APPROVAL"      => 2,
+        "APPROVED"      => 3,
+        "IMPLEMENTED"   => 4,
+        "ARCHIVED"      => 5,
+        _               => 6,
+    };
+
+    private static string PlanStateLabel(string state) => state.ToUpperInvariant() switch
+    {
+        "APPROVAL" => "AWAITING APPROVAL",
+        _          => state.ToUpperInvariant(),
+    };
+
+    private string MonthToDate(int month)
+    {
+        var d = new DateTime(_gameStartYear, 1, 1).AddMonths(month);
+        return d.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Case-insensitive int read; handles Number or numeric String values.</summary>
+    private static int GetIntProp(JsonElement el, string name)
+    {
+        foreach (var prop in el.EnumerateObject())
+        {
+            if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+            if (prop.Value.ValueKind == JsonValueKind.Number) return prop.Value.GetInt32();
+            if (prop.Value.ValueKind == JsonValueKind.String &&
+                int.TryParse(prop.Value.GetString(), out var v)) return v;
+        }
+        return 0;
+    }
+
+    /// <summary>Case-insensitive string read.</summary>
+    private static string? GetStringProp(JsonElement el, string name)
+    {
+        foreach (var prop in el.EnumerateObject())
+        {
+            if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+            return prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.ToString();
+        }
+        return null;
+    }
+
+
     public async ValueTask DisposeAsync()
     {
+        WsService.MessageReceived -= OnWsMessageReceived;
+        await WsService.DisposeAsync();
         if (_mapModule is not null)
         {
             try

@@ -5,6 +5,7 @@
 @inject IHostEnvironment HostEnvironment
 @inject MSPChallenge_Client_Browser.Services.SessionState SessionState
 @inject MSPChallenge_Client_Browser.Services.MspApiClient ApiClient
+@inject MSPChallenge_Client_Browser.Services.GameWebSocketService WsService
 
 <PageTitle>MSP Challenge – Game</PageTitle>
 
@@ -19,6 +20,31 @@
         </svg>
     </button>
     <div class="sidebar-separator"></div>
+    @{
+        var _myColour = _countryColours.GetValueOrDefault(SessionState.CountryId, "");
+        var _usersBtnStyle = CountryBtnStyle(_myColour, _usersPanelOpen);
+    }
+    <button class="sidebar-btn" style="@_usersBtnStyle"
+            title="Online users"
+            @onclick="@(async () => { _usersPanelOpen = !_usersPanelOpen; if (_usersPanelOpen) await LoadUsersAsync(); })">
+        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="5.5" cy="4.5" r="2.5"/>
+            <path d="M0.5 13.5c0-2.76 2.24-5 5-5s5 2.24 5 5"/>
+            <circle cx="11.5" cy="4.5" r="2" opacity="0.55"/>
+            <path d="M10.5 13.5a5 5 0 0 1 1-3.06A4.5 4.5 0 0 1 15.5 13.5" opacity="0.55"/>
+        </svg>
+    </button>
+    <div class="sidebar-separator"></div>
+    <button class="sidebar-btn @(_plansPanelOpen ? "sidebar-btn--active" : "")" title="Plans"
+            @onclick="@(() => _plansPanelOpen = !_plansPanelOpen)">
+        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 2h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="4.5" y1="5.5" x2="11.5" y2="5.5" stroke="currentColor" stroke-width="1.2"/>
+            <line x1="4.5" y1="8"   x2="11.5" y2="8"   stroke="currentColor" stroke-width="1.2"/>
+            <line x1="4.5" y1="10.5" x2="9"   y2="10.5" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+    </button>
+    <div class="sidebar-separator"></div>
     <button class="sidebar-btn @(_layerPanelOpen ? "sidebar-btn--active" : "")"
             title="Layers"
             @onclick="@(() => _layerPanelOpen = !_layerPanelOpen)">
@@ -28,8 +54,7 @@
             <path d="M1 12l7 3.5L15 12"/>
         </svg>
     </button>
-    <button class="sidebar-btn @(_legendPanelOpen ? "sidebar-btn--active" : "")"
-            title="Legend"
+    <button class="sidebar-btn @(_legendPanelOpen ? "sidebar-btn--active" : "")" title="Legend"
             @onclick="@(() => _legendPanelOpen = !_legendPanelOpen)">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
             <rect x="2" y="3" width="4" height="4" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/>
@@ -41,7 +66,107 @@
 </nav>
 
 @* Floating panels attached to the sidebar *@
+
+@* Right-side floating panel for Plans *@
+@if (_plansPanelOpen)
+{
+    <div class="map-right-panels">
+        <div class="plans-panel">
+            <div class="plans-panel-header">
+                <span class="plans-panel-title">Plans</span>
+                @if (_plans.Count > 0)
+                {
+                    <span class="plans-panel-count">@_plans.Count</span>
+                }
+            </div>
+            @{
+                bool _isPrivileged = SessionState.CountryId == 1 || SessionState.CountryId == 2;
+                var _visiblePlans = _plans
+                    .Where(p => _isPrivileged || p.StartDate != -1)
+                    .Where(p => _isPrivileged || p.State.ToUpperInvariant() != "DESIGN" || p.Country == SessionState.CountryId)
+                    .GroupBy(p => p.State.ToUpperInvariant())
+                    .ToDictionary(g => g.Key, g => g.ToList());
+            }
+            @if (!_isPrivileged && _plans.Count == 0)
+            {
+                <div class="plans-status">Waiting for game data…</div>
+            }
+            @foreach (var state in OrderedPlanStates)
+            {
+                var _statePlans = _visiblePlans.GetValueOrDefault(state, []);
+                <details class="plan-group" open>
+                    <summary class="plan-group-header">
+                        @PlanStateLabel(state)
+                        <span class="plan-group-count">@_statePlans.Count</span>
+                    </summary>
+                    @if (_statePlans.Count == 0)
+                    {
+                        <div class="plans-empty-state">No plans in this state</div>
+                    }
+                    else
+                    {
+                        @foreach (var plan in _statePlans)
+                        {
+                            var _planDotColour = (plan.Country == 1 || plan.Country == 2)
+                                ? "#ff69b4"
+                                : _countryColours.GetValueOrDefault(plan.Country, "#6c757d");
+                            <div class="plan-row">
+                                <span class="user-dot" style="background:@_planDotColour;" title="@(_countryNames.GetValueOrDefault(plan.Country, $"Country {plan.Country}"))"></span>
+                                <span class="plan-name">@plan.Name</span>
+                                <span class="plan-date">@MonthToDate(plan.StartDate)</span>
+                            </div>
+                        }
+                    }
+                </details>
+            }
+        </div>
+    </div>
+}
+
+@* Left-side layer + legend panels *@
 <div class="map-sidebar-panels">
+    @if (_usersPanelOpen)
+    {
+        <div class="users-panel">
+            <div class="users-panel-header">
+                <span class="users-panel-title">Online Users</span>
+                <button class="users-refresh-btn" title="Refresh" @onclick="LoadUsersAsync" disabled="@_usersLoading">
+                    <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M13.65 2.35A8 8 0 1 0 15 8h-1.5a6.5 6.5 0 1 1-1.17-3.73L10 7h5V2l-1.35 0.35z"/>
+                    </svg>
+                </button>
+            </div>
+            @{
+                var _myCountryColour = _countryColours.GetValueOrDefault(SessionState.CountryId, "#6c757d");
+            }
+            <div class="users-my-country">
+                <span class="user-dot" style="background:@_myCountryColour;"></span>
+                <span>Your country:&nbsp;<strong>@(_countryNames.GetValueOrDefault(SessionState.CountryId, $"#{SessionState.CountryId}"))</strong></span>
+            </div>
+            @if (_usersLoading)
+            {
+                <div class="users-status">Loading…</div>
+            }
+            else if (_usersError is not null)
+            {
+                <div class="users-status users-status--error">@_usersError</div>
+            }
+            else if (_users.Count == 0)
+            {
+                <div class="users-status">No users online.</div>
+            }
+            else
+            {
+                @foreach (var u in _users)
+                {
+                    <div class="user-row">
+                        <span class="user-dot" style="background:@u.Colour;"></span>
+                        <span class="user-name">@u.Name</span>
+                    </div>
+                }
+            }
+        </div>
+    }
     @if (_layerPanelOpen && _layerEntries.Count > 0)
     {
         <div class="layer-panel">
@@ -163,7 +288,7 @@
     <div class="@splashClass">
         <div class="splash-vignette"></div>
         <div class="splash-content">
-            <div class="splash-logo">MSP <em>Challenge</em></div>
+            <div class="splash-logo"><em>MSP</em> Challenge</div>
             <div class="splash-tagline">Marine Spatial Planning</div>
             <div class="splash-bar-wrap"><div class="splash-bar"></div></div>
             <div class="splash-status">@_loadingStatus</div>
@@ -180,5 +305,46 @@
             <pre class="map-error-detail">@errorDetail</pre>
         }
     </div>
+}
+
+@if (HostEnvironment.IsDevelopment())
+{
+    @if (_wsLogVisible)
+    {
+        <div class="ws-console">
+            <div class="ws-console-header">
+                <span class="ws-console-title">WebSocket Log</span>
+                <span class="ws-console-count">@_wsLog.Count msg@(_wsLog.Count == 1 ? "" : "s")</span>
+                <button class="ws-console-clear" @onclick="@(() => { lock(_wsLog) _wsLog.Clear(); _wsSelectedRaw = null; })">Clear</button>
+                <button class="ws-console-clear" @onclick="@(() => _wsLogVisible = false)" title="Hide">&#10005;</button>
+            </div>
+            @if (_wsSelectedRaw is not null)
+            {
+                <div class="ws-detail-pane">
+                    <div class="ws-detail-header">
+                        <span class="ws-detail-label">Full message</span>
+                        <button class="ws-console-clear" @onclick="@(() => _wsSelectedRaw = null)">&#10005;</button>
+                    </div>
+                    <pre class="ws-detail-body">@PrettyPrintJson(_wsSelectedRaw)</pre>
+                </div>
+            }
+            <div class="ws-console-body">
+                @foreach (var entry in _wsLog)
+                {
+                    var isSelected = entry.Raw == _wsSelectedRaw;
+                    <div class="ws-log-row @(isSelected ? "ws-log-row--selected" : "")"
+                         @onclick="@(() => _wsSelectedRaw = isSelected ? null : entry.Raw)">
+                        <span class="ws-log-time">@entry.ReceivedAt.ToString("HH:mm:ss.fff")</span>
+                        <span class="ws-log-header">@entry.HeaderName</span>
+                        <span class="ws-log-raw">@entry.Raw</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <button class="ws-console-show-btn" @onclick="@(() => _wsLogVisible = true)" title="Show WebSocket Log">WS</button>
+    }
 }
 

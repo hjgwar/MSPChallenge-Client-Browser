@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<SessionState>();
 builder.Services.AddScoped<MspApiClient>();
+builder.Services.AddScoped<GameWebSocketService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
