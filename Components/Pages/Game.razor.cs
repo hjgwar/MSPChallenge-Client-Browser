@@ -22,6 +22,8 @@ public partial class Game : IAsyncDisposable
     private bool   _popupVisible;
     private string _popupLayerName = "";
     private readonly List<(string Label, string Value)> _popupProps = new();
+    private double _popupX;
+    private double _popupY;
 
     // Sidebar panel open/close state
     private bool _layerPanelOpen  = true;
@@ -41,6 +43,15 @@ public partial class Game : IAsyncDisposable
 
     // Game start year (month 0 = Jan of this year)
     private int _gameStartYear = 2000;
+    // Total simulation months (end_month/game_end_month from Config or WS)
+    private int _gameEndMonth = 0;
+    // Simulation end year ("end" field from Game/Config, e.g. 2050)
+    private int _gameEndYear  = 0;
+
+    // Game state bar — updated from Game/Latest WS messages
+    private int    _gameCurrentMonth = 0;
+    private string _gameState        = "";   // "pause", "play", "fastforward", "setup", "end"
+    private double _eraTimeLeft      = 0;    // real-world seconds remaining in current era
 
     // Loading state
     private bool   _isLoading = true;
@@ -53,6 +64,10 @@ public partial class Game : IAsyncDisposable
     // Plans panel
     private bool _plansPanelOpen;
     private List<PlanEntry> _plans = new();
+    private int _selectedPlanId;
+    private PlanViewMode _planViewMode = PlanViewMode.AfterChanges;
+    private readonly HashSet<string> _planActivatedLayerIds  = new();
+    private readonly HashSet<string> _planReferencedLayerIds = new();
 
     // Dev console log (capped list of recent raw WS messages)
     private const int WsLogMaxEntries = 100;
@@ -182,6 +197,27 @@ public partial class Game : IAsyncDisposable
                     ? startProp.GetInt32()
                     : int.TryParse(startProp.GetString(), out var sy) ? sy : 2000;
 
+            // end: simulation end year (e.g. 2050) — the sole source for the end year
+            if (configPayload.TryGetProperty("end", out var endYearProp))
+            {
+                var raw = endYearProp.ValueKind == JsonValueKind.Number
+                    ? endYearProp.GetInt32()
+                    : int.TryParse(endYearProp.GetString(), out var ey) ? ey : 0;
+                if (raw > 0) _gameEndYear = raw;
+            }
+
+            // end_month: total simulation months (optional; used for progress bar)
+            foreach (var endKey in new[] { "end_month", "game_end_month" })
+            {
+                if (configPayload.TryGetProperty(endKey, out var endProp))
+                {
+                    var raw = endProp.ValueKind == JsonValueKind.Number
+                        ? endProp.GetInt32()
+                        : int.TryParse(endProp.GetString(), out var em) ? em : 0;
+                    if (raw > 0) { _gameEndMonth = raw; break; }
+                }
+            }
+
             // Load country id → colour mapping from the countries layer
             if (configPayload.TryGetProperty("countries", out var countriesEl) &&
                 countriesEl.GetString() is { Length: > 0 } countriesLayerName)
@@ -286,6 +322,8 @@ public partial class Game : IAsyncDisposable
 
         if (layerId is null || layerName is null) return;
 
+        List<(double NormalisedThreshold, string Label)> rasterThresholds = [];
+
         var colorProp = geoType?.ToLowerInvariant() switch
         {
             "line" or "lines"   => "lineColor",
@@ -335,22 +373,24 @@ public partial class Game : IAsyncDisposable
                     }
 
                     // Build greyscale colour map from layer_type sorted ascending by value.
-                    var rasterColorMap = new List<object>();
+                    var rasterColorMap  = new List<object>();
                     if (layer.TryGetProperty("layer_type", out var ltRaster) && ltRaster.ValueKind == JsonValueKind.Array)
                     {
                         var entries = ltRaster.EnumerateArray()
                             .Where(lt => lt.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Number)
                             .Select(lt => (
                                 threshold: lt.GetProperty("value").GetDouble(),
-                                hex: lt.TryGetProperty("polygonColor", out var pc) ? pc.GetString() ?? "#000000FF" : "#000000FF"
+                                hex: lt.TryGetProperty("polygonColor", out var pc) ? pc.GetString() ?? "#000000FF" : "#000000FF",
+                                label: lt.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : ""
                             ))
                             .OrderBy(e => e.threshold)
                             .ToList();
 
-                        foreach (var (threshold, hex) in entries)
+                        foreach (var (threshold, hex, label) in entries)
                         {
                             var normalised = threshold / entityValueMax * 255.0;
                             rasterColorMap.Add(new { value = normalised, rgba = HexToRgbaArray(hex) });
+                            rasterThresholds.Add((normalised, label));
                         }
                     }
 
@@ -457,7 +497,10 @@ public partial class Game : IAsyncDisposable
                 Visible              = visible,
                 Depth                = depth,
                 TypeDefs             = typeDefs,
-                PropertyDisplayNames = propDisplayNames
+                PropertyDisplayNames = propDisplayNames,
+                IsRaster             = string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase),
+                RasterThresholds     = rasterThresholds,
+                GeoType              = geoType ?? ""
             });
 
             var added = _layerEntries[^1];
@@ -586,21 +629,47 @@ public partial class Game : IAsyncDisposable
             var layerId = root.TryGetProperty("layerId", out var lid) ? lid.GetString() ?? "" : "";
             var entry   = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
 
+            _popupX = root.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number ? cx.GetDouble() : 0;
+            _popupY = root.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number ? cy.GetDouble() : 0;
             _popupLayerName = entry?.DisplayName ?? layerId;
             _popupProps.Clear();
 
             if (root.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object)
             {
-                foreach (var prop in props.EnumerateObject())
+                // Raster: resolve grey pixel → value category label
+                if (entry?.IsRaster == true &&
+                    props.TryGetProperty("_rasterGrey", out var greyProp) &&
+                    greyProp.ValueKind == JsonValueKind.Number &&
+                    entry.RasterThresholds.Count > 0)
                 {
-                    var label = entry?.PropertyDisplayNames.TryGetValue(prop.Name, out var dn) == true
-                        ? (string.IsNullOrWhiteSpace(dn) ? prop.Name : dn)
-                        : prop.Name;
-                    var value = prop.Value.ValueKind == JsonValueKind.String
-                        ? prop.Value.GetString() ?? ""
-                        : prop.Value.ToString();
-                    if (!string.IsNullOrWhiteSpace(value))
-                        _popupProps.Add((label, value));
+                    var grey = greyProp.GetDouble();
+                    // Find the highest threshold that does not exceed the grey value.
+                    var thresholds = entry.RasterThresholds;
+                    var matchLabel = thresholds[0].Label; // default: lowest bucket
+                    for (int i = 0; i < thresholds.Count; i++)
+                    {
+                        if (grey >= thresholds[i].NormalisedThreshold)
+                            matchLabel = thresholds[i].Label;
+                        else
+                            break;
+                    }
+                    if (!string.IsNullOrWhiteSpace(matchLabel))
+                        _popupProps.Add(("Category", matchLabel));
+                }
+                else
+                {
+                    foreach (var prop in props.EnumerateObject())
+                    {
+                        if (prop.Name.StartsWith('_')) continue; // skip internal props
+                        var label = entry?.PropertyDisplayNames.TryGetValue(prop.Name, out var dn) == true
+                            ? (string.IsNullOrWhiteSpace(dn) ? prop.Name : dn)
+                            : prop.Name;
+                        var value = prop.Value.ValueKind == JsonValueKind.String
+                            ? prop.Value.GetString() ?? ""
+                            : prop.Value.ToString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                            _popupProps.Add((label, value));
+                    }
                 }
             }
 
@@ -634,6 +703,42 @@ public partial class Game : IAsyncDisposable
 
     private void ParseGameLatest(JsonElement payload)
     {
+        // Game/Latest payload has a "tick" sub-object that holds the live game state.
+        // Fall back to top-level properties for forward-compatibility.
+        var tick = payload.TryGetProperty("tick", out var t) && t.ValueKind == JsonValueKind.Object
+            ? t : payload;
+
+        // Current month: "month" inside tick, or "game_current_month" at top level
+        var currentMonth = GetIntProp(tick, "month");
+        if (currentMonth == 0) currentMonth = GetIntProp(payload, "game_current_month");
+        if (currentMonth > 0 || tick.TryGetProperty("month", out _) || payload.TryGetProperty("game_current_month", out _))
+            _gameCurrentMonth = currentMonth;
+
+        // Game state: "state" inside tick, or "game_state" at top level
+        var gameState = GetStringProp(tick, "state") ?? GetStringProp(payload, "game_state");
+        if (gameState is not null)
+            _gameState = gameState;
+
+        // end month may also arrive via WS if not in config
+        if (_gameEndMonth == 0)
+        {
+            var endMonth = GetIntProp(payload, "game_end_month");
+            if (endMonth > 0) _gameEndMonth = endMonth;
+        }
+
+        // era_timeleft: real-world seconds remaining in current era — inside tick
+        var etlEl = tick.TryGetProperty("era_timeleft", out var e1) ? e1
+                  : payload.TryGetProperty("era_timeleft", out var e2) ? e2
+                  : default;
+        if (etlEl.ValueKind != JsonValueKind.Undefined)
+        {
+            _eraTimeLeft = etlEl.ValueKind == JsonValueKind.Number
+                ? etlEl.GetDouble()
+                : double.TryParse(etlEl.GetString(), System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : _eraTimeLeft;
+        }
+
+        // Plans
         if (!payload.TryGetProperty("plan", out var plansEl) ||
             plansEl.ValueKind != JsonValueKind.Array)
             return;
@@ -646,7 +751,56 @@ public partial class Game : IAsyncDisposable
             var country   = GetIntProp(p, "country");
             var startdate = GetIntProp(p, "startdate");
 
-            var entry = new PlanEntry(id, name, state, country, startdate);
+            // Parse plan layers and their geometry
+            var planLayers = new List<PlanLayerData>();
+            if (p.TryGetProperty("layers", out var layersEl2) && layersEl2.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var l in layersEl2.EnumerateArray())
+                {
+                    var planLayerId = GetStringProp(l, "layerid") ?? "";
+                    var originalId  = GetStringProp(l, "original") ?? "";
+                    var layerState  = GetStringProp(l, "state") ?? "";
+                    var geometries  = new List<PlanGeometryItem>();
+
+                    if (l.TryGetProperty("geometry", out var geoArr2) && geoArr2.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var g in geoArr2.EnumerateArray())
+                        {
+                            // Skip inactive geometries
+                            var activeStr = GetStringProp(g, "active") ?? "1";
+                            if (activeStr == "0") continue;
+
+                            if (g.TryGetProperty("geometry", out var coords) && coords.ValueKind == JsonValueKind.Array)
+                            {
+                                var pts = new List<double[]>();
+                                foreach (var pt in coords.EnumerateArray())
+                                {
+                                    if (pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() >= 2)
+                                        pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
+                                }
+                                if (pts.Count > 0)
+                                    geometries.Add(new PlanGeometryItem(pts));
+                            }
+                        }
+                    }
+
+                    // Parse deleted persistent geometry IDs
+                    var deletedIds = new List<string>();
+                    if (l.TryGetProperty("deleted", out var deletedEl) && deletedEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var d in deletedEl.EnumerateArray())
+                        {
+                            var dId = d.ValueKind == JsonValueKind.String ? d.GetString() : d.ToString();
+                            if (!string.IsNullOrEmpty(dId)) deletedIds.Add(dId);
+                        }
+                    }
+
+                    if (geometries.Count > 0 || deletedIds.Count > 0)
+                        planLayers.Add(new PlanLayerData(planLayerId, originalId, layerState, geometries, deletedIds));
+                }
+            }
+
+            var entry = new PlanEntry(id, name, state, country, startdate, planLayers);
             var idx   = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)
                 _plans[idx] = entry;
@@ -660,6 +814,23 @@ public partial class Game : IAsyncDisposable
             var dp = a.StartDate.CompareTo(b.StartDate);
             return dp != 0 ? dp : a.PlanId.CompareTo(b.PlanId);
         });
+    }
+
+    private string GameStateLabel => _gameState.ToLowerInvariant() switch
+    {
+        "pause"       => "Paused",
+        "play"        => "Running",
+        "fastforward" => "Fast Forward",
+        "setup"       => "Setup",
+        "end"         => "Ended",
+        _             => _gameState
+    };
+
+    /// Formats seconds as H:MM:SS (e.g. 2:00:00, 0:45:12).
+    private static string FormatTimeLeft(double totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
     private static readonly string[] OrderedPlanStates =
@@ -714,6 +885,118 @@ public partial class Game : IAsyncDisposable
         return null;
     }
 
+
+    private enum PlanViewMode { AfterChanges, Original, ChangesOnly }
+
+    private async Task SelectPlanAsync(PlanEntry plan)
+    {
+        if (_mapModule is null) return;
+
+        // Restore any base layers hidden by a previous ChangesOnly view.
+        if (_planViewMode == PlanViewMode.ChangesOnly)
+        {
+            foreach (var id in _planReferencedLayerIds)
+                if (!_planActivatedLayerIds.Contains(id))
+                    await _mapModule.InvokeVoidAsync("setLayerVisible", id, true);
+        }
+
+        // Revert layers that were activated by the previous plan selection.
+        foreach (var layerId in _planActivatedLayerIds)
+        {
+            var le = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
+            if (le is not null)
+                await ToggleLayerAsync(le, false);
+        }
+        _planActivatedLayerIds.Clear();
+        _planReferencedLayerIds.Clear();
+
+        if (_selectedPlanId == plan.PlanId)
+        {
+            // Toggling the same plan off.
+            _selectedPlanId = 0;
+            _planViewMode = PlanViewMode.AfterChanges;
+            await _mapModule.InvokeVoidAsync("clearPlanOverlay");
+            StateHasChanged();
+            return;
+        }
+
+        _selectedPlanId = plan.PlanId;
+        _planViewMode   = PlanViewMode.AfterChanges;
+
+        // Collect all referenced original layer IDs.
+        foreach (var planLayer in plan.Layers)
+            if (!string.IsNullOrEmpty(planLayer.OriginalLayerId))
+                _planReferencedLayerIds.Add(planLayer.OriginalLayerId);
+
+        // Activate any referenced base layers that are currently hidden.
+        foreach (var planLayer in plan.Layers)
+        {
+            if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
+            var le = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
+            if (le is null || le.Visible) continue;
+            await ToggleLayerAsync(le, true);
+            _planActivatedLayerIds.Add(le.LayerId);
+        }
+
+        // Build and show the plan geometry overlay.
+        var layersData = new List<object>();
+        foreach (var planLayer in plan.Layers)
+        {
+            var geoType = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType
+                       ?? InferGeoType(planLayer.Geometry);
+
+            var coords = planLayer.Geometry
+                .Select(g => g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray())
+                .ToArray();
+
+            layersData.Add(new {
+                geoType,
+                coords,
+                originalLayerId = planLayer.OriginalLayerId,
+                deletedIds      = planLayer.DeletedPersistentIds
+            });
+        }
+
+        if (layersData.Count > 0)
+            await _mapModule.InvokeVoidAsync("showPlanGeometry", JsonSerializer.Serialize(layersData));
+        else
+            _selectedPlanId = 0;
+
+        StateHasChanged();
+    }
+
+    private async Task SetPlanViewModeAsync(PlanViewMode mode)
+    {
+        if (_mapModule is null || _selectedPlanId == 0 || mode == _planViewMode) return;
+        _planViewMode = mode;
+
+        // Overlay is hidden only in Original mode.
+        await _mapModule.InvokeVoidAsync("setPlanOverlayVisible", mode != PlanViewMode.Original);
+
+        // Referenced base layers are hidden only in ChangesOnly mode.
+        bool showBase = mode != PlanViewMode.ChangesOnly;
+        foreach (var layerId in _planReferencedLayerIds)
+            await _mapModule.InvokeVoidAsync("setLayerVisible", layerId, showBase);
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Infers point/line/polygon from coordinate count when layer metadata is unavailable.
+    /// </summary>
+    private static string InferGeoType(IReadOnlyList<PlanGeometryItem> geometries)
+    {
+        if (geometries.Count == 0) return "point";
+        var pts = geometries[0].Coordinates;
+        if (pts.Count <= 1) return "point";
+        if (pts.Count > 3)
+        {
+            var first = pts[0]; var last = pts[^1];
+            if (Math.Abs(first[0] - last[0]) < 1.0 && Math.Abs(first[1] - last[1]) < 1.0)
+                return "polygon";
+        }
+        return "line";
+    }
 
     public async ValueTask DisposeAsync()
     {

@@ -11,7 +11,91 @@
 
 <div id="map" class="map-viewport"></div>
 
-@* Left-edge icon sidebar *@
+@* Right-side column: game-bar always on top, panels below *@
+@if (!_isLoading && !_loadingFading)
+{
+    var _barStartYear = _gameStartYear;
+    var _barEndYear   = _gameEndYear > 0 ? _gameEndYear : _gameStartYear + 30;
+    var _totalMonths  = _gameEndMonth > 0 ? _gameEndMonth
+                      : _gameEndYear > 0  ? (_gameEndYear - _gameStartYear) * 12
+                      : 0;
+    var _barProgress  = _totalMonths > 0
+        ? Math.Clamp((double)_gameCurrentMonth / _totalMonths * 100.0, 0, 100)
+        : 0;
+    var _barDate      = new DateTime(_gameStartYear, 1, 1).AddMonths(_gameCurrentMonth).ToString("MMMM yyyy");
+    <div class="map-right-panels">
+        <div class="game-bar">
+            <div class="game-bar-row">
+                <div class="game-bar-clock">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                </div>
+                <div class="game-bar-body">
+                    <div class="game-bar-date">@_barDate</div>
+                    <div class="game-bar-timeline">
+                        <span class="game-bar-year">@_barStartYear</span>
+                        <div class="game-bar-track">
+                            <div class="game-bar-fill" style="width:@(_barProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                            <div class="game-bar-needle" style="left:@(_barProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                        </div>
+                        <span class="game-bar-year">@_barEndYear</span>
+                    </div>
+                </div>
+                <div class="game-bar-state">
+                    <div class="game-bar-state-label">@GameStateLabel</div>
+                    <div class="game-bar-timeleft">@FormatTimeLeft(_eraTimeLeft)</div>
+                </div>
+            </div>
+            @if (_selectedPlanId != 0)
+            {
+                var _viewPlan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+                if (_viewPlan is not null)
+                {
+                    <div class="game-bar-plan-view">
+                        <div class="game-bar-plan-time">Viewing plan at time: @MonthToDate(_viewPlan.StartDate)</div>
+                        <div class="game-bar-plan-modes">
+                            <button class="plan-mode-btn @(_planViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"
+                                    title="Show original data only"
+                                    @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.Original))">
+                                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 2h8l4 4v12H4V2z"/>
+                                    <path d="M12 2v4h4"/>
+                                    <line x1="7" y1="9"  x2="13" y2="9"  stroke-width="1.1"/>
+                                    <line x1="7" y1="12" x2="13" y2="12" stroke-width="1.1"/>
+                                    <line x1="7" y1="15" x2="11" y2="15" stroke-width="1.1"/>
+                                </svg>
+                                <span>Original</span>
+                            </button>
+                            <button class="plan-mode-btn @(_planViewMode == PlanViewMode.AfterChanges ? "plan-mode-btn--active" : "")"
+                                    title="Show base data with plan changes applied"
+                                    @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.AfterChanges))">
+                                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 2h8l4 4v12H4V2z" opacity="0.65"/>
+                                    <path d="M12 2v4h4" opacity="0.65"/>
+                                    <line x1="7" y1="9"  x2="11" y2="9"  stroke-width="1.1" opacity="0.65"/>
+                                    <line x1="7" y1="12" x2="11" y2="12" stroke-width="1.1" opacity="0.65"/>
+                                    <path d="M12 2L16 6H12V2z" fill="currentColor" fill-opacity="0.75" stroke="currentColor" stroke-width="1.3"/>
+                                </svg>
+                                <span>After changes</span>
+                            </button>
+                            <button class="plan-mode-btn @(_planViewMode == PlanViewMode.ChangesOnly ? "plan-mode-btn--active" : "")"
+                                    title="Show plan changes only, without base data"
+                                    @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.ChangesOnly))">
+                                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 2h8l4 4v12H4V2z" opacity="0.22" stroke-dasharray="3,2"/>
+                                    <path d="M12 2v4h4" opacity="0.22"/>
+                                    <path d="M12 2L16 6H12V2z" fill="currentColor" fill-opacity="0.75" stroke="currentColor" stroke-width="1.4"/>
+                                </svg>
+                                <span>Changes only</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
 <nav class="map-sidebar">
     <button class="sidebar-btn" title="Home"
             @onclick="@(() => NavigationManager.NavigateTo("/"))">
@@ -67,17 +151,13 @@
 
 @* Floating panels attached to the sidebar *@
 
-@* Right-side floating panel for Plans *@
-@if (_plansPanelOpen)
-{
-    <div class="map-right-panels">
-        <div class="plans-panel">
+        @* Plans panel — inside the right-column container opened above *@
+        @if (_plansPanelOpen)
+        {
+            <div class="plans-panel">
             <div class="plans-panel-header">
                 <span class="plans-panel-title">Plans</span>
-                @if (_plans.Count > 0)
-                {
-                    <span class="plans-panel-count">@_plans.Count</span>
-                }
+                <button class="panel-close-btn" title="Close" @onclick="@(() => _plansPanelOpen = false)">&#10005;</button>
             </div>
             @{
                 bool _isPrivileged = SessionState.CountryId == 1 || SessionState.CountryId == 2;
@@ -110,7 +190,8 @@
                             var _planDotColour = (plan.Country == 1 || plan.Country == 2)
                                 ? "#ff69b4"
                                 : _countryColours.GetValueOrDefault(plan.Country, "#6c757d");
-                            <div class="plan-row">
+                            <div class="plan-row @(_selectedPlanId == plan.PlanId ? "plan-row--selected" : "")"
+                                 @onclick="@(() => SelectPlanAsync(plan))">
                                 <span class="user-dot" style="background:@_planDotColour;" title="@(_countryNames.GetValueOrDefault(plan.Country, $"Country {plan.Country}"))"></span>
                                 <span class="plan-name">@plan.Name</span>
                                 <span class="plan-date">@MonthToDate(plan.StartDate)</span>
@@ -120,6 +201,7 @@
                 </details>
             }
         </div>
+        }
     </div>
 }
 
@@ -135,6 +217,7 @@
                         <path d="M13.65 2.35A8 8 0 1 0 15 8h-1.5a6.5 6.5 0 1 1-1.17-3.73L10 7h5V2l-1.35 0.35z"/>
                     </svg>
                 </button>
+                <button class="panel-close-btn" title="Close" @onclick="@(() => _usersPanelOpen = false)">&#10005;</button>
             </div>
             @{
                 var _myCountryColour = _countryColours.GetValueOrDefault(SessionState.CountryId, "#6c757d");
@@ -170,7 +253,10 @@
     @if (_layerPanelOpen && _layerEntries.Count > 0)
     {
         <div class="layer-panel">
-            <div class="layer-panel-title">Layers</div>
+            <div class="layer-panel-title">
+                <span style="flex:1">Layers</span>
+                <button class="panel-close-btn" title="Close" @onclick="@(() => _layerPanelOpen = false)">&#10005;</button>
+            </div>
             <input class="layer-search" type="search" placeholder="Search layers…"
                    @bind="_layerSearch" @bind:event="oninput" />
             @foreach (var cat in _layerEntries
@@ -210,7 +296,10 @@
     @if (_legendPanelOpen && _legendOrder.Count > 0)
     {
         <div class="legend-panel">
-            <div class="legend-panel-title">Legend</div>
+            <div class="legend-panel-title">
+                <span style="flex:1">Legend</span>
+                <button class="panel-close-btn" title="Close" @onclick="@(() => _legendPanelOpen = false)">&#10005;</button>
+            </div>
             @for (int i = _legendOrder.Count - 1; i >= 0; i--)
             {
                 var entry = _legendOrder[i];
@@ -256,7 +345,7 @@
 
 @if (_popupVisible)
 {
-    <div class="map-popup">
+    <div class="map-popup" style="left:@(_popupX)px;top:@(_popupY)px">
         <div class="map-popup-header">
             <span class="map-popup-title">@_popupLayerName</span>
             <button class="map-popup-close" @onclick="@(() => _popupVisible = false)">&#10005;</button>

@@ -10,6 +10,24 @@ ol.proj.proj4.register(proj4);
 let map = null;
 const vectorLayers = {};  // layerId -> ol.layer.Vector
 const rasterLayers = {};  // layerId -> ol.layer.Image
+// Stores the original (pre-colormap) greyscale canvas per raster layer for click hit-testing.
+const rasterRawCanvases = {};  // layerId -> { canvas: OffscreenCanvas, extent: [minX,minY,maxX,maxY] }
+
+// Decode a data URL into an OffscreenCanvas (preserving the raw pixel data).
+function decodeToOffscreenCanvas(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const oc = new OffscreenCanvas(img.width, img.height);
+                oc.getContext('2d').drawImage(img, 0, 0);
+                resolve(oc);
+            } catch (e) { reject(e); }
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+    });
+}
 
 // ── Public exports ───────────────────────────────────────────────────────────
 
@@ -225,6 +243,13 @@ export async function addRasterLayer(layerId, imageData, projBounds, opacity, vi
         ? imageData
         : `data:image/png;base64,${imageData}`;
 
+    // Decode the original greyscale data before any colour-mapping so we can
+    // hit-test clicks against the raw grey value (not the colourised output).
+    try {
+        const rawCanvas = await decodeToOffscreenCanvas(dataUrl);
+        rasterRawCanvases[layerId] = { canvas: rawCanvas, extent };
+    } catch (_) { /* OffscreenCanvas not available or image failed – hit-test will be skipped */ }
+
     if ((colorMap && colorMap.length > 0) || minCutoff !== null) {
         dataUrl = await applyRasterColorMap(dataUrl, colorMap, minCutoff, interpolate);
     }
@@ -261,6 +286,9 @@ export function removeLayer(layerId) {
     if (rasterLayers[layerId]) {
         map.removeLayer(rasterLayers[layerId]);
         delete rasterLayers[layerId];
+    }
+    if (rasterRawCanvases[layerId]) {
+        delete rasterRawCanvases[layerId];
     }
 }
 
@@ -357,7 +385,27 @@ export function registerClickHandler(dotNetRef) {
                 if (z > topZIndex) {
                     topZIndex  = z;
                     topLayerId = id;
-                    topProps   = {};
+
+                    // Sample the raw grey value from the original (pre-colormap) offscreen canvas
+                    // using coordinate → fractional pixel math. This avoids reading the
+                    // colourised composite canvas, which would give the wrong value.
+                    let greyValue = null;
+                    const rawData = rasterRawCanvases[id];
+                    if (rawData) {
+                        const { canvas: rc, extent: re } = rawData;
+                        const [minX, minY, maxX, maxY] = re;
+                        const fracX = (coord[0] - minX) / (maxX - minX);
+                        const fracY = (coord[1] - minY) / (maxY - minY);
+                        if (fracX >= 0 && fracX <= 1 && fracY >= 0 && fracY <= 1) {
+                            // Image Y is flipped relative to map Y (image origin = top-left).
+                            const px = Math.min(Math.floor(fracX * rc.width),  rc.width  - 1);
+                            const py = Math.min(Math.floor((1 - fracY) * rc.height), rc.height - 1);
+                            const imgd = rc.getContext('2d').getImageData(px, py, 1, 1).data;
+                            if (imgd[3] > 0) greyValue = imgd[0]; // R == grey in greyscale PNG
+                        }
+                    }
+
+                    topProps = greyValue !== null ? { _rasterGrey: greyValue } : {};
                 }
             }
         }
@@ -365,7 +413,9 @@ export function registerClickHandler(dotNetRef) {
         if (topLayerId !== null) {
             _dotNetRef.invokeMethodAsync('OnMapClick', JSON.stringify({
                 layerId: topLayerId,
-                props:   topProps
+                props:   topProps,
+                clientX: evt.originalEvent.clientX,
+                clientY: evt.originalEvent.clientY
             }));
         }
     };
@@ -439,4 +489,123 @@ function hexToRgba(hex, alpha) {
     // 8-char #RRGGBBAA: use embedded alpha unless caller overrides
     const a = alpha ?? (h.length === 9 ? parseInt(h.slice(7, 9), 16) / 255 : 1);
     return `rgba(${r},${g},${b},${a})`;
+}
+
+// ── Plan geometry overlay ─────────────────────────────────────────────────────
+
+const PLAN_OVERLAY_ID = '__plan_overlay__';
+
+const planOverlayStyle = new ol.style.Style({
+    fill:   new ol.style.Fill({ color: 'rgba(255, 215, 0, 0.20)' }),
+    stroke: new ol.style.Stroke({ color: '#FFD700', width: 2.5 }),
+    image:  new ol.style.Circle({
+        radius: 7,
+        fill:   new ol.style.Fill({ color: 'rgba(255, 215, 0, 0.50)' }),
+        stroke: new ol.style.Stroke({ color: '#FFD700', width: 2 })
+    })
+});
+
+const deletionHighlightStyle = new ol.style.Style({
+    fill:   new ol.style.Fill({ color: 'rgba(220, 53, 69, 0.25)' }),
+    stroke: new ol.style.Stroke({ color: '#dc3545', width: 2.5, lineDash: [6, 4] }),
+    image:  new ol.style.Circle({
+        radius: 7,
+        fill:   new ol.style.Fill({ color: 'rgba(220, 53, 69, 0.50)' }),
+        stroke: new ol.style.Stroke({ color: '#dc3545', width: 2, lineDash: [4, 3] })
+    })
+});
+
+/** Creates an ol.style.Icon of a red circle with a white minus bar. */
+function createMinusBadgeIcon() {
+    const size = 14;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#dc3545';
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(3, size / 2 - 1.5, size - 6, 3);
+    return new ol.style.Icon({
+        img:            canvas,
+        size:           [size, size],
+        anchor:         [0, 1],        // bottom-left of icon at the point → icon appears above-right
+        anchorXUnits:   'fraction',
+        anchorYUnits:   'fraction'
+    });
+}
+
+export function showPlanGeometry(layersJson) {
+    // Remove any existing plan overlay first
+    removeLayer(PLAN_OVERLAY_ID);
+
+    const layers = JSON.parse(layersJson);
+    const features = [];
+    const minusBadge = createMinusBadgeIcon();
+
+    for (const layer of layers) {
+        const gt = (layer.geoType || 'point').toLowerCase();
+
+        // New plan geometry (additions) — gold style from layer
+        for (const coordSet of layer.coords) {
+            if (!coordSet || coordSet.length === 0) continue;
+            let olGeom;
+            if (gt === 'polygon' || gt === 'polygons') {
+                olGeom = new ol.geom.Polygon([coordSet]);
+            } else if (gt === 'line' || gt === 'lines') {
+                olGeom = new ol.geom.LineString(coordSet);
+            } else {
+                olGeom = new ol.geom.Point(coordSet[0]);
+            }
+            features.push(new ol.Feature({ geometry: olGeom }));
+        }
+
+        // Deleted geometry — look up in the base layer, highlight red + minus badge
+        if (Array.isArray(layer.deletedIds) && layer.deletedIds.length > 0) {
+            const baseLayer = vectorLayers[layer.originalLayerId];
+            if (baseLayer) {
+                const source = baseLayer.getSource();
+                for (const persistentId of layer.deletedIds) {
+                    const baseFeature = source.getFeatures()
+                        .find(f => String(f.get('mspId')) === String(persistentId));
+                    if (!baseFeature) continue;
+
+                    const geom = baseFeature.getGeometry();
+                    if (!geom) continue;
+
+                    // Red dashed highlight over the geometry
+                    const deletedGeomFeature = new ol.Feature({ geometry: geom.clone() });
+                    deletedGeomFeature.setStyle(deletionHighlightStyle);
+                    features.push(deletedGeomFeature);
+
+                    // Minus badge placed at the geometry's bounding-box centre
+                    const center = ol.extent.getCenter(geom.getExtent());
+                    const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center) });
+                    badgeFeature.setStyle(new ol.style.Style({ image: minusBadge }));
+                    features.push(badgeFeature);
+                }
+            }
+        }
+    }
+
+    if (features.length === 0) return;
+
+    const overlayLayer = new ol.layer.Vector({
+        source: new ol.source.Vector({ features }),
+        style:  feature => feature.getStyle() ?? planOverlayStyle,
+        zIndex: 99999
+    });
+
+    map.addLayer(overlayLayer);
+    vectorLayers[PLAN_OVERLAY_ID] = overlayLayer;
+}
+
+export function clearPlanOverlay() {
+    removeLayer(PLAN_OVERLAY_ID);
+}
+
+export function setPlanOverlayVisible(visible) {
+    const layer = vectorLayers[PLAN_OVERLAY_ID];
+    if (layer) layer.setVisible(visible);
 }

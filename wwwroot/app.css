@@ -384,12 +384,15 @@ html, body {
 /* Container for panels that float on the right edge */
 .map-right-panels {
     position: fixed;
-    right: 1rem;
-    top: 1rem;
+    right: 0.75rem;
+    top: 0.6rem;
     z-index: 9000;
-    width: 300px;
-    max-height: calc(100vh - 2rem);
+    width: 260px;
+    max-height: calc(100vh - 1.2rem);
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 /* Shared text baseline for all panels */
@@ -402,7 +405,7 @@ html, body {
 
 /* Online users panel */
 .users-panel {
-    background: rgba(33, 37, 41, 0.88);
+    background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem 0.6rem;
@@ -457,6 +460,27 @@ html, body {
     height: 12px;
 }
 
+.panel-close-btn {
+    background: none;
+    border: none;
+    color: #adb5bd;
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: 0.25rem;
+}
+
+.panel-close-btn:hover {
+    color: #dee2e6;
+    background: rgba(255,255,255,0.08);
+}
+
 .user-row {
     display: flex;
     align-items: center;
@@ -480,7 +504,7 @@ html, body {
 }
 
 .users-status {
-    color: #6c757d;
+    color: #adb5bd;
     font-size: 0.75rem;
     padding: 0.2rem 0;
 }
@@ -501,7 +525,7 @@ html, body {
 
 /* Plans panel */
 .plans-panel {
-    background: rgba(33, 37, 41, 0.88);
+    background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem 0.6rem;
@@ -513,7 +537,6 @@ html, body {
     resize: vertical;
     backdrop-filter: blur(4px);
     box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    margin-bottom: 0.5rem;
 }
 
 .plans-panel-header {
@@ -547,6 +570,19 @@ html, body {
     gap: 0.4rem;
     padding: 0.22rem 0;
     border-bottom: 1px solid rgba(255,255,255,0.05);
+    cursor: pointer;
+}
+
+.plan-row:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.plan-row--selected {
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.plan-row--selected .plan-name {
+    color: #FFD700;
 }
 
 .plan-row:last-child {
@@ -564,7 +600,7 @@ html, body {
 .plan-date {
     flex-shrink: 0;
     font-size: 0.7rem;
-    color: #6c757d;
+    color: #adb5bd;
     white-space: nowrap;
 }
 
@@ -586,7 +622,7 @@ html, body {
 .plan-state--rejected    { background: rgba(220,53,69,0.25);  color: #f08080; }
 
 .plans-status {
-    color: #6c757d;
+    color: #adb5bd;
     font-size: 0.75rem;
     padding: 0.2rem 0;
 }
@@ -636,13 +672,13 @@ html, body {
 .plans-empty-state {
     padding: 0.15rem 0.6rem 0.25rem;
     font-size: 0.68rem;
-    color: #495057;
+    color: #adb5bd;
     font-style: italic;
 }
 
 /* Layer selection panel */
 .layer-panel {
-    background: rgba(33, 37, 41, 0.88);
+    background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem 0.6rem;
@@ -666,6 +702,8 @@ html, body {
     margin-bottom: 0.4rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px solid rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
 }
 
 .layer-search {
@@ -752,7 +790,7 @@ html, body {
 .layer-sub-header {
     font-weight: 500;
     font-size: 0.68rem;
-    color: #868e96;
+    color: #adb5bd;
     padding-left: 0.5rem;
 }
 
@@ -769,7 +807,7 @@ html, body {
 
 /* Legend panel – sits below the layer panel inside .map-panel-stack */
 .legend-panel {
-    background: rgba(33, 37, 41, 0.88);
+    background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem 0.6rem;
@@ -792,6 +830,8 @@ html, body {
     margin-bottom: 0.35rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px solid rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
 }
 
 .legend-layer {
@@ -820,7 +860,7 @@ html, body {
 }
 
 .legend-layer-name {
-    color: #dee2e6;
+    color: #adb5bd;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -851,7 +891,7 @@ html, body {
 .legend-hide-btn {
     background: none;
     border: none;
-    color: #6c757d;
+    color: #adb5bd;
     font-size: 0.75rem;
     line-height: 1;
     padding: 4px 6px;
@@ -909,14 +949,11 @@ html, body {
 /* Map properties popup – bottom-right floating card */
 .map-popup {
     position: fixed;
-    bottom: 1rem;
-    right: 1rem;
     z-index: 9100;
-    background: rgba(33, 37, 41, 0.92);
+    background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
     border-radius: 0.5rem;
-    min-width: 200px;
-    max-width: 340px;
+    width: 260px;
     max-height: 60vh;
     display: flex;
     flex-direction: column;
@@ -951,7 +988,7 @@ html, body {
 .map-popup-close {
     background: none;
     border: none;
-    color: #6c757d;
+    color: #adb5bd;
     font-size: 0.65rem;
     line-height: 1;
     padding: 2px 4px;
@@ -971,7 +1008,7 @@ html, body {
 }
 
 .map-popup-empty {
-    color: #6c757d;
+    color: #adb5bd;
     font-style: italic;
     padding: 0.25rem 0;
 }
@@ -1005,7 +1042,180 @@ html, body {
     border-top: 1px solid rgba(255,255,255,0.06);
 }
 
-a, .btn-link {
+/* ── Game state bar ──────────────────────────────────────────────────────── */
+.game-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: rgba(33, 37, 41, 0.65);
+    backdrop-filter: blur(4px);
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.9rem 0.45rem 0.65rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    color: #f8f9fa;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.game-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.game-bar-plan-view {
+    border-top: 1px solid rgba(255,255,255,0.10);
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.game-bar-plan-time {
+    font-size: 0.7rem;
+    color: #adb5bd;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.game-bar-plan-modes {
+    display: flex;
+    gap: 0.35rem;
+    width: 100%;
+}
+
+.plan-mode-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.3rem 0.3rem 0.28rem;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.35rem;
+    color: #adb5bd;
+    cursor: pointer;
+    font-size: 0.59rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.plan-mode-btn svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.plan-mode-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #dee2e6;
+    border-color: rgba(255,255,255,0.22);
+}
+
+.plan-mode-btn--active {
+    background: rgba(255, 215, 0, 0.14);
+    border-color: rgba(255, 215, 0, 0.45);
+    color: #FFD700;
+}
+
+.game-bar-clock {
+    flex-shrink: 0;
+    color: #adb5bd;
+    display: flex;
+    align-items: center;
+}
+
+.game-bar-clock svg {
+    width: 28px;
+    height: 28px;
+}
+
+.game-bar-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.game-bar-date {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #f8f9fa;
+    text-align: center;
+    letter-spacing: 0.01em;
+}
+
+.game-bar-timeline {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.game-bar-year {
+    font-size: 0.68rem;
+    color: #adb5bd;
+    flex-shrink: 0;
+}
+
+.game-bar-track {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 2px;
+    position: relative;
+}
+
+.game-bar-fill {
+    height: 100%;
+    background: rgba(116,192,252,0.6);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.game-bar-needle {
+    position: absolute;
+    top: -4px;
+    width: 2px;
+    height: 12px;
+    background: #74c0fc;
+    border-radius: 1px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.game-bar-state {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    min-width: 4.5rem;
+}
+
+.game-bar-state-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #adb5bd;
+}
+
+.game-bar-timeleft {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #f8f9fa;
+    font-variant-numeric: tabular-nums;
+}
+
+
     color: #006bb7;
 }
 
@@ -1061,3 +1271,4 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+

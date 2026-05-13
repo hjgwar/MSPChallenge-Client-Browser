@@ -15,4 +15,12 @@ internal sealed class LayerEntry
     public int    Depth       { get; init; }
     public IReadOnlyList<TypeDef> TypeDefs { get; init; } = [];
     public IReadOnlyDictionary<string, string> PropertyDisplayNames { get; init; } = new Dictionary<string, string>();
+
+    // Raster-specific: normalised thresholds (0–255) paired with display labels, sorted ascending.
+    // Non-empty only for raster layers.
+    public bool IsRaster { get; init; }
+    public IReadOnlyList<(double NormalisedThreshold, string Label)> RasterThresholds { get; init; } = [];
+
+    // The geometry type of this layer: "polygon", "line", "point", "raster", etc.
+    public string GeoType { get; init; } = "";
 }
