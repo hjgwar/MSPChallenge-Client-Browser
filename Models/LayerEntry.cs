@@ -23,4 +23,7 @@ internal sealed class LayerEntry
 
     // The geometry type of this layer: "polygon", "line", "point", "raster", etc.
     public string GeoType { get; init; } = "";
+
+    // Number of months of construction (ASSEMBLY state time); 0 means no construction phase.
+    public int AssemblyTime { get; init; }
 }

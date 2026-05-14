@@ -40,6 +40,18 @@
                         <div class="game-bar-track">
                             <div class="game-bar-fill" style="width:@(_barProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
                             <div class="game-bar-needle" style="left:@(_barProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
+                            @if (_selectedPlanId != 0)
+                            {
+                                var _planForNeedle = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+                                var _planTotalMonths = _gameEndMonth > 0 ? _gameEndMonth
+                                    : _gameEndYear > 0 ? (_gameEndYear - _gameStartYear) * 12 : 0;
+                                if (_planForNeedle is not null && _planTotalMonths > 0)
+                                {
+                                    var _planNeedlePct = Math.Clamp((double)_planForNeedle.StartDate / _planTotalMonths * 100.0, 0, 100);
+                                    <div class="game-bar-plan-needle" style="left:@(_planNeedlePct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"
+                                         title="Plan time: @MonthToDate(_planForNeedle.StartDate)"></div>
+                                }
+                            }
                         </div>
                         <span class="game-bar-year">@_barEndYear</span>
                     </div>
@@ -55,7 +67,14 @@
                 if (_viewPlan is not null)
                 {
                     <div class="game-bar-plan-view">
-                        <div class="game-bar-plan-time">Viewing plan at time: @MonthToDate(_viewPlan.StartDate)</div>
+                        <div class="game-bar-plan-time">
+                            <svg class="game-bar-plan-eye" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" xmlns="http://www.w3.org/2000/svg">
+                                <ellipse cx="10" cy="10" rx="8" ry="5"/>
+                                <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none"/>
+                            </svg>
+                            <span class="game-bar-plan-time-label">Viewing plan</span>
+                            <span class="game-bar-plan-time-date">@MonthToDate(_viewPlan.StartDate)</span>
+                        </div>
                         <div class="game-bar-plan-modes">
                             <button class="plan-mode-btn @(_planViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"
                                     title="Show original data only"
@@ -151,57 +170,146 @@
 
 @* Floating panels attached to the sidebar *@
 
-        @* Plans panel — inside the right-column container opened above *@
-        @if (_plansPanelOpen)
+        @* Plan detail panel — shown when a plan is selected *@
+        @if (_selectedPlanId != 0)
         {
-            <div class="plans-panel">
-            <div class="plans-panel-header">
-                <span class="plans-panel-title">Plans</span>
-                <button class="panel-close-btn" title="Close" @onclick="@(() => _plansPanelOpen = false)">&#10005;</button>
-            </div>
-            @{
-                bool _isPrivileged = SessionState.CountryId == 1 || SessionState.CountryId == 2;
-                var _visiblePlans = _plans
-                    .Where(p => _isPrivileged || p.StartDate != -1)
-                    .Where(p => _isPrivileged || p.State.ToUpperInvariant() != "DESIGN" || p.Country == SessionState.CountryId)
-                    .GroupBy(p => p.State.ToUpperInvariant())
-                    .ToDictionary(g => g.Key, g => g.ToList());
-            }
-            @if (!_isPrivileged && _plans.Count == 0)
+            var _detailPlan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+            if (_detailPlan is not null)
             {
-                <div class="plans-status">Waiting for game data…</div>
-            }
-            @foreach (var state in OrderedPlanStates)
-            {
-                var _statePlans = _visiblePlans.GetValueOrDefault(state, []);
-                <details class="plan-group" open>
-                    <summary class="plan-group-header">
-                        @PlanStateLabel(state)
-                        <span class="plan-group-count">@_statePlans.Count</span>
-                    </summary>
-                    @if (_statePlans.Count == 0)
-                    {
-                        <div class="plans-empty-state">No plans in this state</div>
-                    }
-                    else
-                    {
-                        @foreach (var plan in _statePlans)
-                        {
-                            var _planDotColour = (plan.Country == 1 || plan.Country == 2)
-                                ? "#ff69b4"
-                                : _countryColours.GetValueOrDefault(plan.Country, "#6c757d");
-                            <div class="plan-row @(_selectedPlanId == plan.PlanId ? "plan-row--selected" : "")"
-                                 @onclick="@(() => SelectPlanAsync(plan))">
-                                <span class="user-dot" style="background:@_planDotColour;" title="@(_countryNames.GetValueOrDefault(plan.Country, $"Country {plan.Country}"))"></span>
-                                <span class="plan-name">@plan.Name</span>
-                                <span class="plan-date">@MonthToDate(plan.StartDate)</span>
+                var _detailLayers = _detailPlan.Layers
+                    .Select(l => _layerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
+                    .OfType<string>()
+                    .Distinct()
+                    .ToList();
+                <div class="plan-detail-panel">
+                    <div class="plan-detail-header">
+                        <span class="plan-detail-title">@_detailPlan.Name</span>
+                        <button class="panel-close-btn" title="Close"
+                                @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
+                    </div>
+                    <details class="plan-detail-section" open>
+                        <summary class="plan-detail-section-hdr">Plan Info</summary>
+                        <div class="plan-detail-section-body">
+                            <div class="plan-detail-info-row">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                    <circle cx="8" cy="8" r="6.5"/>
+                                    <polyline points="8,4.5 8,8 10.5,9.5"/>
+                                </svg>
+                                <span>@MonthToDate(_detailPlan.StartDate)</span>
                             </div>
-                        }
+                            @if (_detailPlan.ConstructionTime > 0)
+                            {
+                                <div class="plan-detail-info-row">
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                        <rect x="2" y="3" width="12" height="11" rx="1"/>
+                                        <line x1="5" y1="1.5" x2="5" y2="4.5"/>
+                                        <line x1="11" y1="1.5" x2="11" y2="4.5"/>
+                                        <line x1="2" y1="6.5" x2="14" y2="6.5"/>
+                                    </svg>
+                                    <span>after @_detailPlan.ConstructionTime months construction.</span>
+                                </div>
+                            }
+                            <div class="plan-detail-info-row">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                    <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
+                                    <path d="M2 4l6-2 6 2"/>
+                                </svg>
+                                <span>Plan state: @PlanStateLabel(_detailPlan.State)</span>
+                            </div>
+                        </div>
+                    </details>
+                    @if (_detailPlan.PolicyNames.Count > 0)
+                    {
+                        <details class="plan-detail-section" open>
+                            <summary class="plan-detail-section-hdr">Policies</summary>
+                            <div class="plan-detail-section-body">
+                                @foreach (var pname in _detailPlan.PolicyNames)
+                                {
+                                    <div class="plan-detail-item-row">
+                                        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                            <path d="M8 1l1.5 3.5H13l-2.8 2 1 3.5L8 8l-3.2 2 1-3.5L3 5h3.5L8 1z"/>
+                                        </svg>
+                                        <span>@pname</span>
+                                    </div>
+                                }
+                            </div>
+                        </details>
                     }
-                </details>
+                    @if (_detailLayers.Count > 0)
+                    {
+                        <details class="plan-detail-section" open>
+                            <summary class="plan-detail-section-hdr">Data Layers</summary>
+                            <div class="plan-detail-section-body">
+                                @foreach (var lname in _detailLayers)
+                                {
+                                    <div class="plan-detail-item-row">
+                                        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" opacity="0.8">
+                                            <path d="M8 1l7 3.5-7 3.5L1 4.5 8 1z"/>
+                                            <path d="M1 8.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                                        </svg>
+                                        <span>@lname</span>
+                                    </div>
+                                }
+                            </div>
+                        </details>
+                    }
+                    <button class="plan-edit-btn">Enter Edit Mode</button>
+                </div>
             }
-        </div>
         }
+
+    </div>
+}
+
+@* Plans panel — free-floating, draggable, centred on first open *@
+@if (!_isLoading && !_loadingFading && _plansPanelOpen)
+{
+    <div class="plans-panel" id="plans-panel-float">
+    <div class="plans-panel-header plans-panel-drag-handle">
+        <span class="plans-panel-title">Plans</span>
+        <button class="panel-close-btn" title="Close" @onclick="@(() => _plansPanelOpen = false)">&#10005;</button>
+    </div>
+    @{
+        bool _isPrivileged = SessionState.CountryId == 1 || SessionState.CountryId == 2;
+        var _visiblePlans = _plans
+            .Where(p => _isPrivileged || p.StartDate != -1)
+            .Where(p => _isPrivileged || p.State.ToUpperInvariant() != "DESIGN" || p.Country == SessionState.CountryId)
+            .GroupBy(p => p.State.ToUpperInvariant())
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+    @if (!_isPrivileged && _plans.Count == 0)
+    {
+        <div class="plans-status">Waiting for game data…</div>
+    }
+    @foreach (var state in OrderedPlanStates)
+    {
+        var _statePlans = _visiblePlans.GetValueOrDefault(state, []);
+        <details class="plan-group" open>
+            <summary class="plan-group-header">
+                @PlanStateLabel(state)
+                <span class="plan-group-count">@_statePlans.Count</span>
+            </summary>
+            @if (_statePlans.Count == 0)
+            {
+                <div class="plans-empty-state">No plans in this state</div>
+            }
+            else
+            {
+                @foreach (var plan in _statePlans)
+                {
+                    var _planDotColour = (plan.Country == 1 || plan.Country == 2)
+                        ? "#ff69b4"
+                        : _countryColours.GetValueOrDefault(plan.Country, "#6c757d");
+                    <div class="plan-row @(_selectedPlanId == plan.PlanId ? "plan-row--selected" : "")"
+                         @onclick="@(() => SelectPlanAsync(plan))">
+                        <span class="user-dot" style="background:@_planDotColour;" title="@(_countryNames.GetValueOrDefault(plan.Country, $"Country {plan.Country}"))"></span>
+                        <span class="plan-name">@plan.Name</span>
+                        <span class="plan-date">@MonthToDate(plan.StartDate)</span>
+                    </div>
+                }
+            }
+        </details>
+    }
     </div>
 }
 

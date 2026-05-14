@@ -73,7 +73,7 @@ public partial class Game : IAsyncDisposable
     private const int WsLogMaxEntries = 100;
     private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = new();
     private string? _wsSelectedRaw;
-    private bool    _wsLogVisible = true;
+    private bool    _wsLogVisible = false;
 
     private static string PrettyPrintJson(string raw)
     {
@@ -331,12 +331,28 @@ public partial class Game : IAsyncDisposable
             _                   => "polygonColor"
         };
         var typeColors = new List<string>();
-        if (layer.TryGetProperty("layer_type", out var ltArr) && ltArr.ValueKind == JsonValueKind.Array)
+        if (layer.TryGetProperty("layer_type", out var ltEl))
         {
-            foreach (var lt in ltArr.EnumerateArray())
+            if (ltEl.ValueKind == JsonValueKind.Array)
             {
-                var c = lt.TryGetProperty(colorProp, out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
-                typeColors.Add(c);
+                // Array form: [{polygonColor:"#...", ...}, ...]
+                foreach (var lt in ltEl.EnumerateArray())
+                {
+                    var c = lt.TryGetProperty(colorProp, out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
+                    typeColors.Add(c);
+                }
+            }
+            else if (ltEl.ValueKind == JsonValueKind.Object)
+            {
+                // Object form: {"0": {polygonColor:"#...", ...}, "1": {...}, ...} — iterate by numeric key order
+                var entries = new SortedDictionary<int, string>();
+                foreach (var kv in ltEl.EnumerateObject())
+                {
+                    if (!int.TryParse(kv.Name, out var idx)) continue;
+                    var c = kv.Value.TryGetProperty(colorProp, out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
+                    entries[idx] = c;
+                }
+                foreach (var c in entries.Values) typeColors.Add(c);
             }
         }
         if (typeColors.Count == 0) typeColors.Add("#3388ff");
@@ -458,9 +474,17 @@ public partial class Game : IAsyncDisposable
             var layerMediaUrl = ResolveWikiUrl(layerMedia);
 
             var typeDefs = new List<TypeDef>();
-            if (layer.TryGetProperty("layer_type", out var ltDefArr) && ltDefArr.ValueKind == JsonValueKind.Array)
+            if (layer.TryGetProperty("layer_type", out var ltDefEl))
             {
-                foreach (var td in ltDefArr.EnumerateArray())
+                IEnumerable<JsonElement> typeDefItems = ltDefEl.ValueKind switch
+                {
+                    JsonValueKind.Array  => ltDefEl.EnumerateArray(),
+                    JsonValueKind.Object => ltDefEl.EnumerateObject()
+                                               .OrderBy(kv => int.TryParse(kv.Name, out var n) ? n : int.MaxValue)
+                                               .Select(kv => kv.Value),
+                    _                    => []
+                };
+                foreach (var td in typeDefItems)
                 {
                     var label      = td.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
                     var col        = td.TryGetProperty(colorProp,     out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
@@ -500,7 +524,8 @@ public partial class Game : IAsyncDisposable
                 PropertyDisplayNames = propDisplayNames,
                 IsRaster             = string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase),
                 RasterThresholds     = rasterThresholds,
-                GeoType              = geoType ?? ""
+                GeoType              = geoType ?? "",
+                AssemblyTime         = ParseAssemblyTime(layer)
             });
 
             var added = _layerEntries[^1];
@@ -512,6 +537,24 @@ public partial class Game : IAsyncDisposable
             errorDetail = (errorDetail ?? "") + $"\nLayer {layerName}: {ex.Message}";
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// Reads the layer_states array and returns the "time" value of the ASSEMBLY state entry (0 if absent).
+    /// </summary>
+    private static int ParseAssemblyTime(JsonElement layer)
+    {
+        if (!layer.TryGetProperty("layer_states", out var statesEl) ||
+            statesEl.ValueKind != JsonValueKind.Array)
+            return 0;
+
+        foreach (var s in statesEl.EnumerateArray())
+        {
+            var stateName = GetStringProp(s, "state");
+            if (string.Equals(stateName, "ASSEMBLY", StringComparison.OrdinalIgnoreCase))
+                return GetIntProp(s, "time");
+        }
+        return 0;
     }
 
     private async Task ToggleLayerAsync(LayerEntry entry, bool visible)
@@ -779,7 +822,11 @@ public partial class Game : IAsyncDisposable
                                         pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
                                 }
                                 if (pts.Count > 0)
-                                    geometries.Add(new PlanGeometryItem(pts));
+                                {
+                                    var geoId     = GetStringProp(g, "id")         ?? "";
+                                    var persId    = GetStringProp(g, "persistent") ?? "";
+                                    geometries.Add(new PlanGeometryItem(pts, geoId, persId));
+                                }
                             }
                         }
                     }
@@ -795,12 +842,38 @@ public partial class Game : IAsyncDisposable
                         }
                     }
 
-                    if (geometries.Count > 0 || deletedIds.Count > 0)
-                        planLayers.Add(new PlanLayerData(planLayerId, originalId, layerState, geometries, deletedIds));
+                    // Always add every referenced layer so construction time and base-layer lookups work
+                    // even for layers that carry no geometry or deletion data in this payload.
+                    planLayers.Add(new PlanLayerData(planLayerId, originalId, layerState, geometries, deletedIds));
                 }
             }
 
-            var entry = new PlanEntry(id, name, state, country, startdate, planLayers);
+            // Construction time: max ASSEMBLY time across all referenced base layers.
+            var constructionTime = planLayers
+                .Select(l => _layerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.AssemblyTime ?? 0)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            // Policies: map policy_type to a human-readable display name.
+            var policyNames = new List<string>();
+            if (p.TryGetProperty("policies", out var polEl) && polEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var pol in polEl.EnumerateArray())
+                {
+                    var ptype = GetStringProp(pol, "policy_type")?.ToLowerInvariant();
+                    var display = ptype switch
+                    {
+                        "fishing"  => "Fishing Effort",
+                        "energy"   => "Energy Distribution",
+                        "shipping" => "Shipping Safety Zones",
+                        _          => null
+                    };
+                    if (display is not null && !policyNames.Contains(display))
+                        policyNames.Add(display);
+                }
+            }
+
+            var entry = new PlanEntry(id, name, state, country, startdate, constructionTime, policyNames, planLayers);
             var idx   = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)
                 _plans[idx] = entry;
@@ -945,13 +1018,16 @@ public partial class Game : IAsyncDisposable
             var geoType = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType
                        ?? InferGeoType(planLayer.Geometry);
 
-            var coords = planLayer.Geometry
-                .Select(g => g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray())
+            var geometries = planLayer.Geometry
+                .Select(g => new {
+                    coords = g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
+                    isNew  = string.IsNullOrEmpty(g.PersistentId) || g.Id == g.PersistentId
+                })
                 .ToArray();
 
             layersData.Add(new {
                 geoType,
-                coords,
+                geometries,
                 originalLayerId = planLayer.OriginalLayerId,
                 deletedIds      = planLayer.DeletedPersistentIds
             });
@@ -959,8 +1035,7 @@ public partial class Game : IAsyncDisposable
 
         if (layersData.Count > 0)
             await _mapModule.InvokeVoidAsync("showPlanGeometry", JsonSerializer.Serialize(layersData));
-        else
-            _selectedPlanId = 0;
+        // No else: plans without geometry changes are still selectable (detail panel still shows).
 
         StateHasChanged();
     }
@@ -984,6 +1059,13 @@ public partial class Game : IAsyncDisposable
     /// <summary>
     /// Infers point/line/polygon from coordinate count when layer metadata is unavailable.
     /// </summary>
+    private async Task ClosePlanDetailAsync()
+    {
+        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        if (plan is not null)
+            await SelectPlanAsync(plan);
+    }
+
     private static string InferGeoType(IReadOnlyList<PlanGeometryItem> geometries)
     {
         if (geometries.Count == 0) return "point";

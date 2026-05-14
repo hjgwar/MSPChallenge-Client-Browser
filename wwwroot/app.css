@@ -387,12 +387,18 @@ html, body {
     right: 0.75rem;
     top: 0.6rem;
     z-index: 9000;
-    width: 260px;
+    width: 360px;
     max-height: calc(100vh - 1.2rem);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+}
+
+/* Narrower panels inside the wider right-panels container, aligned to the right */
+.map-right-panels > .plan-detail-panel {
+    width: 260px;
+    align-self: flex-end;
 }
 
 /* Shared text baseline for all panels */
@@ -523,20 +529,41 @@ html, body {
     color: #adb5bd;
 }
 
-/* Plans panel */
+/* Plans panel — free-floating, centred by default, draggable via header */
 .plans-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 8000;
+    width: 340px;
+    height: 50vh;
+    min-height: 120px;
+    min-width: 240px;
+    max-height: 80vh;
+    box-sizing: border-box;
+    overflow-y: auto;
+    resize: both;
     background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem 0.6rem;
-    width: 100%;
-    box-sizing: border-box;
-    height: 40vh;
-    min-height: 2.5rem;
-    overflow-y: auto;
-    resize: vertical;
-    backdrop-filter: blur(4px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.60);
+}
+
+/* Once the panel has been dragged, JS removes transform and sets explicit left/top */
+.plans-panel--dragged {
+    transform: none;
+}
+
+.plans-panel-drag-handle {
+    cursor: grab;
+    user-select: none;
+}
+
+.plans-panel-drag-handle:active {
+    cursor: grabbing;
 }
 
 .plans-panel-header {
@@ -1074,10 +1101,34 @@ html, body {
 }
 
 .game-bar-plan-time {
-    font-size: 0.7rem;
-    color: #adb5bd;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     white-space: nowrap;
-    text-align: center;
+    justify-content: center;
+}
+
+.game-bar-plan-eye {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    color: #FFD700;
+    opacity: 0.9;
+}
+
+.game-bar-plan-time-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #adb5bd;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.game-bar-plan-time-date {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #FFD700;
+    letter-spacing: 0.02em;
 }
 
 .game-bar-plan-modes {
@@ -1191,6 +1242,18 @@ html, body {
     pointer-events: none;
 }
 
+.game-bar-plan-needle {
+    position: absolute;
+    top: -5px;
+    width: 2px;
+    height: 14px;
+    background: #FFD700;
+    border-radius: 1px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.6);
+}
+
 .game-bar-state {
     flex-shrink: 0;
     display: flex;
@@ -1213,6 +1276,125 @@ html, body {
     font-weight: 600;
     color: #f8f9fa;
     font-variant-numeric: tabular-nums;
+}
+
+/* ── Plan detail panel ───────────────────────────────────────────────────── */
+.plan-detail-panel {
+    background: rgba(33, 37, 41, 0.65);
+    color: #f8f9fa;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+    font-size: 0.8125rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    max-height: 70vh;
+}
+
+.plan-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.55rem 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    flex-shrink: 0;
+}
+
+.plan-detail-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #f8f9fa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-detail-section {
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    overflow: hidden;
+}
+
+.plan-detail-section:last-of-type {
+    border-bottom: none;
+}
+
+.plan-detail-section-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.32rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #adb5bd;
+    background: rgba(255,255,255,0.055);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+
+.plan-detail-section-hdr::-webkit-details-marker { display: none; }
+
+.plan-detail-section[open] > .plan-detail-section-hdr::after {
+    content: '▲';
+    font-size: 0.55rem;
+    opacity: 0.6;
+}
+
+.plan-detail-section:not([open]) > .plan-detail-section-hdr::after {
+    content: '▼';
+    font-size: 0.55rem;
+    opacity: 0.6;
+}
+
+.plan-detail-section-body {
+    padding: 0.35rem 0.75rem 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+}
+
+.plan-detail-info-row,
+.plan-detail-item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: #dee2e6;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.plan-detail-icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    color: #adb5bd;
+}
+
+.plan-detail-panel > .plan-edit-btn {
+    display: block;
+    width: calc(100% - 1.5rem);
+    margin: 0.55rem 0.75rem;
+    padding: 0.45rem 0;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.35rem;
+    color: #dee2e6;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+
+.plan-detail-panel > .plan-edit-btn:hover {
+    background: rgba(255,255,255,0.13);
+    border-color: rgba(255,255,255,0.28);
+    color: #f8f9fa;
 }
 
 

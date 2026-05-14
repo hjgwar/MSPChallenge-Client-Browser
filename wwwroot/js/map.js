@@ -515,6 +515,63 @@ const deletionHighlightStyle = new ol.style.Style({
     })
 });
 
+/** Creates an ol.style.Icon of a green circle with a white plus sign. */
+function createPlusBadgeIcon() {
+    const size = 14;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#28a745';
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(3, size / 2 - 1.5, size - 6, 3);   // horizontal bar
+    ctx.fillRect(size / 2 - 1.5, 3, 3, size - 6);   // vertical bar
+    return new ol.style.Icon({
+        img:          canvas,
+        size:         [size, size],
+        anchor:       [0, 1],
+        anchorXUnits: 'fraction',
+        anchorYUnits: 'fraction'
+    });
+}
+
+/** Creates an ol.style.Icon of an orange circle with a white pencil. */
+function createEditBadgeIcon() {
+    const size = 14;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fd7e14';
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = 1.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    // Pencil shaft
+    ctx.beginPath();
+    ctx.moveTo(10, 3.5);
+    ctx.lineTo(4.5, 9);
+    ctx.stroke();
+    // Pencil tip (small triangle)
+    ctx.beginPath();
+    ctx.moveTo(4.5, 9);
+    ctx.lineTo(3.5, 11);
+    ctx.lineTo(5.5, 10.5);
+    ctx.closePath();
+    ctx.stroke();
+    return new ol.style.Icon({
+        img:          canvas,
+        size:         [size, size],
+        anchor:       [0, 1],
+        anchorXUnits: 'fraction',
+        anchorYUnits: 'fraction'
+    });
+}
+
 /** Creates an ol.style.Icon of a red circle with a white minus bar. */
 function createMinusBadgeIcon() {
     const size = 14;
@@ -543,12 +600,15 @@ export function showPlanGeometry(layersJson) {
     const layers = JSON.parse(layersJson);
     const features = [];
     const minusBadge = createMinusBadgeIcon();
+    const plusBadge  = createPlusBadgeIcon();
+    const editBadge  = createEditBadgeIcon();
 
     for (const layer of layers) {
         const gt = (layer.geoType || 'point').toLowerCase();
 
-        // New plan geometry (additions) — gold style from layer
-        for (const coordSet of layer.coords) {
+        // New/altered plan geometry — gold style, with plus or edit badge
+        for (const geo of (layer.geometries ?? [])) {
+            const coordSet = geo.coords;
             if (!coordSet || coordSet.length === 0) continue;
             let olGeom;
             if (gt === 'polygon' || gt === 'polygons') {
@@ -559,6 +619,13 @@ export function showPlanGeometry(layersJson) {
                 olGeom = new ol.geom.Point(coordSet[0]);
             }
             features.push(new ol.Feature({ geometry: olGeom }));
+
+            // Badge placed at the bounding-box centre of the geometry
+            const badge  = geo.isNew ? plusBadge : editBadge;
+            const center = ol.extent.getCenter(olGeom.getExtent());
+            const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center) });
+            badgeFeature.setStyle(new ol.style.Style({ image: badge }));
+            features.push(badgeFeature);
         }
 
         // Deleted geometry — look up in the base layer, highlight red + minus badge
@@ -609,3 +676,73 @@ export function setPlanOverlayVisible(visible) {
     const layer = vectorLayers[PLAN_OVERLAY_ID];
     if (layer) layer.setVisible(visible);
 }
+
+// ── Draggable floating panels ─────────────────────────────────────────────────
+
+/**
+ * Make a panel element draggable via a handle child that has the
+ * `plans-panel-drag-handle` class.  Called automatically by the
+ * MutationObserver set up in initMap.
+ */
+function initPanelDrag(panel) {
+    if (panel._dragInitialized) return;
+    panel._dragInitialized = true;
+
+    const handle = panel.querySelector('.plans-panel-drag-handle');
+    if (!handle) return;
+
+    let startX, startY, startLeft, startTop;
+
+    handle.addEventListener('pointerdown', e => {
+        // Only primary button
+        if (e.button !== 0) return;
+        // Don't swallow clicks on interactive children (close button, etc.)
+        if (e.target.closest('button, a, input, select')) return;
+        e.preventDefault();
+        handle.setPointerCapture(e.pointerId);
+
+        // Resolve current position: if still using CSS transform centering,
+        // switch to explicit left/top so dragging works predictably.
+        const rect = panel.getBoundingClientRect();
+        panel.style.left      = rect.left + 'px';
+        panel.style.top       = rect.top  + 'px';
+        panel.style.transform = 'none';
+        panel.classList.add('plans-panel--dragged');
+
+        startX    = e.clientX;
+        startY    = e.clientY;
+        startLeft = rect.left;
+        startTop  = rect.top;
+    });
+
+    handle.addEventListener('pointermove', e => {
+        if (e.buttons !== 1) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        // Clamp inside the viewport with a small margin
+        const margin = 8;
+        const newLeft = Math.max(margin, Math.min(window.innerWidth  - panel.offsetWidth  - margin, startLeft + dx));
+        const newTop  = Math.max(margin, Math.min(window.innerHeight - panel.offsetHeight - margin, startTop  + dy));
+        panel.style.left = newLeft + 'px';
+        panel.style.top  = newTop  + 'px';
+    });
+}
+
+// Watch for the plans panel being added to the DOM and auto-init drag on it.
+(function observeFloatingPanels() {
+    const tryInit = root => {
+        const panel = root.id === 'plans-panel-float' ? root
+            : root.querySelector?.('#plans-panel-float');
+        if (panel) initPanelDrag(panel);
+    };
+
+    const observer = new MutationObserver(mutations => {
+        for (const m of mutations) {
+            for (const node of m.addedNodes) {
+                if (node.nodeType === 1) tryInit(node);
+            }
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+}());
