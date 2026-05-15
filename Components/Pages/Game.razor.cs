@@ -13,10 +13,20 @@ public partial class Game : IAsyncDisposable
     private DotNetObjectReference<Game>? _dotNetRef;
     private string? errorMessage;
     private string? errorDetail;
-    private readonly List<LayerEntry> _layerEntries = new();
     /// <summary>Visible non-base layers in z-order: index 0 = bottom, last = top.</summary>
     private readonly List<LayerEntry> _legendOrder = new();
     private string _layerSearch = "";
+
+    // ── Proxy properties — forward to GameSessionState so markup needs no changes ──
+    private List<LayerEntry>         _layerEntries    => GameState.LayerEntries;
+    private Dictionary<int, string>  _countryColours  => GameState.CountryColours;
+    private Dictionary<int, string>  _countryNames    => GameState.CountryNames;
+    private IReadOnlyList<PlanEntry> _plans           => GameState.Plans;
+    private int    _gameStartYear    => GameState.GameStartYear;
+    private int    _gameEndMonth     => GameState.GameEndMonth;
+    private int    _gameEndYear      => GameState.GameEndYear;
+    private int    _gameCurrentMonth => GameState.GameCurrentMonth;
+    private double _eraTimeLeft      => GameState.EraTimeLeft;
 
     // Properties popup state
     private bool   _popupVisible;
@@ -35,23 +45,6 @@ public partial class Game : IAsyncDisposable
     private List<UserEntry> _users = new();
     private bool   _usersLoading;
     private string? _usersError;
-    private readonly Dictionary<int, string> _countryColours = new();
-    private readonly Dictionary<int, string> _countryNames   = new();
-
-    // Wiki base URL (from Game/Config; may be absent in some game configs)
-    private string _wikiBaseUrl = "";
-
-    // Game start year (month 0 = Jan of this year)
-    private int _gameStartYear = 2000;
-    // Total simulation months (end_month/game_end_month from Config or WS)
-    private int _gameEndMonth = 0;
-    // Simulation end year ("end" field from Game/Config, e.g. 2050)
-    private int _gameEndYear  = 0;
-
-    // Game state bar — updated from Game/Latest WS messages
-    private int    _gameCurrentMonth = 0;
-    private string _gameState        = "";   // "pause", "play", "fastforward", "setup", "end"
-    private double _eraTimeLeft      = 0;    // real-world seconds remaining in current era
 
     // Loading state
     private bool   _isLoading = true;
@@ -63,9 +56,9 @@ public partial class Game : IAsyncDisposable
 
     // Plans panel
     private bool _plansPanelOpen;
-    private List<PlanEntry> _plans = new();
     private int _selectedPlanId;
     private PlanViewMode _planViewMode = PlanViewMode.AfterChanges;
+    private bool _detailDescExpanded;
     private readonly HashSet<string> _planActivatedLayerIds  = new();
     private readonly HashSet<string> _planReferencedLayerIds = new();
 
@@ -190,10 +183,10 @@ public partial class Game : IAsyncDisposable
             var configRoot    = await ApiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/Config");
             var configPayload = GetPayload(configRoot);
             if (configPayload.TryGetProperty("wiki_base_url", out var wbuProp) && wbuProp.GetString() is { Length: > 0 } wbu)
-                _wikiBaseUrl = wbu.TrimEnd('/');
+                GameState.WikiBaseUrl = wbu.TrimEnd('/');
 
             if (configPayload.TryGetProperty("start", out var startProp))
-                _gameStartYear = startProp.ValueKind == JsonValueKind.Number
+                GameState.GameStartYear = startProp.ValueKind == JsonValueKind.Number
                     ? startProp.GetInt32()
                     : int.TryParse(startProp.GetString(), out var sy) ? sy : 2000;
 
@@ -203,7 +196,7 @@ public partial class Game : IAsyncDisposable
                 var raw = endYearProp.ValueKind == JsonValueKind.Number
                     ? endYearProp.GetInt32()
                     : int.TryParse(endYearProp.GetString(), out var ey) ? ey : 0;
-                if (raw > 0) _gameEndYear = raw;
+                if (raw > 0) GameState.GameEndYear = raw;
             }
 
             // end_month: total simulation months (optional; used for progress bar)
@@ -214,7 +207,7 @@ public partial class Game : IAsyncDisposable
                     var raw = endProp.ValueKind == JsonValueKind.Number
                         ? endProp.GetInt32()
                         : int.TryParse(endProp.GetString(), out var em) ? em : 0;
-                    if (raw > 0) { _gameEndMonth = raw; break; }
+                    if (raw > 0) { GameState.GameEndMonth = raw; break; }
                 }
             }
 
@@ -653,13 +646,13 @@ public partial class Game : IAsyncDisposable
     /// </summary>
     private string? ResolveWikiUrl(string? media)
     {
-        if (string.IsNullOrWhiteSpace(media) || string.IsNullOrWhiteSpace(_wikiBaseUrl))
+        if (string.IsNullOrWhiteSpace(media) || string.IsNullOrWhiteSpace(GameState.WikiBaseUrl))
             return null;
         const string prefix = "wiki://";
         var page = media.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
             ? media[prefix.Length..]
             : media;
-        return string.IsNullOrWhiteSpace(page) ? null : $"{_wikiBaseUrl}/{page}";
+        return string.IsNullOrWhiteSpace(page) ? null : $"{GameState.WikiBaseUrl}/{page}";
     }
 
     [JSInvokable]
@@ -670,11 +663,21 @@ public partial class Game : IAsyncDisposable
             using var doc = JsonDocument.Parse(json);
             var root    = doc.RootElement;
             var layerId = root.TryGetProperty("layerId", out var lid) ? lid.GetString() ?? "" : "";
-            var entry   = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
+
+            // For plan overlay clicks, resolve the real originating layer via _mspOriginalLayerId
+            string resolvedLayerId = layerId;
+            if (layerId == "__plan_overlay__" &&
+                root.TryGetProperty("props", out var propsForLayer) &&
+                propsForLayer.TryGetProperty("_mspOriginalLayerId", out var origLid))
+            {
+                resolvedLayerId = origLid.GetString() ?? layerId;
+            }
+
+            var entry   = _layerEntries.FirstOrDefault(e => e.LayerId == resolvedLayerId);
 
             _popupX = root.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number ? cx.GetDouble() : 0;
             _popupY = root.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number ? cy.GetDouble() : 0;
-            _popupLayerName = entry?.DisplayName ?? layerId;
+            _popupLayerName = entry?.DisplayName ?? resolvedLayerId;
             _popupProps.Clear();
 
             if (root.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object)
@@ -701,6 +704,21 @@ public partial class Game : IAsyncDisposable
                 }
                 else
                 {
+                    // If the feature has a type index, prepend the layer_type display name
+                    if (props.TryGetProperty("_mspType", out var mspTypeProp) &&
+                        entry?.TypeDefs is { Count: > 0 } typeDefs)
+                    {
+                        var typeIdx = mspTypeProp.ValueKind == JsonValueKind.Number
+                            ? mspTypeProp.GetInt32()
+                            : mspTypeProp.ValueKind == JsonValueKind.String &&
+                              int.TryParse(mspTypeProp.GetString(), out var parsed) ? parsed : -1;
+                        if (typeIdx >= 0 && typeIdx < typeDefs.Count &&
+                            !string.IsNullOrWhiteSpace(typeDefs[typeIdx].Label))
+                        {
+                            _popupProps.Add(("Type", typeDefs[typeIdx].Label));
+                        }
+                    }
+
                     foreach (var prop in props.EnumerateObject())
                     {
                         if (prop.Name.StartsWith('_')) continue; // skip internal props
@@ -733,170 +751,18 @@ public partial class Game : IAsyncDisposable
                 _wsLog.RemoveAt(_wsLog.Count - 1);
         }
 
-        switch (msg.HeaderName)
-        {
-            case "Game/Latest":
-                ParseGameLatest(msg.Payload);
-                break;
-        }
-        // Batch/ExecuteBatch and ImmersiveSessions/Update are stored by the service;
-        // add processing here as needed.
+        // Data parsing is handled by GameSessionState which also subscribes to MessageReceived.
         InvokeAsync(StateHasChanged);
     }
 
-    private void ParseGameLatest(JsonElement payload)
-    {
-        // Game/Latest payload has a "tick" sub-object that holds the live game state.
-        // Fall back to top-level properties for forward-compatibility.
-        var tick = payload.TryGetProperty("tick", out var t) && t.ValueKind == JsonValueKind.Object
-            ? t : payload;
-
-        // Current month: "month" inside tick, or "game_current_month" at top level
-        var currentMonth = GetIntProp(tick, "month");
-        if (currentMonth == 0) currentMonth = GetIntProp(payload, "game_current_month");
-        if (currentMonth > 0 || tick.TryGetProperty("month", out _) || payload.TryGetProperty("game_current_month", out _))
-            _gameCurrentMonth = currentMonth;
-
-        // Game state: "state" inside tick, or "game_state" at top level
-        var gameState = GetStringProp(tick, "state") ?? GetStringProp(payload, "game_state");
-        if (gameState is not null)
-            _gameState = gameState;
-
-        // end month may also arrive via WS if not in config
-        if (_gameEndMonth == 0)
-        {
-            var endMonth = GetIntProp(payload, "game_end_month");
-            if (endMonth > 0) _gameEndMonth = endMonth;
-        }
-
-        // era_timeleft: real-world seconds remaining in current era — inside tick
-        var etlEl = tick.TryGetProperty("era_timeleft", out var e1) ? e1
-                  : payload.TryGetProperty("era_timeleft", out var e2) ? e2
-                  : default;
-        if (etlEl.ValueKind != JsonValueKind.Undefined)
-        {
-            _eraTimeLeft = etlEl.ValueKind == JsonValueKind.Number
-                ? etlEl.GetDouble()
-                : double.TryParse(etlEl.GetString(), System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : _eraTimeLeft;
-        }
-
-        // Plans
-        if (!payload.TryGetProperty("plan", out var plansEl) ||
-            plansEl.ValueKind != JsonValueKind.Array)
-            return;
-
-        foreach (var p in plansEl.EnumerateArray())
-        {
-            var id        = GetIntProp(p, "id");
-            var name      = GetStringProp(p, "name")      ?? $"Plan {id}";
-            var state     = GetStringProp(p, "state")     ?? "";
-            var country   = GetIntProp(p, "country");
-            var startdate = GetIntProp(p, "startdate");
-
-            // Parse plan layers and their geometry
-            var planLayers = new List<PlanLayerData>();
-            if (p.TryGetProperty("layers", out var layersEl2) && layersEl2.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var l in layersEl2.EnumerateArray())
-                {
-                    var planLayerId = GetStringProp(l, "layerid") ?? "";
-                    var originalId  = GetStringProp(l, "original") ?? "";
-                    var layerState  = GetStringProp(l, "state") ?? "";
-                    var geometries  = new List<PlanGeometryItem>();
-
-                    if (l.TryGetProperty("geometry", out var geoArr2) && geoArr2.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var g in geoArr2.EnumerateArray())
-                        {
-                            // Skip inactive geometries
-                            var activeStr = GetStringProp(g, "active") ?? "1";
-                            if (activeStr == "0") continue;
-
-                            if (g.TryGetProperty("geometry", out var coords) && coords.ValueKind == JsonValueKind.Array)
-                            {
-                                var pts = new List<double[]>();
-                                foreach (var pt in coords.EnumerateArray())
-                                {
-                                    if (pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() >= 2)
-                                        pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
-                                }
-                                if (pts.Count > 0)
-                                {
-                                    var geoId     = GetStringProp(g, "id")         ?? "";
-                                    var persId    = GetStringProp(g, "persistent") ?? "";
-                                    geometries.Add(new PlanGeometryItem(pts, geoId, persId));
-                                }
-                            }
-                        }
-                    }
-
-                    // Parse deleted persistent geometry IDs
-                    var deletedIds = new List<string>();
-                    if (l.TryGetProperty("deleted", out var deletedEl) && deletedEl.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var d in deletedEl.EnumerateArray())
-                        {
-                            var dId = d.ValueKind == JsonValueKind.String ? d.GetString() : d.ToString();
-                            if (!string.IsNullOrEmpty(dId)) deletedIds.Add(dId);
-                        }
-                    }
-
-                    // Always add every referenced layer so construction time and base-layer lookups work
-                    // even for layers that carry no geometry or deletion data in this payload.
-                    planLayers.Add(new PlanLayerData(planLayerId, originalId, layerState, geometries, deletedIds));
-                }
-            }
-
-            // Construction time: max ASSEMBLY time across all referenced base layers.
-            var constructionTime = planLayers
-                .Select(l => _layerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.AssemblyTime ?? 0)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            // Policies: map policy_type to a human-readable display name.
-            var policyNames = new List<string>();
-            if (p.TryGetProperty("policies", out var polEl) && polEl.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var pol in polEl.EnumerateArray())
-                {
-                    var ptype = GetStringProp(pol, "policy_type")?.ToLowerInvariant();
-                    var display = ptype switch
-                    {
-                        "fishing"  => "Fishing Effort",
-                        "energy"   => "Energy Distribution",
-                        "shipping" => "Shipping Safety Zones",
-                        _          => null
-                    };
-                    if (display is not null && !policyNames.Contains(display))
-                        policyNames.Add(display);
-                }
-            }
-
-            var entry = new PlanEntry(id, name, state, country, startdate, constructionTime, policyNames, planLayers);
-            var idx   = _plans.FindIndex(e => e.PlanId == id);
-            if (idx >= 0)
-                _plans[idx] = entry;
-            else
-                _plans.Add(entry);
-        }
-        _plans.Sort((a, b) =>
-        {
-            var sp = PlanStatePriority(a.State).CompareTo(PlanStatePriority(b.State));
-            if (sp != 0) return sp;
-            var dp = a.StartDate.CompareTo(b.StartDate);
-            return dp != 0 ? dp : a.PlanId.CompareTo(b.PlanId);
-        });
-    }
-
-    private string GameStateLabel => _gameState.ToLowerInvariant() switch
+    private string GameStateLabel => GameState.GameState.ToLowerInvariant() switch
     {
         "pause"       => "Paused",
         "play"        => "Running",
         "fastforward" => "Fast Forward",
         "setup"       => "Setup",
         "end"         => "Ended",
-        _             => _gameState
+        _             => GameState.GameState
     };
 
     /// Formats seconds as H:MM:SS (e.g. 2:00:00, 0:45:12).
@@ -906,33 +772,11 @@ public partial class Game : IAsyncDisposable
         return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
-    private static readonly string[] OrderedPlanStates =
-    [
-        "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "IMPLEMENTED", "ARCHIVED"
-    ];
+    private enum PlanViewMode { AfterChanges, Original, ChangesOnly }
 
-    private static int PlanStatePriority(string state) => state.ToUpperInvariant() switch
-    {
-        "DESIGN"        => 0,
-        "CONSULTATION"  => 1,
-        "APPROVAL"      => 2,
-        "APPROVED"      => 3,
-        "IMPLEMENTED"   => 4,
-        "ARCHIVED"      => 5,
-        _               => 6,
-    };
+    private string MonthToDate(int month) => GameState.MonthToDate(month);
 
-    private static string PlanStateLabel(string state) => state.ToUpperInvariant() switch
-    {
-        "APPROVAL" => "AWAITING APPROVAL",
-        _          => state.ToUpperInvariant(),
-    };
-
-    private string MonthToDate(int month)
-    {
-        var d = new DateTime(_gameStartYear, 1, 1).AddMonths(month);
-        return d.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
-    }
+    private static string PlanStateLabel(string state) => GameSessionState.PlanStateLabel(state);
 
     /// <summary>Case-insensitive int read; handles Number or numeric String values.</summary>
     private static int GetIntProp(JsonElement el, string name)
@@ -958,8 +802,6 @@ public partial class Game : IAsyncDisposable
         return null;
     }
 
-
-    private enum PlanViewMode { AfterChanges, Original, ChangesOnly }
 
     private async Task SelectPlanAsync(PlanEntry plan)
     {
@@ -995,6 +837,7 @@ public partial class Game : IAsyncDisposable
 
         _selectedPlanId = plan.PlanId;
         _planViewMode   = PlanViewMode.AfterChanges;
+        _detailDescExpanded = false;
 
         // Collect all referenced original layer IDs.
         foreach (var planLayer in plan.Layers)
@@ -1020,8 +863,9 @@ public partial class Game : IAsyncDisposable
 
             var geometries = planLayer.Geometry
                 .Select(g => new {
-                    coords = g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
-                    isNew  = string.IsNullOrEmpty(g.PersistentId) || g.Id == g.PersistentId
+                    coords   = g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
+                    isNew    = string.IsNullOrEmpty(g.PersistentId) || g.Id == g.PersistentId,
+                    mspType  = g.TypeIndex
                 })
                 .ToArray();
 
@@ -1035,7 +879,8 @@ public partial class Game : IAsyncDisposable
 
         if (layersData.Count > 0)
             await _mapModule.InvokeVoidAsync("showPlanGeometry", JsonSerializer.Serialize(layersData));
-        // No else: plans without geometry changes are still selectable (detail panel still shows).
+        else
+            await _mapModule.InvokeVoidAsync("clearPlanOverlay");
 
         StateHasChanged();
     }
@@ -1083,7 +928,7 @@ public partial class Game : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         WsService.MessageReceived -= OnWsMessageReceived;
-        await WsService.DisposeAsync();
+        // GameWebSocketService lifetime is managed by DI (circuit scope); do not dispose here.
         if (_mapModule is not null)
         {
             try

@@ -6,6 +6,7 @@
 @inject MSPChallenge_Client_Browser.Services.SessionState SessionState
 @inject MSPChallenge_Client_Browser.Services.MspApiClient ApiClient
 @inject MSPChallenge_Client_Browser.Services.GameWebSocketService WsService
+@inject MSPChallenge_Client_Browser.Services.GameSessionState GameState
 
 <PageTitle>MSP Challenge – Game</PageTitle>
 
@@ -181,9 +182,35 @@
                     .OfType<string>()
                     .Distinct()
                     .ToList();
+                var _detailDotColour = (_detailPlan.Country == 1 || _detailPlan.Country == 2)
+                    ? "#ff69b4"
+                    : _countryColours.GetValueOrDefault(_detailPlan.Country, "#6c757d");
+                var _detailCountryName = _countryNames.GetValueOrDefault(_detailPlan.Country, $"Country {_detailPlan.Country}");
                 <div class="plan-detail-panel">
                     <div class="plan-detail-header">
-                        <span class="plan-detail-title">@_detailPlan.Name</span>
+                        <span class="user-dot" style="background:@_detailDotColour;flex-shrink:0" title="@_detailCountryName"></span>
+                        <div class="plan-detail-header-body">
+                            <span class="plan-detail-title">@_detailPlan.Name</span>
+                            @if (!string.IsNullOrWhiteSpace(_detailPlan.Description))
+                            {
+                                <div class="plan-detail-desc">
+                                    <span class="plan-detail-desc-text @(_detailDescExpanded ? "plan-detail-desc-text--expanded" : "")">@_detailPlan.Description</span>
+                                    @if (_detailPlan.Description.Length > 40)
+                                    {
+                                        <button class="plan-detail-desc-btn" title="@(_detailDescExpanded ? "Show less" : "Show full description")" @onclick="@(() => _detailDescExpanded = !_detailDescExpanded)">
+                                            @if (_detailDescExpanded)
+                                            {
+                                                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg"><polyline points="2,8 6,4 10,8"/></svg>
+                                            }
+                                            else
+                                            {
+                                                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg"><polyline points="2,4 6,8 10,4"/></svg>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
                         <button class="panel-close-btn" title="Close"
                                 @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
                     </div>
@@ -195,20 +222,8 @@
                                     <circle cx="8" cy="8" r="6.5"/>
                                     <polyline points="8,4.5 8,8 10.5,9.5"/>
                                 </svg>
-                                <span>@MonthToDate(_detailPlan.StartDate)</span>
+                                <span>@MonthToDate(_detailPlan.StartDate)@(_detailPlan.ConstructionTime > 0 ? $", after {_detailPlan.ConstructionTime} months construction" : "")</span>
                             </div>
-                            @if (_detailPlan.ConstructionTime > 0)
-                            {
-                                <div class="plan-detail-info-row">
-                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
-                                        <rect x="2" y="3" width="12" height="11" rx="1"/>
-                                        <line x1="5" y1="1.5" x2="5" y2="4.5"/>
-                                        <line x1="11" y1="1.5" x2="11" y2="4.5"/>
-                                        <line x1="2" y1="6.5" x2="14" y2="6.5"/>
-                                    </svg>
-                                    <span>after @_detailPlan.ConstructionTime months construction.</span>
-                                </div>
-                            }
                             <div class="plan-detail-info-row">
                                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
                                     <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
@@ -216,6 +231,49 @@
                                 </svg>
                                 <span>Plan state: @PlanStateLabel(_detailPlan.State)</span>
                             </div>
+                        </div>
+                    </details>
+                    <details class="plan-detail-section" open>
+                        <summary class="plan-detail-section-hdr">Communication</summary>
+                        <div class="plan-detail-section-body">
+                            <button class="plan-detail-action-row" @onclick="@(() => { /* TODO: open approval dialog */ })">
+                                @if (_detailPlan.RequiresApproval)
+                                {
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="#74c0fc" stroke-width="1.7" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" style="color:#74c0fc">
+                                        <polyline points="2.5,8 6,11.5 13.5,4.5"/>
+                                    </svg>
+                                    <span>Requires approval</span>
+                                }
+                                else
+                                {
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                        <line x1="4" y1="4" x2="12" y2="12"/>
+                                        <line x1="12" y1="4" x2="4" y2="12"/>
+                                    </svg>
+                                    <span>No approval required</span>
+                                }
+                            </button>
+                            <button class="plan-detail-action-row" @onclick="@(() => { /* TODO: open messages panel */ })">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                    <path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z"/>
+                                </svg>
+                                <span>See @_detailPlan.MessageCount message@(_detailPlan.MessageCount == 1 ? "" : "s")</span>
+                            </button>
+                            <button class="plan-detail-action-row" @onclick="@(() => { /* TODO: open issues panel */ })">
+                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                    <path d="M8 2L1.5 13.5h13L8 2z"/>
+                                    <line x1="8" y1="6.5" x2="8" y2="9.5"/>
+                                    <circle cx="8" cy="11.5" r="0.6" fill="currentColor"/>
+                                </svg>
+                                @if (_detailPlan.IssueCount == 0)
+                                {
+                                    <span>No issues</span>
+                                }
+                                else
+                                {
+                                    <span>@_detailPlan.IssueCount issue@(_detailPlan.IssueCount == 1 ? "" : "s")</span>
+                                }
+                            </button>
                         </div>
                     </details>
                     @if (_detailPlan.PolicyNames.Count > 0)
@@ -281,7 +339,7 @@
     {
         <div class="plans-status">Waiting for game data…</div>
     }
-    @foreach (var state in OrderedPlanStates)
+    @foreach (var state in GameSessionState.OrderedPlanStates)
     {
         var _statePlans = _visiblePlans.GetValueOrDefault(state, []);
         <details class="plan-group" open>

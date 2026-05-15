@@ -535,7 +535,7 @@ html, body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    z-index: 8000;
+    z-index: 9600;
     width: 340px;
     height: 50vh;
     min-height: 120px;
@@ -1294,21 +1294,81 @@ html, body {
 
 .plan-detail-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.4rem;
     padding: 0.5rem 0.55rem 0.5rem 0.75rem;
     border-bottom: 1px solid rgba(255,255,255,0.10);
     flex-shrink: 0;
 }
 
-.plan-detail-title {
+.plan-detail-header-body {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.plan-detail-title {
     font-weight: 600;
     font-size: 0.875rem;
     color: #f8f9fa;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Description: single-line truncated by default, expands via Blazor toggle */
+.plan-detail-header .user-dot {
+    align-self: flex-start;
+    margin-top: 3px;
+}
+
+.plan-detail-desc {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.2rem;
+    font-size: 0.72rem;
+    color: #adb5bd;
+    line-height: 1.35;
+}
+
+.plan-detail-desc-text {
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+}
+
+.plan-detail-desc-text--expanded {
+    display: block;
+    overflow: visible;
+}
+
+.plan-detail-desc-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    background: none;
+    border: 1px solid rgba(116,192,252,0.4);
+    border-radius: 3px;
+    color: #74c0fc;
+    cursor: pointer;
+    padding: 1px 3px;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+.plan-detail-desc-btn svg {
+    width: 10px;
+    height: 10px;
+}
+
+.plan-detail-desc-btn:hover {
+    background: rgba(116,192,252,0.12);
+    border-color: rgba(116,192,252,0.7);
 }
 
 .plan-detail-section {
@@ -1358,7 +1418,26 @@ html, body {
 }
 
 .plan-detail-info-row,
-.plan-detail-item-row {
+.plan-detail-item-row,
+.plan-detail-action-row {
+}
+
+.plan-detail-action-row {
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+}
+
+.plan-detail-action-row:hover {
+    color: #f8f9fa;
+}
+
+.plan-detail-info-row,
+.plan-detail-item-row,
+.plan-detail-action-row {
     display: flex;
     align-items: center;
     gap: 0.45rem;

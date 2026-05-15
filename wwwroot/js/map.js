@@ -103,7 +103,7 @@ export function addVectorLayer(layerId, geometriesJson, geoType, typeColors, vis
             ? String(g.data[labelKey] ?? '')
             : '';
 
-        features.push(new ol.Feature({ geometry: olGeom, mspId: g.id, mspType: g.type ?? 0, mspLabel: labelVal, mspData: g.data ?? {} }));
+        features.push(new ol.Feature({ geometry: olGeom, mspId: g.id, mspType: (parseInt(g.type, 10) || 0), mspLabel: labelVal, mspData: g.data ?? {} }));
     }
 
     if (features.length === 0) return;
@@ -365,10 +365,17 @@ export function registerClickHandler(dotNetRef) {
 
         // Iterate all vector features at this pixel; track the one on the topmost layer
         map.forEachFeatureAtPixel(evt.pixel, (feature, layer) => {
+            if (feature.get('_isBadge')) return; // decorative icons — not clickable
             const z = layer.getZIndex() ?? 0;
             if (z > topZIndex) {
                 topZIndex = z;
-                topProps  = feature.get('mspData') ?? {};
+                // Merge mspData with internal _msp* fields so C# can access type/layer info
+                const data = Object.assign({}, feature.get('mspData') ?? {});
+                const mspType = feature.get('mspType');
+                if (mspType !== undefined && mspType !== null) data._mspType = mspType;
+                const origLayerId = feature.get('mspOriginalLayerId');
+                if (origLayerId) data._mspOriginalLayerId = origLayerId;
+                topProps = data;
                 for (const [id, l] of Object.entries(vectorLayers)) {
                     if (l === layer) { topLayerId = id; break; }
                 }
@@ -618,12 +625,12 @@ export function showPlanGeometry(layersJson) {
             } else {
                 olGeom = new ol.geom.Point(coordSet[0]);
             }
-            features.push(new ol.Feature({ geometry: olGeom }));
+            features.push(new ol.Feature({ geometry: olGeom, mspOriginalLayerId: layer.originalLayerId, mspType: (geo.mspType ?? 0) }));
 
             // Badge placed at the bounding-box centre of the geometry
             const badge  = geo.isNew ? plusBadge : editBadge;
             const center = ol.extent.getCenter(olGeom.getExtent());
-            const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center) });
+            const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true });
             badgeFeature.setStyle(new ol.style.Style({ image: badge }));
             features.push(badgeFeature);
         }
@@ -648,7 +655,7 @@ export function showPlanGeometry(layersJson) {
 
                     // Minus badge placed at the geometry's bounding-box centre
                     const center = ol.extent.getCenter(geom.getExtent());
-                    const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center) });
+                    const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true });
                     badgeFeature.setStyle(new ol.style.Style({ image: minusBadge }));
                     features.push(badgeFeature);
                 }

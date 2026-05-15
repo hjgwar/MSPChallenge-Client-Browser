@@ -1,6 +1,6 @@
 namespace MSPChallenge_Client_Browser.Models;
 
-internal sealed class LayerEntry
+public sealed class LayerEntry
 {
     public string LayerId     { get; init; } = "";
     public string LayerName   { get; init; } = "";

@@ -4,12 +4,16 @@ namespace MSPChallenge_Client_Browser.Models;
 public sealed record PlanEntry(
     int    PlanId,
     string Name,
+    string Description,
     string State,
     int    Country,
     int    StartDate,
     int    ConstructionTime,
     IReadOnlyList<string>        PolicyNames,
-    IReadOnlyList<PlanLayerData> Layers);
+    IReadOnlyList<PlanLayerData> Layers,
+    bool RequiresApproval = false,
+    int  MessageCount     = 0,
+    int  IssueCount       = 0);
 
 /// <summary>A layer within a plan, containing geometry items.</summary>
 public sealed record PlanLayerData(
@@ -23,4 +27,5 @@ public sealed record PlanLayerData(
 public sealed record PlanGeometryItem(
     IReadOnlyList<double[]> Coordinates,
     string Id           = "",
-    string PersistentId = "");
+    string PersistentId = "",
+    int    TypeIndex    = 0);
