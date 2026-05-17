@@ -84,7 +84,7 @@ public partial class Game : IAsyncDisposable
             SessionState.SessionId == 0 ||
             string.IsNullOrEmpty(SessionState.GameServerAddress))
         {
-            NavigationManager.NavigateTo("/session");
+            NavigationManager.NavigateTo("/");
         }
 
         // Returning to /game in the same circuit should be instant.

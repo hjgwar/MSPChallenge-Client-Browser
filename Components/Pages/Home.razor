@@ -8,64 +8,128 @@
 
 <h1>Join an MSP Challenge Session</h1>
 
-<div class="mb-3">
-    <label for="serverAddress" class="form-label">Server Address</label>
-    <div class="input-group">
-        <input id="serverAddress" class="form-control" type="text"
-               @bind="serverAddress" @bind:event="oninput"
-               @onkeydown="@(async (e) => { if (e.Key == "Enter") await FetchGameListAsync(); })"
-               placeholder="server.mspchallenge.info" />
-        <button class="btn btn-primary" @onclick="FetchGameListAsync" disabled="@isLoading">
-            @(isLoading ? "Loading..." : "Confirm")
-        </button>
+@if (selectedSession is null)
+{
+    <!-- ── Server & Session Selection ── -->
+    <div class="mb-3">
+        <label for="serverAddress" class="form-label">Server Address</label>
+        <div class="input-group">
+            <input id="serverAddress" class="form-control" type="text"
+                   @bind="serverAddress" @bind:event="oninput"
+                   @onkeydown="@(async (e) => { if (e.Key == "Enter") await FetchGameListAsync(); })"
+                   placeholder="server.mspchallenge.info" />
+            <button class="btn btn-primary" @onclick="FetchGameListAsync" disabled="@isLoading">
+                @(isLoading ? "Loading..." : "Confirm")
+            </button>
+        </div>
     </div>
-</div>
 
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="alert alert-danger">@errorMessage</div>
-}
-
-@if (!string.IsNullOrEmpty(serverDescription))
-{
-    <div class="alert alert-info">@serverDescription</div>
-}
-
-@if (sessions is not null)
-{
-    @if (sessions.Count == 0)
+    @if (!string.IsNullOrEmpty(errorMessage))
     {
-        <p>No sessions are available on this server.</p>
+        <div class="alert alert-danger">@errorMessage</div>
     }
-    else
+
+    @if (!string.IsNullOrEmpty(serverDescription))
     {
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Edition</th>
-                    <th>State</th>
-                    <th>Players Active</th>
-                    <th>Current Month</th>
-                    <th>End Month</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var session in sessions)
-                {
+        <div class="alert alert-info">@serverDescription</div>
+    }
+
+    @if (sessions is not null)
+    {
+        @if (sessions.Count == 0)
+        {
+            <p>No sessions are available on this server.</p>
+        }
+        else
+        {
+            <table class="table table-striped">
+                <thead>
                     <tr>
-                        <td>@GetString(session, "name")</td>
-                        <td>@GetString(session, "edition_name")</td>
-                        <td>@GetString(session, "game_state")</td>
-                        <td>@GetString(session, "players_active")</td>
-                        <td>@GetString(session, "current_month_formatted")</td>
-                        <td>@GetString(session, "end_month_formatted")</td>
-                        <td><button class="btn btn-success btn-sm" @onclick="() => ConnectToSession(session)">Connect</button></td>
+                        <th>Name</th>
+                        <th>Edition</th>
+                        <th>State</th>
+                        <th>Players Active</th>
+                        <th>Current Month</th>
+                        <th>End Month</th>
+                        <th></th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var session in sessions)
+                    {
+                        <tr>
+                            <td>@GetString(session, "name")</td>
+                            <td>@GetString(session, "edition_name")</td>
+                            <td>@GetString(session, "game_state")</td>
+                            <td>@GetString(session, "players_active")</td>
+                            <td>@GetString(session, "current_month_formatted")</td>
+                            <td>@GetString(session, "end_month_formatted")</td>
+                            <td><button class="btn btn-success btn-sm" @onclick="() => SelectSessionAsync(session)">Select</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
     }
+}
+else
+{
+    <!-- ── Join Form (shown after selecting a session) ── -->
+    <div class="card">
+        <div class="card-header">
+            <h5>
+                @GetString(selectedSession.Value, "name")
+                <small class="text-muted">
+                    @GetString(selectedSession.Value, "edition_name")
+                </small>
+            </h5>
+        </div>
+        <div class="card-body">
+            @if (isLoadingConfig)
+            {
+                <p>Loading session configuration...</p>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
+            else if (configLoaded)
+            {
+                <form @onsubmit="ConnectAsync">
+                    <div class="mb-3">
+                        <label for="country" class="form-label">Country</label>
+                        <select id="country" class="form-select" @bind="selectedCountry">
+                            <option value="">-- Select a country --</option>
+                            @foreach (var country in countries)
+                            {
+                                <option value="@country.Key">@country.Key</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input id="username" class="form-control" type="text" @bind="username" @bind:event="oninput" placeholder="Enter your username" />
+                    </div>
+
+                    @if (NeedsPassword)
+                    {
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input id="password" class="form-control" type="password" @bind="password" placeholder="Enter password" />
+                        </div>
+                    }
+
+                    <button type="submit" class="btn btn-primary"
+                            disabled="@(isConnecting || string.IsNullOrWhiteSpace(selectedCountry) || string.IsNullOrWhiteSpace(username) || (NeedsPassword && string.IsNullOrWhiteSpace(password)))">
+                        @(isConnecting ? "Connecting..." : "Connect")
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="CancelJoin">
+                        Back
+                    </button>
+                </form>
+            }
+        </div>
+    </div>
 }
 
