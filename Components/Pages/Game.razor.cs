@@ -50,7 +50,6 @@ public partial class Game : IAsyncDisposable
     private bool   _isLoading = true;
     private bool   _loadingFading = false;
     private string _loadingStatus = "Initialising…";
-    private readonly TaskCompletionSource _firstWsMessageTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // WebSocket (address comes from session listing, stored in SessionState)
 
@@ -87,29 +86,53 @@ public partial class Game : IAsyncDisposable
         {
             NavigationManager.NavigateTo("/session");
         }
+
+        // Returning to /game in the same circuit should be instant.
+        _isLoading = !GameState.IsGameDataLoaded;
+        _loadingFading = false;
+
+        // Restore panel layout from shared session state.
+        _layerPanelOpen = GameState.LayerPanelOpen;
+        _legendPanelOpen = GameState.LegendPanelOpen;
+        _usersPanelOpen = GameState.UsersPanelOpen;
+        _plansPanelOpen = GameState.PlansPanelOpen;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
 
+        // Capture cold-start status before async work so warm returns can skip map refit.
+        var isColdStart = _isLoading;
+
         _mapModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
 
         // Default view centred on North Sea – will be replaced once _PLAYAREA bounds are known
         await _mapModule.InvokeVoidAsync("initMap", "map", 54.5, 3.5, 6);
 
-        WsService.MessageReceived += OnWsMessageReceived;
-
-        await LoadGameDataAsync();
-
-        if (!_firstWsMessageTcs.Task.IsCompleted)
+        // On warm return, restore saved camera immediately for instant visual feedback.
+        if (!isColdStart && GameState.HasSavedMapView)
         {
-            _loadingStatus = "Waiting for game data…";
-            StateHasChanged();
-            await _firstWsMessageTcs.Task;
+            await _mapModule.InvokeVoidAsync(
+                "setView",
+                GameState.MapLat!.Value,
+                GameState.MapLng!.Value,
+                GameState.MapZoom!.Value,
+                false);
         }
 
-        await HideLoadingAsync();
+        WsService.MessageReceived += OnWsMessageReceived;
+
+        // Ensure shared state is loaded once per circuit, then rebuild JS map layers from cached state.
+        await LoadGameDataAsync();
+        await BuildMapFromStateAsync(fitToPlayArea: isColdStart);
+
+        // OnAfterRenderAsync does not implicitly re-render after async work.
+        // Force a repaint so legend/panels reflect rebuilt state immediately.
+        await InvokeAsync(StateHasChanged);
+
+        if (_isLoading)
+            await HideLoadingAsync();
 
         _dotNetRef = DotNetObjectReference.Create(this);
         await _mapModule.InvokeVoidAsync("registerClickHandler", _dotNetRef);
@@ -173,395 +196,191 @@ public partial class Game : IAsyncDisposable
     {
         try
         {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var sessionId   = SessionState.SessionId;
-
-            // 1. Policy and simulation settings (fetched for server-side processing; not yet consumed)
-            await ApiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/PolicySimSettings");
-
-            // 2. Game config — contains wiki_base_url and other session-wide settings
-            var configRoot    = await ApiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/Config");
-            var configPayload = GetPayload(configRoot);
-            if (configPayload.TryGetProperty("wiki_base_url", out var wbuProp) && wbuProp.GetString() is { Length: > 0 } wbu)
-                GameState.WikiBaseUrl = wbu.TrimEnd('/');
-
-            if (configPayload.TryGetProperty("start", out var startProp))
-                GameState.GameStartYear = startProp.ValueKind == JsonValueKind.Number
-                    ? startProp.GetInt32()
-                    : int.TryParse(startProp.GetString(), out var sy) ? sy : 2000;
-
-            // end: simulation end year (e.g. 2050) — the sole source for the end year
-            if (configPayload.TryGetProperty("end", out var endYearProp))
-            {
-                var raw = endYearProp.ValueKind == JsonValueKind.Number
-                    ? endYearProp.GetInt32()
-                    : int.TryParse(endYearProp.GetString(), out var ey) ? ey : 0;
-                if (raw > 0) GameState.GameEndYear = raw;
-            }
-
-            // end_month: total simulation months (optional; used for progress bar)
-            foreach (var endKey in new[] { "end_month", "game_end_month" })
-            {
-                if (configPayload.TryGetProperty(endKey, out var endProp))
+            await GameState.EnsureInitializedAsync(
+                ApiClient,
+                SessionState,
+                async status =>
                 {
-                    var raw = endProp.ValueKind == JsonValueKind.Number
-                        ? endProp.GetInt32()
-                        : int.TryParse(endProp.GetString(), out var em) ? em : 0;
-                    if (raw > 0) { GameState.GameEndMonth = raw; break; }
-                }
-            }
-
-            // Load country id → colour mapping from the countries layer
-            if (configPayload.TryGetProperty("countries", out var countriesEl) &&
-                countriesEl.GetString() is { Length: > 0 } countriesLayerName)
-            {
-                var metaRoot2 = await ApiClient.PostFormAsync(
-                    $"{baseAddress}/{sessionId}/api/Layer/MetaByName",
-                    new[] { new KeyValuePair<string, string>("name", countriesLayerName) });
-                var metaPayload2 = GetPayload(metaRoot2);
-                if (metaPayload2.TryGetProperty("layer_type", out var layerTypes) &&
-                    layerTypes.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var lt in layerTypes.EnumerateArray())
-                    {
-                        if (lt.TryGetProperty("value", out var ltVal) && ltVal.ValueKind == JsonValueKind.Number)
-                        {
-                            var cid2 = ltVal.GetInt32();
-                            if (lt.TryGetProperty("polygonColor", out var ltCol) && ltCol.GetString() is { Length: > 0 } col)
-                                _countryColours[cid2] = col;
-                            if (lt.TryGetProperty("displayName", out var ltDn) && ltDn.GetString() is { Length: > 0 } dn)
-                                _countryNames[cid2] = dn;
-                        }
-                    }
-                }
-            }
-
-            // 3. Full layer metadata for this user via Game/Meta
-            var metaRoot    = await ApiClient.PostFormAsync(
-                $"{baseAddress}/{sessionId}/api/Game/Meta",
-                new[] { new KeyValuePair<string, string>("user", SessionState.CountryId.ToString()) });
-            var metaPayload = GetPayload(metaRoot);
-
-            if (metaPayload.ValueKind != JsonValueKind.Array)
-                return;
-
-            var layerArray = metaPayload.EnumerateArray().ToList();
-            var total  = layerArray.Count;
-            var loaded = 0;
-
-            foreach (var layer in layerArray)
-            {
-                var name = layer.TryGetProperty("layer_short", out var ls) && ls.GetString() is { Length: > 0 } s
-                    ? s
-                    : (layer.TryGetProperty("layer_name", out var ln) ? ln.GetString() ?? "" : "");
-                _loadingStatus = $"Loading {loaded + 1} / {total}: {name}";
-                StateHasChanged();
-
-                bool visible = layer.TryGetProperty("layer_active_on_start", out var aos) &&
-                               aos.ValueKind == JsonValueKind.Number && aos.GetInt32() != 0;
-                await LoadLayerAsync(baseAddress, sessionId, layer, visible: visible);
-                loaded++;
-                StateHasChanged();
-            }
-
-            // Sort visible layers by layer_depth ascending (lower depth = rendered below)
-            _legendOrder.Sort((a, b) => a.Depth.CompareTo(b.Depth));
-            await SyncZIndicesAsync();
-
-            // Fit the initial view to the _PLAYAREA layer so its bounds fill the viewport
-            var playArea = _layerEntries.FirstOrDefault(e => e.IsBaseLayer);
-            if (playArea is not null && _mapModule is not null)
-                await _mapModule.InvokeVoidAsync("fitToPlayArea", playArea.LayerId);
-
-            // Connect WebSocket — last loading step
-            if (!string.IsNullOrEmpty(SessionState.GameWsServerAddress))
-            {
-                _loadingStatus = "Connecting to game server…";
-                StateHasChanged();
-                await WsService.ConnectAndSubscribeAsync(
-                    SessionState.GameWsServerAddress,
-                    SessionState.ApiAccessToken,
-                    SessionState.SessionId,
-                    teamId: SessionState.CountryId,
-                    userId: SessionState.UserId);
-                // Loading screen held open until first message arrives (signalled via _firstWsMessageTcs)
-            }
-            else
-            {
-                _firstWsMessageTcs.TrySetResult(); // no WS — nothing to wait for
-            }
+                    if (!_isLoading) return;
+                    _loadingStatus = status;
+                    await InvokeAsync(StateHasChanged);
+                });
         }
         catch (MspApiException ex)
         {
             errorMessage = ex.Message;
             errorDetail  = $"HTTP {ex.StatusCode}\n{ex}";
-            await HideLoadingAsync();
         }
         catch (Exception ex)
         {
             errorMessage = $"Error loading map data: {ex.Message}";
             errorDetail  = ex.ToString();
-            await HideLoadingAsync();
         }
     }
 
-    private async Task LoadLayerAsync(string baseAddress, int sessionId, JsonElement layer, bool visible)
+    private async Task BuildMapFromStateAsync(bool fitToPlayArea)
     {
         if (_mapModule is null) return;
 
-        var layerId   = layer.TryGetProperty("layer_id",      out var id) ? id.ToString()    : null;
-        var layerName = layer.TryGetProperty("layer_name",    out var n)  ? n.GetString()    : null;
-        var geoType   = layer.TryGetProperty("layer_geotype", out var gt) ? gt.GetString()   : null;
+        // Page instance state resets on navigation; rebuild from cached session state.
+        _legendOrder.Clear();
 
-        if (layerId is null || layerName is null) return;
-
-        List<(double NormalisedThreshold, string Label)> rasterThresholds = [];
-
-        var colorProp = geoType?.ToLowerInvariant() switch
+        // Always materialize the base layer first (needed for fitToPlayArea and z-index reference).
+        var baseLayer = _layerEntries.FirstOrDefault(e => e.IsBaseLayer);
+        if (baseLayer is not null)
         {
-            "line" or "lines"   => "lineColor",
-            "point" or "points" => "pointColor",
-            _                   => "polygonColor"
-        };
-        var typeColors = new List<string>();
-        if (layer.TryGetProperty("layer_type", out var ltEl))
+            var baseSnapshot = GameState.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == baseLayer.LayerId);
+            if (baseSnapshot is not null)
+                await EnsureLayerRenderedAsync(baseLayer.LayerId, visible: true);
+        }
+
+        foreach (var snapshot in GameState.MapLayerSnapshots)
         {
-            if (ltEl.ValueKind == JsonValueKind.Array)
+            var entry = _layerEntries.FirstOrDefault(e => e.LayerId == snapshot.LayerId);
+            if (entry?.IsBaseLayer == true) continue;  // Already materialized above.
+
+            var visible = entry?.Visible ?? snapshot.Visible;
+
+            // Warm navigation: only materialize currently visible layers for faster return.
+            if (!visible) continue;
+
+            await EnsureLayerRenderedAsync(snapshot.LayerId, visible: true);
+        }
+
+        var byId = _layerEntries
+            .Where(e => e.Visible && !e.IsBaseLayer)
+            .ToDictionary(e => e.LayerId, StringComparer.Ordinal);
+
+        foreach (var id in GameState.LegendOrderLayerIds)
+        {
+            if (byId.TryGetValue(id, out var le))
             {
-                // Array form: [{polygonColor:"#...", ...}, ...]
-                foreach (var lt in ltEl.EnumerateArray())
-                {
-                    var c = lt.TryGetProperty(colorProp, out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
-                    typeColors.Add(c);
-                }
-            }
-            else if (ltEl.ValueKind == JsonValueKind.Object)
-            {
-                // Object form: {"0": {polygonColor:"#...", ...}, "1": {...}, ...} — iterate by numeric key order
-                var entries = new SortedDictionary<int, string>();
-                foreach (var kv in ltEl.EnumerateObject())
-                {
-                    if (!int.TryParse(kv.Name, out var idx)) continue;
-                    var c = kv.Value.TryGetProperty(colorProp, out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
-                    entries[idx] = c;
-                }
-                foreach (var c in entries.Values) typeColors.Add(c);
+                _legendOrder.Add(le);
+                byId.Remove(id);
             }
         }
-        if (typeColors.Count == 0) typeColors.Add("#3388ff");
 
-        try
+        // If order is empty/stale, append remaining visible non-base layers by depth.
+        foreach (var le in byId.Values.OrderBy(e => e.Depth))
+            _legendOrder.Add(le);
+
+        PersistLegendOrderToState();
+
+        await SyncZIndicesAsync();
+
+        if (fitToPlayArea && baseLayer is not null)
         {
-            if (string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase))
-            {
-                var rasterRoot    = await ApiClient.PostFormAsync(
-                    $"{baseAddress}/{sessionId}/api/Layer/GetRaster",
-                    new[] { new KeyValuePair<string, string>("layer_name", layerName) });
-                var rasterPayload = GetPayload(rasterRoot);
-
-                if (rasterPayload.TryGetProperty("image_data", out var imgData) &&
-                    imgData.GetString() is { } b64 &&
-                    rasterPayload.TryGetProperty("displayed_bounds", out var bb) &&
-                    bb.ValueKind == JsonValueKind.Array &&
-                    bb.GetArrayLength() == 2)
-                {
-                    var projBounds = new[]
-                    {
-                        new[] { bb[0][0].GetDouble(), bb[0][1].GetDouble() },
-                        new[] { bb[1][0].GetDouble(), bb[1][1].GetDouble() }
-                    };
-
-                    // layer_entity_value_max is the real-world maximum data value encoded as grey=255.
-                    // Default to 1000 when absent (as specified by the game engine).
-                    var entityValueMax = 1000.0;
-                    if (layer.TryGetProperty("layer_entity_value_max", out var evmProp) &&
-                        evmProp.ValueKind == JsonValueKind.Number)
-                    {
-                        entityValueMax = evmProp.GetDouble();
-                        if (entityValueMax <= 0) entityValueMax = 1000.0;
-                    }
-
-                    // Build greyscale colour map from layer_type sorted ascending by value.
-                    var rasterColorMap  = new List<object>();
-                    if (layer.TryGetProperty("layer_type", out var ltRaster) && ltRaster.ValueKind == JsonValueKind.Array)
-                    {
-                        var entries = ltRaster.EnumerateArray()
-                            .Where(lt => lt.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Number)
-                            .Select(lt => (
-                                threshold: lt.GetProperty("value").GetDouble(),
-                                hex: lt.TryGetProperty("polygonColor", out var pc) ? pc.GetString() ?? "#000000FF" : "#000000FF",
-                                label: lt.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : ""
-                            ))
-                            .OrderBy(e => e.threshold)
-                            .ToList();
-
-                        foreach (var (threshold, hex, label) in entries)
-                        {
-                            var normalised = threshold / entityValueMax * 255.0;
-                            rasterColorMap.Add(new { value = normalised, rgba = HexToRgbaArray(hex) });
-                            rasterThresholds.Add((normalised, label));
-                        }
-                    }
-
-                    // layer_raster_color_interpolation: false = smooth gradient, true = hard discrete steps.
-                    double? minCutoffNorm = null;
-                    bool interpolate = true;
-                    if (layer.TryGetProperty("layer_raster", out var lrObj) && lrObj.ValueKind == JsonValueKind.Object)
-                    {
-                        if (lrObj.TryGetProperty("layer_raster_minimum_value_cutoff", out var cutoffProp) &&
-                            cutoffProp.ValueKind == JsonValueKind.Number)
-                            minCutoffNorm = cutoffProp.GetDouble() * 255.0;
-
-                        if (lrObj.TryGetProperty("layer_raster_color_interpolation", out var interpProp) &&
-                            interpProp.ValueKind == JsonValueKind.True)
-                            interpolate = false;
-                    }
-
-                    await _mapModule.InvokeVoidAsync("addRasterLayer", layerId, b64, projBounds, 0.9, visible,
-                        rasterColorMap.Count > 0 ? rasterColorMap : null, minCutoffNorm, interpolate);
-                }
-            }
-            else
-            {
-                var geoRoot    = await ApiClient.PostFormAsync(
-                    $"{baseAddress}/{sessionId}/api/Layer/Get",
-                    new[] { new KeyValuePair<string, string>("layer_id", layerId) });
-                var geoPayload = GetPayload(geoRoot);
-
-                if (geoPayload.ValueKind == JsonValueKind.Array && geoPayload.GetArrayLength() > 0)
-                {
-                    string? labelKey = null;
-                    if (layer.TryGetProperty("layer_text_info", out var lti) &&
-                        lti.ValueKind == JsonValueKind.Object &&
-                        lti.TryGetProperty("property_per_state", out var pps) &&
-                        pps.ValueKind == JsonValueKind.Object &&
-                        pps.TryGetProperty("Current", out var curr) &&
-                        curr.GetString() is { Length: > 0 } currentProp)
-                    {
-                        if (layer.TryGetProperty("layer_info_properties", out var lip) &&
-                            lip.ValueKind == JsonValueKind.Array)
-                        {
-                            foreach (var prop in lip.EnumerateArray())
-                            {
-                                if (prop.TryGetProperty("property_name", out var pn) &&
-                                    pn.GetString() == currentProp)
-                                { labelKey = currentProp; break; }
-                            }
-                        }
-                    }
-
-                    var geometriesJson = geoPayload.ToString();
-                    await _mapModule.InvokeVoidAsync("addVectorLayer", layerId, geometriesJson, geoType, typeColors, visible, labelKey);
-                }
-            }
-
-            var layerShort  = layer.TryGetProperty("layer_short",       out var ls2)  ? ls2.GetString()  ?? "" : "";
-            var category    = layer.TryGetProperty("layer_category",    out var lc)   ? lc.GetString()   ?? "" : "";
-            var subcategory = layer.TryGetProperty("layer_subcategory", out var lsc)  ? lsc.GetString()  ?? "" : "";
-            var tooltip     = layer.TryGetProperty("layer_tooltip",     out var ltt)  ? ltt.GetString()  ?? "" : "";
-            var depth       = layer.TryGetProperty("layer_depth",       out var ld)   && ld.ValueKind == JsonValueKind.Number ? ld.GetInt32() : 0;
-            var toggleable  = layer.TryGetProperty("layer_toggleable",  out var lt2)  && lt2.ValueKind == JsonValueKind.Number ? lt2.GetInt32() != 0 : true;
-            var isBase      = layerName.IndexOf("_PLAYAREA", StringComparison.OrdinalIgnoreCase) >= 0;
-            var displayName = !string.IsNullOrWhiteSpace(layerShort) ? layerShort : FallbackDisplayName(layerName);
-            var layerMedia  = layer.TryGetProperty("layer_media", out var lm) ? lm.GetString() ?? "" : "";
-            var layerMediaUrl = ResolveWikiUrl(layerMedia);
-
-            var typeDefs = new List<TypeDef>();
-            if (layer.TryGetProperty("layer_type", out var ltDefEl))
-            {
-                IEnumerable<JsonElement> typeDefItems = ltDefEl.ValueKind switch
-                {
-                    JsonValueKind.Array  => ltDefEl.EnumerateArray(),
-                    JsonValueKind.Object => ltDefEl.EnumerateObject()
-                                               .OrderBy(kv => int.TryParse(kv.Name, out var n) ? n : int.MaxValue)
-                                               .Select(kv => kv.Value),
-                    _                    => []
-                };
-                foreach (var td in typeDefItems)
-                {
-                    var label      = td.TryGetProperty("displayName", out var dn) ? dn.GetString() ?? "" : "";
-                    var col        = td.TryGetProperty(colorProp,     out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
-                    var tdMedia    = td.TryGetProperty("media",       out var tm) ? tm.GetString() ?? "" : "";
-                    var tdMediaUrl = ResolveWikiUrl(tdMedia);
-                    if (!string.IsNullOrWhiteSpace(label))
-                        typeDefs.Add(new TypeDef(label, col, tdMediaUrl));
-                }
-            }
-
-            var propDisplayNames = new Dictionary<string, string>();
-            if (layer.TryGetProperty("layer_info_properties", out var lipDisp) && lipDisp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var prop in lipDisp.EnumerateArray())
-                {
-                    if (prop.TryGetProperty("property_name", out var pn2) &&
-                        prop.TryGetProperty("display_name",  out var dn2) &&
-                        pn2.GetString() is { Length: > 0 } propName2)
-                        propDisplayNames[propName2] = dn2.GetString() ?? propName2;
-                }
-            }
-
-            _layerEntries.Add(new LayerEntry
-            {
-                LayerId              = layerId,
-                LayerName            = layerName,
-                DisplayName          = displayName,
-                Category             = category,
-                Subcategory          = subcategory,
-                Tooltip              = tooltip,
-                MediaUrl             = layerMediaUrl,
-                IsBaseLayer          = isBase,
-                IsToggleable         = toggleable,
-                Visible              = visible,
-                Depth                = depth,
-                TypeDefs             = typeDefs,
-                PropertyDisplayNames = propDisplayNames,
-                IsRaster             = string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase),
-                RasterThresholds     = rasterThresholds,
-                GeoType              = geoType ?? "",
-                AssemblyTime         = ParseAssemblyTime(layer)
-            });
-
-            var added = _layerEntries[^1];
-            if (visible && !added.IsBaseLayer)
-                _legendOrder.Add(added);
-        }
-        catch (Exception ex)
-        {
-            errorDetail = (errorDetail ?? "") + $"\nLayer {layerName}: {ex.Message}";
-            StateHasChanged();
+            await _mapModule.InvokeVoidAsync("fitToPlayArea", baseLayer.LayerId);
         }
     }
 
-    /// <summary>
-    /// Reads the layer_states array and returns the "time" value of the ASSEMBLY state entry (0 if absent).
-    /// </summary>
-    private static int ParseAssemblyTime(JsonElement layer)
+    private async Task EnsureLayerRenderedAsync(string layerId, bool visible)
     {
-        if (!layer.TryGetProperty("layer_states", out var statesEl) ||
-            statesEl.ValueKind != JsonValueKind.Array)
-            return 0;
+        if (_mapModule is null) return;
 
-        foreach (var s in statesEl.EnumerateArray())
+        var snapshot = GameState.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
+        if (snapshot is null) return;
+
+        var entry = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
+        if (entry?.IsRaster == true)
         {
-            var stateName = GetStringProp(s, "state");
-            if (string.Equals(stateName, "ASSEMBLY", StringComparison.OrdinalIgnoreCase))
-                return GetIntProp(s, "time");
+            if (snapshot.RasterImageData is not null && snapshot.RasterProjBounds is not null)
+            {
+                await _mapModule.InvokeVoidAsync(
+                    "addRasterLayer",
+                    snapshot.LayerId,
+                    snapshot.RasterImageData,
+                    snapshot.RasterProjBounds,
+                    0.9,
+                    visible,
+                    snapshot.RasterColorMap.Count > 0 ? snapshot.RasterColorMap : null,
+                    snapshot.RasterMinCutoffNorm,
+                    snapshot.RasterInterpolate);
+            }
+            return;
         }
-        return 0;
+
+        if (!string.IsNullOrEmpty(snapshot.VectorGeometriesJson))
+        {
+            await _mapModule.InvokeVoidAsync(
+                "addVectorLayer",
+                snapshot.LayerId,
+                snapshot.VectorGeometriesJson,
+                snapshot.GeoType,
+                snapshot.TypeColors,
+                visible,
+                snapshot.LabelKey);
+        }
     }
 
     private async Task ToggleLayerAsync(LayerEntry entry, bool visible)
     {
         entry.Visible = visible;
-        if (_mapModule is not null)
-            await _mapModule.InvokeVoidAsync("setLayerVisible", entry.LayerId, visible);
+
+        if (visible)
+        {
+            // Hidden layers are not materialized on warm return until user enables them.
+            await EnsureLayerRenderedAsync(entry.LayerId, visible: true);
+        }
+        else if (_mapModule is not null)
+        {
+            await _mapModule.InvokeVoidAsync("setLayerVisible", entry.LayerId, false);
+        }
 
         if (visible && !entry.IsBaseLayer && !_legendOrder.Contains(entry))
             _legendOrder.Add(entry);
         else if (!visible)
             _legendOrder.Remove(entry);
 
+        PersistLegendOrderToState();
+
         await SyncZIndicesAsync();
+    }
+
+    private void SetLayerPanelOpen(bool open)
+    {
+        _layerPanelOpen = open;
+        GameState.LayerPanelOpen = open;
+    }
+
+    private void SetLegendPanelOpen(bool open)
+    {
+        _legendPanelOpen = open;
+        GameState.LegendPanelOpen = open;
+    }
+
+    private void SetPlansPanelOpen(bool open)
+    {
+        _plansPanelOpen = open;
+        GameState.PlansPanelOpen = open;
+    }
+
+    private async Task SetUsersPanelOpenAsync(bool open)
+    {
+        _usersPanelOpen = open;
+        GameState.UsersPanelOpen = open;
+        if (open)
+            await LoadUsersAsync();
+    }
+
+    private async Task ToggleUsersPanelAsync()
+    {
+        await SetUsersPanelOpenAsync(!_usersPanelOpen);
+    }
+
+    private void TogglePlansPanel()
+    {
+        SetPlansPanelOpen(!_plansPanelOpen);
+    }
+
+    private void ToggleLayerPanel()
+    {
+        SetLayerPanelOpen(!_layerPanelOpen);
+    }
+
+    private void ToggleLegendPanel()
+    {
+        SetLegendPanelOpen(!_legendPanelOpen);
     }
 
     [JSInvokable]
@@ -571,8 +390,14 @@ public partial class Game : IAsyncDisposable
         var item = _legendOrder[from];
         _legendOrder.RemoveAt(from);
         _legendOrder.Insert(to, item);
+        PersistLegendOrderToState();
         await SyncZIndicesAsync();
         StateHasChanged();
+    }
+
+    private void PersistLegendOrderToState()
+    {
+        GameState.SetLegendOrder(_legendOrder.Select(e => e.LayerId));
     }
 
     /// <summary>Assigns z-indices so that _legendOrder[0] = bottom, last = top.</summary>
@@ -596,7 +421,6 @@ public partial class Game : IAsyncDisposable
         return $"background:rgba({r},{g},{b},{a:F2});color:#fff;";
     }
 
-    /// <summary>Converts #RRGGBB or #RRGGBBAA hex to a CSS rgba() string.</summary>
     private static string HexToCss(string hex)
     {
         if (string.IsNullOrEmpty(hex) || !hex.StartsWith('#')) return hex;
@@ -606,53 +430,11 @@ public partial class Game : IAsyncDisposable
         return hex;
     }
 
-    /// <summary>Converts #RRGGBB or #RRGGBBAA hex to a [r,g,b,a] int array for JS interop.</summary>
-    private static int[] HexToRgbaArray(string hex)
-    {
-        var h = hex.TrimStart('#');
-        int r = Convert.ToInt32(h[..2],  16);
-        int g = Convert.ToInt32(h[2..4], 16);
-        int b = Convert.ToInt32(h[4..6], 16);
-        int a = h.Length >= 8 ? Convert.ToInt32(h[6..8], 16) : 255;
-        return [r, g, b, a];
-    }
-
-    /// <summary>Fallback display name from snake_case when layer_short is absent.</summary>
-    private static string FallbackDisplayName(string layerName)
-    {
-        var s = layerName.TrimStart('_');
-        return Regex.Replace(s, "[_\\-]+", " ");
-    }
-
-    /// <summary>Converts a snake_case category key to a human-readable title.</summary>
     private static string TitleCase(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) return value;
         var s = Regex.Replace(value, "[_\\-]+", " ");
         return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant());
-    }
-
-    private static JsonElement GetPayload(JsonElement root)
-    {
-        if (root.ValueKind == JsonValueKind.Object &&
-            root.TryGetProperty("payload", out var payload))
-            return payload;
-        return root;
-    }
-
-    /// <summary>
-    /// Converts a "wiki://PageName" media reference into a full URL using _wikiBaseUrl.
-    /// Returns null if the input is empty or _wikiBaseUrl is not configured.
-    /// </summary>
-    private string? ResolveWikiUrl(string? media)
-    {
-        if (string.IsNullOrWhiteSpace(media) || string.IsNullOrWhiteSpace(GameState.WikiBaseUrl))
-            return null;
-        const string prefix = "wiki://";
-        var page = media.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? media[prefix.Length..]
-            : media;
-        return string.IsNullOrWhiteSpace(page) ? null : $"{GameState.WikiBaseUrl}/{page}";
     }
 
     [JSInvokable]
@@ -742,8 +524,6 @@ public partial class Game : IAsyncDisposable
 
     private void OnWsMessageReceived(WsMessage msg)
     {
-        _firstWsMessageTcs.TrySetResult();
-
         lock (_wsLog)
         {
             _wsLog.Insert(0, (msg.HeaderName, msg.RawJson, msg.ReceivedAt));
@@ -777,31 +557,6 @@ public partial class Game : IAsyncDisposable
     private string MonthToDate(int month) => GameState.MonthToDate(month);
 
     private static string PlanStateLabel(string state) => GameSessionState.PlanStateLabel(state);
-
-    /// <summary>Case-insensitive int read; handles Number or numeric String values.</summary>
-    private static int GetIntProp(JsonElement el, string name)
-    {
-        foreach (var prop in el.EnumerateObject())
-        {
-            if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
-            if (prop.Value.ValueKind == JsonValueKind.Number) return prop.Value.GetInt32();
-            if (prop.Value.ValueKind == JsonValueKind.String &&
-                int.TryParse(prop.Value.GetString(), out var v)) return v;
-        }
-        return 0;
-    }
-
-    /// <summary>Case-insensitive string read.</summary>
-    private static string? GetStringProp(JsonElement el, string name)
-    {
-        foreach (var prop in el.EnumerateObject())
-        {
-            if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
-            return prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.ToString();
-        }
-        return null;
-    }
-
 
     private async Task SelectPlanAsync(PlanEntry plan)
     {
@@ -933,6 +688,23 @@ public partial class Game : IAsyncDisposable
         {
             try
             {
+                var viewState = await _mapModule.InvokeAsync<JsonElement>("getViewState");
+                if (viewState.ValueKind == JsonValueKind.Object)
+                {
+                    var lat = viewState.TryGetProperty("lat", out var latEl) && latEl.ValueKind == JsonValueKind.Number
+                        ? latEl.GetDouble()
+                        : double.NaN;
+                    var lng = viewState.TryGetProperty("lng", out var lngEl) && lngEl.ValueKind == JsonValueKind.Number
+                        ? lngEl.GetDouble()
+                        : double.NaN;
+                    var zoom = viewState.TryGetProperty("zoom", out var zoomEl) && zoomEl.ValueKind == JsonValueKind.Number
+                        ? zoomEl.GetDouble()
+                        : double.NaN;
+
+                    if (!double.IsNaN(lat) && !double.IsNaN(lng) && !double.IsNaN(zoom))
+                        GameState.SaveMapView(lat, lng, zoom);
+                }
+
                 await _mapModule.InvokeVoidAsync("unregisterClickHandler");
                 await _mapModule.DisposeAsync();
             }

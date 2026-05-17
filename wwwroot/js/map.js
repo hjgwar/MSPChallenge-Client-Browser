@@ -336,10 +336,26 @@ export function fitToPlayArea(layerId) {
     }
 }
 
-export function setView(lat, lng, zoom) {
+export function setView(lat, lng, zoom, animate = true) {
     if (!map) return;
     const center = ol.proj.transform([lng, lat], 'EPSG:4326', 'EPSG:3035');
-    map.getView().animate({ center, zoom, duration: 300 });
+    const view = map.getView();
+    if (animate) {
+        view.animate({ center, zoom, duration: 300 });
+    } else {
+        view.setCenter(center);
+        view.setZoom(zoom);
+    }
+}
+
+export function getViewState() {
+    if (!map) return null;
+    const view = map.getView();
+    if (!view) return null;
+    const center3035 = view.getCenter();
+    if (!center3035) return null;
+    const [lng, lat] = ol.proj.transform(center3035, 'EPSG:3035', 'EPSG:4326');
+    return { lat, lng, zoom: view.getZoom() };
 }
 
 export function invalidateSize() {

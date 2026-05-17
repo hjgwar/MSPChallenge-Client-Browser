@@ -1,0 +1,21 @@
+@page "/game/dependencies"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+@inject GameSessionState GameState
+
+<PageTitle>MSP Challenge – Dependencies</PageTitle>
+
+@if (GameState.DependencyGroups.Count == 0)
+{
+    <div class="dep-no-data">
+        <p>No dependency data available.</p>
+        <p>Please visit the game first so the data can be loaded.</p>
+        <button class="dep-back-btn" @onclick="@(() => NavigationManager.NavigateTo("/game"))">← Back to Game</button>
+    </div>
+}
+else
+{
+    <div id="dep-graph" class="dep-graph"></div>
+    <button class="dep-back-btn" @onclick="@(() => NavigationManager.NavigateTo("/game"))">← Game</button>
+}
