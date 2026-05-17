@@ -250,6 +250,22 @@ public sealed class GameSessionState : IDisposable
         return d.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    public static string GameStateLabel(string state) => state.ToLowerInvariant() switch
+    {
+        "pause"       => "Paused",
+        "play"        => "Running",
+        "fastforward" => "Fast Forward",
+        "setup"       => "Setup",
+        "end"         => "Ended",
+        _             => state,
+    };
+
+    public static string FormatTimeLeft(double totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
+    }
+
     public static string PlanStateLabel(string state) => state.ToUpperInvariant() switch
     {
         "APPROVAL" => "AWAITING APPROVAL",

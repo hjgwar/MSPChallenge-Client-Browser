@@ -48,10 +48,8 @@ public partial class Game : IAsyncDisposable
 
     // Loading state
     private bool   _isLoading = true;
-    private bool   _loadingFading = false;
+    private bool   _loadingFading;
     private string _loadingStatus = "Initialising…";
-
-    // WebSocket (address comes from session listing, stored in SessionState)
 
     // Plans panel
     private bool _plansPanelOpen;
@@ -65,7 +63,7 @@ public partial class Game : IAsyncDisposable
     private const int WsLogMaxEntries = 100;
     private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = new();
     private string? _wsSelectedRaw;
-    private bool    _wsLogVisible = false;
+    private bool    _wsLogVisible;
 
     private static string PrettyPrintJson(string raw)
     {
@@ -78,13 +76,14 @@ public partial class Game : IAsyncDisposable
         catch { return raw; }
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync()
     {
         if (string.IsNullOrEmpty(SessionState.ApiAccessToken) ||
             SessionState.SessionId == 0 ||
             string.IsNullOrEmpty(SessionState.GameServerAddress))
         {
             NavigationManager.NavigateTo("/");
+            return Task.CompletedTask;
         }
 
         // Returning to /game in the same circuit should be instant.
@@ -96,6 +95,8 @@ public partial class Game : IAsyncDisposable
         _legendPanelOpen = GameState.LegendPanelOpen;
         _usersPanelOpen = GameState.UsersPanelOpen;
         _plansPanelOpen = GameState.PlansPanelOpen;
+
+        return Task.CompletedTask;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -535,28 +536,15 @@ public partial class Game : IAsyncDisposable
         InvokeAsync(StateHasChanged);
     }
 
-    private string GameStateLabel => GameState.GameState.ToLowerInvariant() switch
-    {
-        "pause"       => "Paused",
-        "play"        => "Running",
-        "fastforward" => "Fast Forward",
-        "setup"       => "Setup",
-        "end"         => "Ended",
-        _             => GameState.GameState
-    };
-
-    /// Formats seconds as H:MM:SS (e.g. 2:00:00, 0:45:12).
-    private static string FormatTimeLeft(double totalSeconds)
-    {
-        var ts = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
-        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
-    }
-
     private enum PlanViewMode { AfterChanges, Original, ChangesOnly }
 
     private string MonthToDate(int month) => GameState.MonthToDate(month);
 
     private static string PlanStateLabel(string state) => GameSessionState.PlanStateLabel(state);
+
+    private string GameStateLabel => GameSessionState.GameStateLabel(GameState.GameState);
+
+    private static string FormatTimeLeft(double totalSeconds) => GameSessionState.FormatTimeLeft(totalSeconds);
 
     private async Task SelectPlanAsync(PlanEntry plan)
     {
@@ -656,9 +644,6 @@ public partial class Game : IAsyncDisposable
         StateHasChanged();
     }
 
-    /// <summary>
-    /// Infers point/line/polygon from coordinate count when layer metadata is unavailable.
-    /// </summary>
     private async Task ClosePlanDetailAsync()
     {
         var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
@@ -666,6 +651,9 @@ public partial class Game : IAsyncDisposable
             await SelectPlanAsync(plan);
     }
 
+    /// <summary>
+    /// Infers point/line/polygon from coordinate count when layer metadata is unavailable.
+    /// </summary>
     private static string InferGeoType(IReadOnlyList<PlanGeometryItem> geometries)
     {
         if (geometries.Count == 0) return "point";
@@ -691,15 +679,9 @@ public partial class Game : IAsyncDisposable
                 var viewState = await _mapModule.InvokeAsync<JsonElement>("getViewState");
                 if (viewState.ValueKind == JsonValueKind.Object)
                 {
-                    var lat = viewState.TryGetProperty("lat", out var latEl) && latEl.ValueKind == JsonValueKind.Number
-                        ? latEl.GetDouble()
-                        : double.NaN;
-                    var lng = viewState.TryGetProperty("lng", out var lngEl) && lngEl.ValueKind == JsonValueKind.Number
-                        ? lngEl.GetDouble()
-                        : double.NaN;
-                    var zoom = viewState.TryGetProperty("zoom", out var zoomEl) && zoomEl.ValueKind == JsonValueKind.Number
-                        ? zoomEl.GetDouble()
-                        : double.NaN;
+                    var lat = GetDouble(viewState, "lat");
+                    var lng = GetDouble(viewState, "lng");
+                    var zoom = GetDouble(viewState, "zoom");
 
                     if (!double.IsNaN(lat) && !double.IsNaN(lng) && !double.IsNaN(zoom))
                         GameState.SaveMapView(lat, lng, zoom);
@@ -711,5 +693,12 @@ public partial class Game : IAsyncDisposable
             catch { }
         }
         _dotNetRef?.Dispose();
+    }
+
+    private static double GetDouble(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Number
+            ? value.GetDouble()
+            : double.NaN;
     }
 }
