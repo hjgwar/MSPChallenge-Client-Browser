@@ -227,7 +227,7 @@
                         <button class="panel-close-btn" title="Close"
                                 @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
                     </div>
-                    <details class="plan-detail-section" open>
+                    <details class="plan-detail-section plan-detail-section--state" open>
                         <summary class="plan-detail-section-hdr">Plan Info</summary>
                         <div class="plan-detail-section-body">
                             <div class="plan-detail-info-row">
@@ -237,12 +237,84 @@
                                 </svg>
                                 <span>@MonthToDate(_detailPlan.StartDate)@(_detailPlan.ConstructionTime > 0 ? $", after {_detailPlan.ConstructionTime} months construction" : "")</span>
                             </div>
-                            <div class="plan-detail-info-row">
-                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
-                                    <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
-                                    <path d="M2 4l6-2 6 2"/>
-                                </svg>
-                                <span>Plan state: @PlanStateLabel(_detailPlan.State)</span>
+                            @{
+                                bool isManager = SessionState.CountryId <= 2;
+                                var canChangeState = !_detailPlan.State.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase)
+                                    && (isManager || _detailPlan.Country == SessionState.CountryId);
+                            }
+                            <div class="plan-detail-state-row">
+                                @if (_planStateOpen)
+                                {
+                                    <div class="plan-message-panel plan-state-panel">
+                                        <div class="plan-message-panel-header">
+                                            <span class="plan-message-panel-title">Plan State</span>
+                                            <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePlanStatePanel">&#10005;</button>
+                                        </div>
+                                        <div class="plan-message-panel-body plan-state-panel-body">
+                                            @{
+                                                var availableStates = GetAvailablePlanStates(_detailPlan);
+                                            }
+                                            <div class="plan-state-dropdown @(_planStateDropdownOpen ? "open" : "")">
+                                                <button class="plan-state-dropdown-trigger" type="button"
+                                                        disabled="@_planStateSending"
+                                                        @onclick:stopPropagation="true"
+                                                        @onclick="@(() => _planStateDropdownOpen = !_planStateDropdownOpen)">
+                                                    <span>@PlanStateLabel(_planStatePending)</span>
+                                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="plan-state-dropdown-arrow">
+                                                        <polyline points="4,6 8,10 12,6"/>
+                                                    </svg>
+                                                </button>
+                                                @if (_planStateDropdownOpen)
+                                                {
+                                                    <div class="plan-state-dropdown-list">
+                                                        @foreach (var s in availableStates)
+                                                        {
+                                                            var sLocal = s;
+                                                            <button class="plan-state-dropdown-item @(sLocal == _planStatePending ? "selected" : "")"
+                                                                    type="button"
+                                                                    @onclick:stopPropagation="true"
+                                                                    @onclick="@(() => { _planStatePending = sLocal; _planStateDropdownOpen = false; })">
+                                                                @PlanStateLabel(sLocal)
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                            <div class="plan-state-actions">
+                                                <button class="plan-state-btn plan-state-btn--cancel" type="button"
+                                                        title="Cancel" disabled="@_planStateSending"
+                                                        @onclick="TogglePlanStatePanel">
+                                                    &#10005;
+                                                </button>
+                                                <button class="plan-state-btn plan-state-btn--confirm" type="button"
+                                                        title="Confirm" disabled="@_planStateSending"
+                                                        @onclick="SetPlanStateAsync">
+                                                    &#10003;
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                                @if (canChangeState)
+                                {
+                                    <button class="plan-detail-action-row" type="button" @onclick="TogglePlanStatePanel">
+                                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                            <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
+                                            <path d="M2 4l6-2 6 2"/>
+                                        </svg>
+                                        <span>Plan state: @PlanStateLabel(_detailPlan.State)</span>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <div class="plan-detail-info-row">
+                                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                            <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
+                                            <path d="M2 4l6-2 6 2"/>
+                                        </svg>
+                                        <span>Plan state: @PlanStateLabel(_detailPlan.State)</span>
+                                    </div>
+                                }
                             </div>
                         </div>
                     </details>

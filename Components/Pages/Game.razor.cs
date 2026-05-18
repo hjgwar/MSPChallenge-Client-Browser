@@ -58,6 +58,10 @@ public partial class Game : IAsyncDisposable
     private bool _planMessagesOpen;
     private bool _planIssuesOpen;
     private bool _planApprovalOpen;
+    private bool _planStateOpen;
+    private string? _planStatePending;
+    private bool _planStateSending;
+    private bool _planStateDropdownOpen;
     private bool _scrollPlanMessagesPending;
     private string _planMessageDraft = string.Empty;
     private bool _sendingPlanMessage;
@@ -683,6 +687,7 @@ public partial class Game : IAsyncDisposable
             _planViewMode = PlanViewMode.AfterChanges;
             _planIssuesOpen = false;
             _planApprovalOpen = false;
+            _planStateOpen = false;
             _selectedPlanIssues.Clear();
             _approvalRequired.Clear();
             _approvalReasonsExpanded.Clear();
@@ -697,6 +702,7 @@ public partial class Game : IAsyncDisposable
         _planMessagesOpen = false;
         _planIssuesOpen = false;
         _planApprovalOpen = false;
+        _planStateOpen = false;
         _planMessageDraft = string.Empty;
         _planMessageSendError = null;
         _selectedPlanIssues.Clear();
@@ -1458,6 +1464,7 @@ public partial class Game : IAsyncDisposable
         {
             _planIssuesOpen = false;
             _planApprovalOpen = false;
+            _planStateOpen = false;
             _approvalReasonsExpanded.Clear();
             _scrollPlanMessagesPending = true;
         }
@@ -1472,6 +1479,7 @@ public partial class Game : IAsyncDisposable
         {
             _planMessagesOpen = false;
             _planApprovalOpen = false;
+            _planStateOpen = false;
             _approvalReasonsExpanded.Clear();
         }
     }
@@ -1484,6 +1492,7 @@ public partial class Game : IAsyncDisposable
         {
             _planMessagesOpen = false;
             _planIssuesOpen = false;
+            _planStateOpen = false;
         }
         else
         {
@@ -1495,6 +1504,141 @@ public partial class Game : IAsyncDisposable
     {
         if (!_approvalReasonsExpanded.Remove(countryId))
             _approvalReasonsExpanded.Add(countryId);
+    }
+
+    private void TogglePlanStatePanel()
+    {
+        if (_selectedPlanId == 0) return;
+        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        bool isManager = SessionState.CountryId <= 2;
+        if (plan is null
+            || plan.State.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase)
+            || (!isManager && plan.Country != SessionState.CountryId)) return;
+        _planStateOpen = !_planStateOpen;
+        if (_planStateOpen)
+        {
+            _planMessagesOpen = false;
+            _planIssuesOpen = false;
+            _planApprovalOpen = false;
+            _approvalReasonsExpanded.Clear();
+            _planStatePending = plan.State.ToUpperInvariant();
+        }
+        else
+        {
+            _planStateDropdownOpen = false;
+        }
+    }
+
+    private IReadOnlyList<string> GetAvailablePlanStates(PlanEntry plan)
+    {
+        var current = plan.State.ToUpperInvariant();
+
+        if (current == "IMPLEMENTED")
+            return [];
+
+        if (current == "ARCHIVED")
+            return ["DESIGN"];
+
+        bool hasErrors = _selectedPlanIssues.Any(
+            i => i.Severity.Equals("ERROR", StringComparison.OrdinalIgnoreCase));
+
+        if (hasErrors)
+            return ["DESIGN", "ARCHIVED"];
+
+        // Normal flow
+        var states = new List<string> { "DESIGN", "CONSULTATION", "APPROVAL" };
+        if (!plan.RequiresApproval)
+            states.Add("APPROVED");
+        states.Add("ARCHIVED");
+        return states;
+    }
+
+    private async Task SetPlanStateAsync()
+    {
+        if (_planStateSending || _planStatePending is null || _selectedPlanId == 0) return;
+        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        if (plan is null || _planStatePending.Equals(plan.State, StringComparison.OrdinalIgnoreCase))
+        {
+            _planStateOpen = false;
+            return;
+        }
+        _planStateSending = true;
+        StateHasChanged();
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var sessionPath = SessionState.SessionId.ToString();
+            var userId      = SessionState.UserId.ToString();
+
+            // Step 1: lock the plan (direct call — must succeed before batch)
+            await ApiClient.PostFormAsync(
+                $"{baseAddress}/{sessionPath}/api/Plan/Lock",
+                new[]
+                {
+                    new KeyValuePair<string, string>("id",   _selectedPlanId.ToString()),
+                    new KeyValuePair<string, string>("user", userId),
+                });
+
+            // Step 2: batch — unlock + set state (mirrors Unity AP_StateSelect.AcceptStatus)
+            var batchRequests = System.Text.Json.JsonSerializer.Serialize(new object[]
+            {
+                new
+                {
+                    call_id       = 1,
+                    endpoint      = "api/Plan/Unlock",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        id           = _selectedPlanId,
+                        force_unlock = 0,
+                        user         = userId,
+                    }),
+                    group = 100,   // BATCH_GROUP_UNLOCK
+                },
+                new
+                {
+                    call_id       = 2,
+                    endpoint      = "api/Plan/Message",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        plan      = _selectedPlanId,
+                        team_id   = SessionState.CountryId,
+                        user_name = SessionState.UserName,
+                        text      = $"Changed the plans status to: {PlanStateLabel(_planStatePending)}",
+                    }),
+                    group = 5,     // BATCH_GROUP_PLAN_CHANGE
+                },
+                new
+                {
+                    call_id       = 3,
+                    endpoint      = "api/Plan/SetState",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        id    = _selectedPlanId,
+                        state = _planStatePending,
+                        user  = userId,
+                    }),
+                    group = 5,     // BATCH_GROUP_PLAN_CHANGE
+                },
+            });
+
+            await ApiClient.PostFormAsync(
+                $"{baseAddress}/{sessionPath}/api/Batch/ExecuteBatch",
+                new[]
+                {
+                    new KeyValuePair<string, string>("country_id", SessionState.CountryId.ToString()),
+                    new KeyValuePair<string, string>("user_id",    userId),
+                    new KeyValuePair<string, string>("batch_guid", Guid.NewGuid().ToString()),
+                    new KeyValuePair<string, string>("requests",   batchRequests),
+                });
+
+            _planStateOpen = false;
+        }
+        catch { /* Server state will correct on next WS update */ }
+        finally
+        {
+            _planStateSending = false;
+            StateHasChanged();
+        }
     }
 
     private bool _sendingVote;
