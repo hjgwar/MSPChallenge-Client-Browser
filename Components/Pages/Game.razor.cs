@@ -56,6 +56,7 @@ public partial class Game : IAsyncDisposable
     private bool _plansPanelOpen;
     private int _selectedPlanId;
     private bool _planMessagesOpen;
+    private bool _planIssuesOpen;
     private bool _scrollPlanMessagesPending;
     private string _planMessageDraft = string.Empty;
     private bool _sendingPlanMessage;
@@ -64,6 +65,20 @@ public partial class Game : IAsyncDisposable
     private bool _detailDescExpanded;
     private readonly HashSet<string> _planActivatedLayerIds  = new();
     private readonly HashSet<string> _planReferencedLayerIds = new();
+    private readonly Dictionary<string, List<ParsedLayerGeometry>> _parsedLayerGeometryCache    = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ParsedLayerGeometry>> _projectedGeometryCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<PlanRestrictionIssue> _selectedPlanIssues = new();
+    private readonly Dictionary<int, string> _planIssueSeverity = new();
+
+    private sealed record ParsedLayerGeometry(string FeatureId, int TypeIndex, IReadOnlyList<double[]> Coordinates);
+    private sealed record PlanRestrictionIssue(
+        string Severity,
+        string Message,
+        string SourceLayer,
+        string TargetLayer,
+        string ChangeKind,
+        double MarkerX,
+        double MarkerY);
 
     // Dev console log (capped list of recent raw WS messages)
     private const int WsLogMaxEntries = 100;
@@ -452,6 +467,29 @@ public partial class Game : IAsyncDisposable
         return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant());
     }
 
+    private async Task FocusPlanIssueAsync(PlanRestrictionIssue issue)
+    {
+        if (_mapModule is null) return;
+        await EnsureRestrictionLayersVisibleAsync(issue.SourceLayer, issue.TargetLayer);
+        await _mapModule.InvokeVoidAsync("focusOnCoordinate", issue.MarkerX, issue.MarkerY);
+    }
+
+    private async Task EnsureRestrictionLayersVisibleAsync(string? sourceDisplayName, string? targetDisplayName)
+    {
+        var changed = false;
+        foreach (var name in new[] { sourceDisplayName, targetDisplayName })
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var le = _layerEntries.FirstOrDefault(e =>
+                string.Equals(e.DisplayName, name, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(e.LayerName,   name, StringComparison.OrdinalIgnoreCase));
+            if (le is null || le.Visible) continue;
+            await ToggleLayerAsync(le, true);
+            changed = true;
+        }
+        if (changed) StateHasChanged();
+    }
+
     [JSInvokable]
     public void OnMapClick(string json)
     {
@@ -479,6 +517,41 @@ public partial class Game : IAsyncDisposable
 
             if (root.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object)
             {
+                if (props.TryGetProperty("_restrictionMessage", out var restrictionMessageProp))
+                {
+                    _popupLayerName = "Restriction";
+
+                    var severity = props.TryGetProperty("_restrictionSeverity", out var severityProp)
+                        ? severityProp.GetString() ?? ""
+                        : "";
+                    var sourceLayer = props.TryGetProperty("_restrictionSourceLayer", out var sourceProp)
+                        ? sourceProp.GetString() ?? ""
+                        : "";
+                    var targetLayer = props.TryGetProperty("_restrictionTargetLayer", out var targetProp)
+                        ? targetProp.GetString() ?? ""
+                        : "";
+                    var changeKind = props.TryGetProperty("_restrictionChangeKind", out var changeProp)
+                        ? changeProp.GetString() ?? ""
+                        : "";
+                    var restrictionMessage = restrictionMessageProp.GetString() ?? "";
+
+                    if (!string.IsNullOrWhiteSpace(severity))
+                        _popupProps.Add(("Severity", severity));
+                    if (!string.IsNullOrWhiteSpace(changeKind))
+                        _popupProps.Add(("Change", changeKind));
+                    if (!string.IsNullOrWhiteSpace(restrictionMessage))
+                        _popupProps.Add(("Message", restrictionMessage));
+                    if (!string.IsNullOrWhiteSpace(sourceLayer) || !string.IsNullOrWhiteSpace(targetLayer))
+                        _popupProps.Add(("Layers", $"{sourceLayer} <-> {targetLayer}"));
+
+                    // Activate both layers so the user can see the overlap.
+                    _ = InvokeAsync(() => EnsureRestrictionLayersVisibleAsync(sourceLayer, targetLayer));
+
+                    _popupVisible = true;
+                    InvokeAsync(StateHasChanged);
+                    return;
+                }
+
                 // Raster: resolve grey pixel → value category label
                 if (entry?.IsRaster == true &&
                     props.TryGetProperty("_rasterGrey", out var greyProp) &&
@@ -563,6 +636,9 @@ public partial class Game : IAsyncDisposable
 
     private static string FormatTimeLeft(double totalSeconds) => GameSessionState.FormatTimeLeft(totalSeconds);
 
+    private int SelectedPlanIssueCount => _selectedPlanIssues.Count;
+    private IReadOnlyList<PlanRestrictionIssue> SelectedPlanIssues => _selectedPlanIssues;
+
     private async Task SelectPlanAsync(PlanEntry plan)
     {
         if (_mapModule is null) return;
@@ -584,12 +660,16 @@ public partial class Game : IAsyncDisposable
         }
         _planActivatedLayerIds.Clear();
         _planReferencedLayerIds.Clear();
+        _projectedGeometryCache.Clear();
+        await _mapModule.InvokeVoidAsync("clearPlanProjection");
 
         if (_selectedPlanId == plan.PlanId)
         {
             // Toggling the same plan off.
             _selectedPlanId = 0;
             _planViewMode = PlanViewMode.AfterChanges;
+            _planIssuesOpen = false;
+            _selectedPlanIssues.Clear();
             await _mapModule.InvokeVoidAsync("clearPlanOverlay");
             StateHasChanged();
             return;
@@ -599,8 +679,10 @@ public partial class Game : IAsyncDisposable
         _planViewMode   = PlanViewMode.AfterChanges;
         _detailDescExpanded = false;
         _planMessagesOpen = false;
+        _planIssuesOpen = false;
         _planMessageDraft = string.Empty;
         _planMessageSendError = null;
+        _selectedPlanIssues.Clear();
 
         // Collect all referenced original layer IDs.
         foreach (var planLayer in plan.Layers)
@@ -624,28 +706,681 @@ public partial class Game : IAsyncDisposable
             var geoType = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType
                        ?? InferGeoType(planLayer.Geometry);
 
-            var geometries = planLayer.Geometry
-                .Select(g => new {
-                    coords   = g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
-                    isNew    = string.IsNullOrEmpty(g.PersistentId) || g.Id == g.PersistentId,
-                    mspType  = g.TypeIndex
-                })
-                .ToArray();
+            var geometries = new List<object>();
+            foreach (var geometry in planLayer.Geometry)
+            {
+                var isNewGeometry = string.IsNullOrEmpty(geometry.PersistentId) || geometry.Id == geometry.PersistentId;
+                var geometryIssues = EvaluateRestrictionsForGeometry(planLayer.OriginalLayerId, geoType, geometry, isNewGeometry, plan.StartDate);
+                _selectedPlanIssues.AddRange(geometryIssues);
+
+                geometries.Add(new {
+                    coords = geometry.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
+                    isNew = isNewGeometry,
+                    mspType = geometry.TypeIndex,
+                    restrictionMarkers = geometryIssues
+                        .Select(r => new
+                        {
+                            severity = NormaliseSeverity(r.Severity),
+                            message = r.Message,
+                            sourceLayer = r.SourceLayer,
+                            targetLayer = r.TargetLayer,
+                            changeKind = r.ChangeKind,
+                            coord = new[] { r.MarkerX, r.MarkerY }
+                        })
+                        .ToArray(),
+                    restrictions = geometryIssues
+                        .Select(r => NormaliseSeverity(r.Severity))
+                        .Where(r => !string.IsNullOrEmpty(r))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray()
+                });
+            }
 
             layersData.Add(new {
                 geoType,
-                geometries,
+                geometries = geometries.ToArray(),
                 originalLayerId = planLayer.OriginalLayerId,
                 deletedIds      = planLayer.DeletedPersistentIds
             });
         }
+
+        _selectedPlanIssues.Sort((a, b) =>
+        {
+            var s = SeveritySortRank(b.Severity).CompareTo(SeveritySortRank(a.Severity));
+            if (s != 0) return s;
+            s = string.Compare(a.TargetLayer, b.TargetLayer, StringComparison.OrdinalIgnoreCase);
+            return s != 0 ? s : string.Compare(a.Message, b.Message, StringComparison.OrdinalIgnoreCase);
+        });
+
+        // Record the worst severity for this plan so the plans-panel can show an issue badge.
+        if (_selectedPlanIssues.Count > 0)
+            _planIssueSeverity[plan.PlanId] = NormaliseSeverity(_selectedPlanIssues[0].Severity);
+        else
+            _planIssueSeverity.Remove(plan.PlanId);
 
         if (layersData.Count > 0)
             await _mapModule.InvokeVoidAsync("showPlanGeometry", JsonSerializer.Serialize(layersData));
         else
             await _mapModule.InvokeVoidAsync("clearPlanOverlay");
 
+        // Project the world state onto the map: apply all geometry changes from earlier finalised
+        // plans so the map reflects how the world would look at plan B's implementation date.
+        var priorPlans = _plans
+            .Where(p => p.StartDate < plan.StartDate && IsFinalisedPlanState(p.State))
+            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
+            .ToList();
+        if (priorPlans.Count > 0)
+        {
+            var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var addedFeatures  = new List<object>();
+
+            foreach (var priorPlan in priorPlans)
+            {
+                foreach (var planLayer in priorPlan.Layers)
+                {
+                    if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
+                    if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
+                        hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    // Explicit deletions.
+                    foreach (var deletedId in planLayer.DeletedPersistentIds)
+                        ids.Add(deletedId);
+
+                    var geoType = _layerEntries
+                        .FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
+
+                    foreach (var geo in planLayer.Geometry)
+                    {
+                        // Modifications: hide the original feature that this plan geometry replaces.
+                        if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
+                            ids.Add(geo.PersistentId);
+
+                        // Additions and modifications both contribute a new geometry to the map.
+                        if (geo.Coordinates.Count > 0)
+                            addedFeatures.Add(new {
+                                layerId   = planLayer.OriginalLayerId,
+                                geoType,
+                                id        = geo.Id,
+                                typeIndex = geo.TypeIndex,
+                                coords    = geo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray()
+                            });
+                    }
+                }
+            }
+
+            await _mapModule.InvokeVoidAsync("applyPlanProjection",
+                JsonSerializer.Serialize(new {
+                    hidden = hiddenFeatures.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray()),
+                    added  = addedFeatures
+                }));
+        }
+
         StateHasChanged();
+    }
+
+    private IReadOnlyList<PlanRestrictionIssue> EvaluateRestrictionsForGeometry(
+        string sourceLayerId,
+        string sourceGeoType,
+        PlanGeometryItem geometry,
+        bool isNewGeometry,
+        int planStartDate)
+    {
+        if (GameState.Restrictions.Count == 0 || geometry.Coordinates.Count == 0)
+            return [];
+
+        var sourceLayer = _layerEntries.FirstOrDefault(l => string.Equals(l.LayerId, sourceLayerId, StringComparison.OrdinalIgnoreCase));
+        if (sourceLayer is null)
+            return [];
+
+        var matches = new List<PlanRestrictionIssue>();
+        // Deduplicate: same message at the same map position is considered one issue regardless
+        // of whether it comes from duplicate restriction rules or coincident target geometries.
+        var seenIssueKeys = new HashSet<(string severity, string message, string src, string tgt, double x, double y)>();
+
+        foreach (var rule in GameState.Restrictions)
+        {
+            if (!RuleLayerMatches(rule.StartLayer, sourceLayer)
+                || !RestrictionTypeMatches(rule.StartType, geometry.TypeIndex, sourceLayer))
+                continue;
+
+            var targetLayer = FindLayerByRuleName(rule.EndLayer);
+            var targetType = rule.EndType;
+
+            if (targetLayer is null || targetLayer.IsRaster)
+                continue;
+
+            var targetGeometries = GetProjectedLayerGeometries(targetLayer.LayerId, planStartDate);
+            var constraintSort = NormaliseConstraintSort(rule.Sort);
+            var sourceMarker = GetGeometryCenter(geometry.Coordinates);
+            var overlapFound = false;
+
+            foreach (var targetGeometry in targetGeometries)
+            {
+                if (!RestrictionTypeMatches(targetType, targetGeometry.TypeIndex, targetLayer))
+                    continue;
+
+                if (!HasOverlap(sourceGeoType, geometry.Coordinates, targetLayer.GeoType, targetGeometry.Coordinates))
+                    continue;
+
+                overlapFound = true;
+
+                // Unity inclusion constraints emit one issue per overlapping target geometry.
+                if (constraintSort == "EXCLUSION")
+                    continue;
+
+                var severity = NormaliseSeverity(rule.Type);
+                if (string.IsNullOrEmpty(severity))
+                    severity = "WARNING";
+                var message = string.IsNullOrWhiteSpace(rule.Message)
+                    ? $"Overlap with {targetLayer.DisplayName}"
+                    : rule.Message;
+                var marker = GetGeometryCenter(targetGeometry.Coordinates);
+                var key = (severity, message, sourceLayer.DisplayName, targetLayer.DisplayName, marker[0], marker[1]);
+                if (seenIssueKeys.Add(key))
+                    matches.Add(new PlanRestrictionIssue(
+                        severity,
+                        message,
+                        sourceLayer.DisplayName,
+                        targetLayer.DisplayName,
+                        isNewGeometry ? "New geometry" : "Changed geometry",
+                        marker[0],
+                        marker[1]));
+            }
+
+            // Unity exclusion constraints add an issue only when no overlap was found.
+            if (constraintSort == "EXCLUSION" && !overlapFound)
+            {
+                var severity = NormaliseSeverity(rule.Type);
+                if (string.IsNullOrEmpty(severity))
+                    severity = "WARNING";
+                var message = string.IsNullOrWhiteSpace(rule.Message)
+                    ? $"No valid overlap with {targetLayer.DisplayName}"
+                    : rule.Message;
+                var key = (severity, message, sourceLayer.DisplayName, targetLayer.DisplayName, sourceMarker[0], sourceMarker[1]);
+                if (seenIssueKeys.Add(key))
+                    matches.Add(new PlanRestrictionIssue(
+                        severity,
+                        message,
+                        sourceLayer.DisplayName,
+                        targetLayer.DisplayName,
+                        isNewGeometry ? "New geometry" : "Changed geometry",
+                        sourceMarker[0],
+                        sourceMarker[1]));
+            }
+        }
+
+        return matches;
+    }
+
+    private LayerEntry? FindLayerByRuleName(string? ruleLayer)
+    {
+        if (string.IsNullOrWhiteSpace(ruleLayer))
+            return null;
+
+        var normalizedRule = NormaliseToken(ruleLayer);
+        var exact = _layerEntries.FirstOrDefault(layer =>
+            normalizedRule == NormaliseToken(layer.LayerId)
+            || normalizedRule == NormaliseToken(layer.LayerName)
+            || normalizedRule == NormaliseToken(layer.DisplayName));
+        if (exact is not null)
+            return exact;
+
+        return _layerEntries.FirstOrDefault(layer => RuleLayerMatches(ruleLayer, layer));
+    }
+
+    private static bool RuleLayerMatches(string? ruleLayer, LayerEntry layer)
+    {
+        if (string.IsNullOrWhiteSpace(ruleLayer))
+            return false;
+
+        if (string.Equals(ruleLayer, "*", StringComparison.Ordinal))
+            return true;
+
+        var normalizedRuleLayer = NormaliseToken(ruleLayer);
+        var layerId = NormaliseToken(layer.LayerId);
+        var layerName = NormaliseToken(layer.LayerName);
+        var displayName = NormaliseToken(layer.DisplayName);
+
+        if (normalizedRuleLayer == layerId
+            || normalizedRuleLayer == layerName
+            || normalizedRuleLayer == displayName)
+            return true;
+
+        // Restriction endpoints commonly use numeric layer IDs. Keep those strict to avoid
+        // accidental matches like rule layer "2" matching actual layer id "12".
+        if (normalizedRuleLayer.All(char.IsDigit))
+            return false;
+
+        // For textual rules, allow partial matching only for reasonably descriptive tokens.
+        if (normalizedRuleLayer.Length < 4)
+            return false;
+
+        return layerName.Contains(normalizedRuleLayer, StringComparison.Ordinal)
+            || displayName.Contains(normalizedRuleLayer, StringComparison.Ordinal)
+            || normalizedRuleLayer.Contains(layerName, StringComparison.Ordinal)
+            || normalizedRuleLayer.Contains(displayName, StringComparison.Ordinal);
+    }
+
+    private static bool RestrictionTypeMatches(string? ruleType, int actualTypeIndex, LayerEntry? layer)
+    {
+        if (string.IsNullOrWhiteSpace(ruleType))
+            return true;
+
+        var normalizedRuleType = NormaliseToken(ruleType);
+        if (normalizedRuleType is "*" or "any" or "all")
+            return true;
+
+        if (int.TryParse(ruleType, out var index))
+            return index == actualTypeIndex;
+
+        if (normalizedRuleType == actualTypeIndex.ToString(CultureInfo.InvariantCulture))
+            return true;
+
+        if (layer is null || actualTypeIndex < 0 || actualTypeIndex >= layer.TypeDefs.Count)
+            return false;
+
+        var label = layer.TypeDefs[actualTypeIndex].Label;
+        return normalizedRuleType == NormaliseToken(label);
+    }
+
+    private List<ParsedLayerGeometry> GetParsedLayerGeometries(string layerId)
+    {
+        if (_parsedLayerGeometryCache.TryGetValue(layerId, out var cached))
+            return cached;
+
+        var parsed = new List<ParsedLayerGeometry>();
+        _parsedLayerGeometryCache[layerId] = parsed;
+
+        var snapshot = GameState.MapLayerSnapshots.FirstOrDefault(s => string.Equals(s.LayerId, layerId, StringComparison.OrdinalIgnoreCase));
+        if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.VectorGeometriesJson))
+            return parsed;
+
+        try
+        {
+            using var document = JsonDocument.Parse(snapshot.VectorGeometriesJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                return parsed;
+
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                if (!element.TryGetProperty("geometry", out var geometryElement) || geometryElement.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var coordinates = new List<double[]>();
+                foreach (var pointElement in geometryElement.EnumerateArray())
+                {
+                    if (pointElement.ValueKind != JsonValueKind.Array || pointElement.GetArrayLength() < 2)
+                        continue;
+
+                    if (pointElement[0].ValueKind != JsonValueKind.Number || pointElement[1].ValueKind != JsonValueKind.Number)
+                        continue;
+
+                    coordinates.Add([pointElement[0].GetDouble(), pointElement[1].GetDouble()]);
+                }
+
+                if (coordinates.Count == 0)
+                    continue;
+
+                var featureId = "";
+                if (element.TryGetProperty("id", out var idElement))
+                    featureId = idElement.ValueKind == JsonValueKind.String ? idElement.GetString() ?? "" : idElement.ToString();
+
+                var typeIndex = 0;
+                if (element.TryGetProperty("type", out var typeElement))
+                {
+                    if (typeElement.ValueKind == JsonValueKind.Number)
+                        typeIndex = typeElement.GetInt32();
+                    else if (typeElement.ValueKind == JsonValueKind.String)
+                        int.TryParse(typeElement.GetString(), out typeIndex);
+                }
+
+                parsed.Add(new ParsedLayerGeometry(featureId, typeIndex, coordinates));
+            }
+        }
+        catch
+        {
+            // Ignore malformed cached geometry and simply skip restrictions for this layer.
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    /// Returns the effective geometries for <paramref name="layerId"/> as they would exist
+    /// at the moment a plan with <paramref name="beforeStartDate"/> is implemented — i.e. after
+    /// applying all APPROVED / IMPLEMENTED / ARCHIVED plans whose start date is strictly earlier.
+    /// </summary>
+    private List<ParsedLayerGeometry> GetProjectedLayerGeometries(string layerId, int beforeStartDate)
+    {
+        var cacheKey = $"{layerId}\x01{beforeStartDate}";
+        if (_projectedGeometryCache.TryGetValue(cacheKey, out var cached))
+            return cached;
+
+        var baseline = GetParsedLayerGeometries(layerId);
+
+        // Collect finalised plans that are already in effect before this plan's start date.
+        var priorPlans = _plans
+            .Where(p => p.StartDate < beforeStartDate && IsFinalisedPlanState(p.State))
+            .OrderBy(p => p.StartDate)
+            .ThenBy(p => p.PlanId)
+            .ToList();
+
+        if (priorPlans.Count == 0)
+        {
+            _projectedGeometryCache[cacheKey] = baseline;
+            return baseline;
+        }
+
+        // Build the set of original feature IDs that have been removed or replaced,
+        // and collect all plan-introduced geometries as additions.
+        var deletedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var additions  = new List<ParsedLayerGeometry>();
+
+        foreach (var priorPlan in priorPlans)
+        {
+            var planLayer = priorPlan.Layers.FirstOrDefault(l =>
+                string.Equals(l.OriginalLayerId, layerId, StringComparison.OrdinalIgnoreCase));
+            if (planLayer is null) continue;
+
+            // Explicit deletions.
+            foreach (var deletedId in planLayer.DeletedPersistentIds)
+                deletedIds.Add(deletedId);
+
+            foreach (var geo in planLayer.Geometry)
+            {
+                bool isModification = !string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id;
+                if (isModification)
+                    deletedIds.Add(geo.PersistentId); // original is superseded by the plan version
+
+                // Whether new or modified, the plan geometry is part of the projected world.
+                additions.Add(new ParsedLayerGeometry(geo.Id, geo.TypeIndex, geo.Coordinates));
+            }
+        }
+
+        var projected = new List<ParsedLayerGeometry>(baseline.Count + additions.Count);
+        foreach (var geo in baseline)
+        {
+            if (!deletedIds.Contains(geo.FeatureId))
+                projected.Add(geo);
+        }
+        projected.AddRange(additions);
+
+        _projectedGeometryCache[cacheKey] = projected;
+        return projected;
+    }
+
+    private static bool IsFinalisedPlanState(string state) =>
+        state.Equals("CONSULTATION", StringComparison.OrdinalIgnoreCase) ||
+        state.Equals("APPROVAL",     StringComparison.OrdinalIgnoreCase) ||
+        state.Equals("APPROVED",     StringComparison.OrdinalIgnoreCase) ||
+        state.Equals("IMPLEMENTED",  StringComparison.OrdinalIgnoreCase);
+
+    private static string NormaliseSeverity(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        var key = NormaliseToken(raw);
+        return key switch
+        {
+            "error" or "err" or "danger" or "2" => "ERROR",
+            "warning" or "warn" or "1" => "WARNING",
+            "info" or "information" or "0" => "INFO",
+            _ => key.ToUpperInvariant()
+        };
+    }
+
+    private static int SeveritySortRank(string? severity)
+    {
+        return NormaliseSeverity(severity) switch
+        {
+            "ERROR" => 3,
+            "WARNING" => 2,
+            "INFO" => 1,
+            _ => 0
+        };
+    }
+
+    private static string NormaliseConstraintSort(string? rawSort)
+    {
+        if (string.IsNullOrWhiteSpace(rawSort)) return "INCLUSION";
+        var key = NormaliseToken(rawSort);
+        return key switch
+        {
+            "0" or "inclusion" => "INCLUSION",
+            "1" or "exclusion" => "EXCLUSION",
+            "2" or "typeunavailable" => "TYPE_UNAVAILABLE",
+            _ => key.ToUpperInvariant()
+        };
+    }
+
+    private static string NormaliseToken(string value)
+    {
+        return new string(value
+            .Trim()
+            .ToLowerInvariant()
+            .Where(char.IsLetterOrDigit)
+            .ToArray());
+    }
+
+    private static bool HasOverlap(
+        string sourceGeoType,
+        IReadOnlyList<double[]> sourceCoordinates,
+        string targetGeoType,
+        IReadOnlyList<double[]> targetCoordinates)
+    {
+        var aType = NormaliseGeometryKind(sourceGeoType, sourceCoordinates);
+        var bType = NormaliseGeometryKind(targetGeoType, targetCoordinates);
+
+        if (aType == "point" && bType == "point")
+            return PointDistanceSquared(sourceCoordinates[0], targetCoordinates[0]) <= 1.0;
+
+        if (aType == "point" && bType == "line")
+            return PointOnLine(sourceCoordinates[0], targetCoordinates);
+
+        if (aType == "line" && bType == "point")
+            return PointOnLine(targetCoordinates[0], sourceCoordinates);
+
+        if (aType == "point" && bType == "polygon")
+            return PointInPolygon(sourceCoordinates[0], targetCoordinates);
+
+        if (aType == "polygon" && bType == "point")
+            return PointInPolygon(targetCoordinates[0], sourceCoordinates);
+
+        if (aType == "line" && bType == "line")
+            return PolylineIntersectsPolyline(sourceCoordinates, targetCoordinates);
+
+        if (aType == "line" && bType == "polygon")
+            return PolylineIntersectsPolygon(sourceCoordinates, targetCoordinates);
+
+        if (aType == "polygon" && bType == "line")
+            return PolylineIntersectsPolygon(targetCoordinates, sourceCoordinates);
+
+        return PolygonsOverlap(sourceCoordinates, targetCoordinates);
+    }
+
+    private static string NormaliseGeometryKind(string geoType, IReadOnlyList<double[]> coordinates)
+    {
+        var key = geoType.Trim().ToLowerInvariant();
+        if (key.Contains("point")) return "point";
+        if (key.Contains("line")) return "line";
+        if (key.Contains("polygon")) return "polygon";
+        if (coordinates.Count <= 1) return "point";
+        return coordinates.Count >= 4 ? "polygon" : "line";
+    }
+
+    private static double[] GetGeometryCenter(IReadOnlyList<double[]> coordinates)
+    {
+        if (coordinates.Count == 0) return [0d, 0d];
+
+        var minX = coordinates[0][0];
+        var maxX = coordinates[0][0];
+        var minY = coordinates[0][1];
+        var maxY = coordinates[0][1];
+
+        for (var i = 1; i < coordinates.Count; i++)
+        {
+            var c = coordinates[i];
+            if (c[0] < minX) minX = c[0];
+            if (c[0] > maxX) maxX = c[0];
+            if (c[1] < minY) minY = c[1];
+            if (c[1] > maxY) maxY = c[1];
+        }
+
+        return [minX + (maxX - minX) / 2d, minY + (maxY - minY) / 2d];
+    }
+
+    private static bool PointOnLine(double[] point, IReadOnlyList<double[]> line)
+    {
+        if (line.Count == 0) return false;
+        if (line.Count == 1) return PointDistanceSquared(point, line[0]) <= 1.0;
+
+        for (var i = 1; i < line.Count; i++)
+        {
+            if (DistancePointToSegmentSquared(point, line[i - 1], line[i]) <= 1.0)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool PolylineIntersectsPolyline(IReadOnlyList<double[]> a, IReadOnlyList<double[]> b)
+    {
+        if (a.Count < 2 || b.Count < 2) return false;
+
+        for (var i = 1; i < a.Count; i++)
+        {
+            for (var j = 1; j < b.Count; j++)
+            {
+                if (SegmentsIntersect(a[i - 1], a[i], b[j - 1], b[j]))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool PolylineIntersectsPolygon(IReadOnlyList<double[]> line, IReadOnlyList<double[]> polygon)
+    {
+        if (line.Count < 2 || polygon.Count < 3) return false;
+        if (PointInPolygon(line[0], polygon)) return true;
+
+        var polygonSegments = EnumerateSegments(polygon, closed: true);
+        for (var i = 1; i < line.Count; i++)
+        {
+            var lineA = line[i - 1];
+            var lineB = line[i];
+            foreach (var segment in polygonSegments)
+            {
+                if (SegmentsIntersect(lineA, lineB, segment.A, segment.B))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool PolygonsOverlap(IReadOnlyList<double[]> a, IReadOnlyList<double[]> b)
+    {
+        if (a.Count < 3 || b.Count < 3) return false;
+        if (PointInPolygon(a[0], b) || PointInPolygon(b[0], a)) return true;
+
+        foreach (var segA in EnumerateSegments(a, closed: true))
+        {
+            foreach (var segB in EnumerateSegments(b, closed: true))
+            {
+                if (SegmentsIntersect(segA.A, segA.B, segB.A, segB.B))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<(double[] A, double[] B)> EnumerateSegments(IReadOnlyList<double[]> coords, bool closed)
+    {
+        if (coords.Count < 2) yield break;
+        for (var i = 1; i < coords.Count; i++)
+            yield return (coords[i - 1], coords[i]);
+
+        if (closed)
+        {
+            var first = coords[0];
+            var last = coords[^1];
+            if (PointDistanceSquared(first, last) > 1.0)
+                yield return (last, first);
+        }
+    }
+
+    private static bool PointInPolygon(double[] point, IReadOnlyList<double[]> polygon)
+    {
+        if (polygon.Count < 3) return false;
+
+        var inside = false;
+        var j = polygon.Count - 1;
+        for (var i = 0; i < polygon.Count; i++)
+        {
+            var xi = polygon[i][0];
+            var yi = polygon[i][1];
+            var xj = polygon[j][0];
+            var yj = polygon[j][1];
+
+            var intersects = ((yi > point[1]) != (yj > point[1])) &&
+                             (point[0] < (xj - xi) * (point[1] - yi) / ((yj - yi) + 1e-12) + xi);
+            if (intersects)
+                inside = !inside;
+
+            j = i;
+        }
+
+        return inside;
+    }
+
+    private static bool SegmentsIntersect(double[] p1, double[] p2, double[] q1, double[] q2)
+    {
+        var o1 = Orientation(p1, p2, q1);
+        var o2 = Orientation(p1, p2, q2);
+        var o3 = Orientation(q1, q2, p1);
+        var o4 = Orientation(q1, q2, p2);
+
+        if (o1 != o2 && o3 != o4) return true;
+
+        if (o1 == 0 && OnSegment(p1, q1, p2)) return true;
+        if (o2 == 0 && OnSegment(p1, q2, p2)) return true;
+        if (o3 == 0 && OnSegment(q1, p1, q2)) return true;
+        if (o4 == 0 && OnSegment(q1, p2, q2)) return true;
+        return false;
+    }
+
+    private static int Orientation(double[] p, double[] q, double[] r)
+    {
+        var value = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
+        if (Math.Abs(value) < 1e-9) return 0;
+        return value > 0 ? 1 : 2;
+    }
+
+    private static bool OnSegment(double[] p, double[] q, double[] r)
+    {
+        return q[0] <= Math.Max(p[0], r[0]) + 1e-9 && q[0] + 1e-9 >= Math.Min(p[0], r[0])
+            && q[1] <= Math.Max(p[1], r[1]) + 1e-9 && q[1] + 1e-9 >= Math.Min(p[1], r[1]);
+    }
+
+    private static double DistancePointToSegmentSquared(double[] p, double[] a, double[] b)
+    {
+        var dx = b[0] - a[0];
+        var dy = b[1] - a[1];
+        if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9)
+            return PointDistanceSquared(p, a);
+
+        var t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy);
+        t = Math.Max(0, Math.Min(1, t));
+        var proj = new[] { a[0] + t * dx, a[1] + t * dy };
+        return PointDistanceSquared(p, proj);
+    }
+
+    private static double PointDistanceSquared(double[] a, double[] b)
+    {
+        var dx = a[0] - b[0];
+        var dy = a[1] - b[1];
+        return dx * dx + dy * dy;
     }
 
     private async Task SetPlanViewModeAsync(PlanViewMode mode)
@@ -676,8 +1411,18 @@ public partial class Game : IAsyncDisposable
         if (_selectedPlanId == 0) return;
         _planMessagesOpen = !_planMessagesOpen;
         if (_planMessagesOpen)
+            _planIssuesOpen = false;
+        if (_planMessagesOpen)
             _scrollPlanMessagesPending = true;
         _planMessageSendError = null;
+    }
+
+    private void TogglePlanIssuesPanel()
+    {
+        if (_selectedPlanId == 0) return;
+        _planIssuesOpen = !_planIssuesOpen;
+        if (_planIssuesOpen)
+            _planMessagesOpen = false;
     }
 
     private IReadOnlyList<PlanMessageEntry> SelectedPlanMessages => GameState.GetPlanMessages(_selectedPlanId);

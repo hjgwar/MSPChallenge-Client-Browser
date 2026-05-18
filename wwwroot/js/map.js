@@ -109,6 +109,7 @@ export function addVectorLayer(layerId, geometriesJson, geoType, typeColors, vis
     if (features.length === 0) return;
 
     const styleFunction = (feature, resolution) => {
+        if (feature.get('_projHidden')) return null;
         const idx = feature.get('mspType') ?? 0;
         const hex = colors[idx] ?? colors[0] ?? '#3388ff';
         const label = (labelKey && resolution < 5000) ? (feature.get('mspLabel') || '') : '';
@@ -388,7 +389,7 @@ export function registerClickHandler(dotNetRef) {
 
         // Iterate all vector features at this pixel; track the one on the topmost layer
         map.forEachFeatureAtPixel(evt.pixel, (feature, layer) => {
-            if (feature.get('_isBadge')) return; // decorative icons — not clickable
+            if (feature.get('_isBadge') && !feature.get('_isRestrictionBadge')) return; // decorative icons — not clickable
             const z = layer.getZIndex() ?? 0;
             if (z > topZIndex) {
                 topZIndex = z;
@@ -451,6 +452,14 @@ export function registerClickHandler(dotNetRef) {
     };
 
     map.on('singleclick', _clickHandler);
+}
+
+export function focusOnCoordinate(x, y) {
+    if (!map) return;
+    const view = map.getView();
+    const currentZoom = view.getZoom() ?? 6;
+    const targetZoom = Math.max(currentZoom, 9);
+    view.animate({ center: [x, y], zoom: targetZoom, duration: 350 });
 }
 
 export function unregisterClickHandler() {
@@ -623,6 +632,68 @@ function createMinusBadgeIcon() {
     });
 }
 
+function restrictionRank(severity) {
+    switch ((severity || '').toUpperCase()) {
+        case 'ERROR': return 3;
+        case 'WARNING': return 2;
+        case 'INFO': return 1;
+        default: return 0;
+    }
+}
+
+function mostSevereRestriction(restrictions) {
+    if (!Array.isArray(restrictions) || restrictions.length === 0) return null;
+    let best = null;
+    let bestRank = 0;
+    for (const restriction of restrictions) {
+        const rank = restrictionRank(restriction);
+        if (rank > bestRank) {
+            bestRank = rank;
+            best = restriction;
+        }
+    }
+    return best;
+}
+
+function createRestrictionBadgeIcon(severity) {
+    const key = (severity || '').toUpperCase();
+    const size = 14;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    let fill = '#0d6efd';
+    let glyph = 'i';
+    if (key === 'WARNING') {
+        fill = '#ffc107';
+        glyph = '!';
+    } else if (key === 'ERROR') {
+        fill = '#dc3545';
+        glyph = 'x';
+    }
+
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, size / 2, size / 2 + 0.5);
+
+    return new ol.style.Icon({
+        img: canvas,
+        size: [size, size],
+        anchor: [0, 1],
+        anchorXUnits: 'fraction',
+        anchorYUnits: 'fraction',
+        displacement: [11, -9]
+    });
+}
+
 export function showPlanGeometry(layersJson) {
     // Remove any existing plan overlay first
     removeLayer(PLAN_OVERLAY_ID);
@@ -656,6 +727,42 @@ export function showPlanGeometry(layersJson) {
             const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true });
             badgeFeature.setStyle(new ol.style.Style({ image: badge }));
             features.push(badgeFeature);
+
+            const restrictionSeverity = mostSevereRestriction(geo.restrictions);
+            const restrictionMarkers = Array.isArray(geo.restrictionMarkers) ? geo.restrictionMarkers : [];
+            if (restrictionMarkers.length > 0) {
+                for (const marker of restrictionMarkers) {
+                    const markerCoord = Array.isArray(marker.coord) && marker.coord.length >= 2
+                        ? marker.coord
+                        : center;
+                    const restrictionBadgeFeature = new ol.Feature({
+                        geometry: new ol.geom.Point(markerCoord),
+                        _isBadge: true,
+                        _isRestrictionBadge: true,
+                        mspData: {
+                            _restrictionSeverity: marker.severity ?? '',
+                            _restrictionMessage: marker.message ?? '',
+                            _restrictionSourceLayer: marker.sourceLayer ?? '',
+                            _restrictionTargetLayer: marker.targetLayer ?? '',
+                            _restrictionChangeKind: marker.changeKind ?? ''
+                        }
+                    });
+                    restrictionBadgeFeature.setStyle(new ol.style.Style({ image: createRestrictionBadgeIcon(marker.severity) }));
+                    features.push(restrictionBadgeFeature);
+                }
+            } else if (restrictionSeverity) {
+                const restrictionBadgeFeature = new ol.Feature({
+                    geometry: new ol.geom.Point(center),
+                    _isBadge: true,
+                    _isRestrictionBadge: true,
+                    mspData: {
+                        _restrictionSeverity: restrictionSeverity,
+                        _restrictionMessage: 'Restriction overlap detected'
+                    }
+                });
+                restrictionBadgeFeature.setStyle(new ol.style.Style({ image: createRestrictionBadgeIcon(restrictionSeverity) }));
+                features.push(restrictionBadgeFeature);
+            }
         }
 
         // Deleted geometry — look up in the base layer, highlight red + minus badge
@@ -700,6 +807,76 @@ export function showPlanGeometry(layersJson) {
 
 export function clearPlanOverlay() {
     removeLayer(PLAN_OVERLAY_ID);
+}
+
+/**
+ * Hide specific base-layer features that have been deleted or superseded by earlier approved plans,
+ * so the map reflects the world state at the time the viewed plan would be implemented.
+ * @param {string} projectionJson  JSON: { hidden: { layerId: [featureId, ...], ... }, added: [{ layerId, geoType, id, typeIndex, coords }] }
+ */
+export function applyPlanProjection(projectionJson) {
+    const projection = JSON.parse(projectionJson);
+
+    // Step 1 — inject geometries added or altered by prior plans into their base layers.
+    // Do this BEFORE hiding so the hide pass can also catch plan-added features.
+    const addedList = Array.isArray(projection.added) ? projection.added : [];
+    for (const item of addedList) {
+        const layer = vectorLayers[item.layerId];
+        if (!layer) continue;
+        const gt = (item.geoType || 'point').toLowerCase();
+        const coords = item.coords;
+        if (!coords || coords.length === 0) continue;
+
+        let olGeom;
+        if (gt === 'polygon' || gt === 'polygons') {
+            olGeom = new ol.geom.Polygon([coords]);
+        } else if (gt === 'line' || gt === 'lines') {
+            olGeom = new ol.geom.LineString(coords);
+        } else {
+            olGeom = new ol.geom.Point(coords[0]);
+        }
+        const feature = new ol.Feature({
+            geometry: olGeom,
+            mspId: item.id,
+            mspType: item.typeIndex ?? 0,
+            _projAdded: true
+        });
+        layer.getSource().addFeature(feature);
+    }
+
+    // Step 2 — hide deleted / superseded features (original snapshot and projection-added alike).
+    const hiddenMap = projection.hidden ?? {};
+    for (const [layerId, ids] of Object.entries(hiddenMap)) {
+        const layer = vectorLayers[layerId];
+        if (!layer) continue;
+        const idSet = new Set(ids.map(String));
+        for (const feature of layer.getSource().getFeatures()) {
+            if (idSet.has(String(feature.get('mspId')))) {
+                feature.set('_projHidden', true);
+            }
+        }
+        layer.getSource().changed();
+    }
+}
+
+/** Restore all features hidden/added by applyPlanProjection. */
+export function clearPlanProjection() {
+    for (const layer of Object.values(vectorLayers)) {
+        if (typeof layer.getSource !== 'function') continue;
+        const source = layer.getSource();
+        // Remove projection-added features.
+        const toRemove = source.getFeatures().filter(f => f.get('_projAdded'));
+        for (const f of toRemove) source.removeFeature(f);
+        // Unhide projection-hidden features.
+        let changed = toRemove.length > 0;
+        for (const feature of source.getFeatures()) {
+            if (feature.get('_projHidden')) {
+                feature.unset('_projHidden');
+                changed = true;
+            }
+        }
+        if (changed) source.changed();
+    }
 }
 
 export function setPlanOverlayVisible(visible) {

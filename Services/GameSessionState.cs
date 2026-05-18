@@ -70,6 +70,8 @@ public sealed class GameSessionState : IDisposable
     // ── Dependency graph data (from Game/Config) ───────────────────────────────
     public IReadOnlyList<DependencyGroup> DependencyGroups { get; private set; } = [];
     public IReadOnlyList<DependencyLink>  DependencyLinks  { get; private set; } = [];
+    public IReadOnlyList<RestrictionRule> Restrictions => _restrictions;
+    private readonly List<RestrictionRule> _restrictions = new();
 
     public void SetDependencies(
         IReadOnlyList<DependencyGroup> groups,
@@ -409,6 +411,7 @@ public sealed class GameSessionState : IDisposable
         _planMessagesByPlanId.Clear();
         DependencyGroups = [];
         DependencyLinks = [];
+        _restrictions.Clear();
 
         var baseAddress = sessionState.GameServerAddress.TrimEnd('/');
         var sessionId = sessionState.SessionId;
@@ -502,6 +505,9 @@ public sealed class GameSessionState : IDisposable
             }
             SetDependencies(depGroups, depLinks);
         }
+
+        // Unity-compatible source of restrictions.
+        await LoadPlanRestrictionsAsync(apiClient, baseAddress, sessionId);
 
         // Country colors/names
         if (configPayload.TryGetProperty("countries", out var countriesEl))
@@ -885,6 +891,99 @@ public sealed class GameSessionState : IDisposable
     {
         var s = layerName.TrimStart('_');
         return System.Text.RegularExpressions.Regex.Replace(s, "[_\\-]+", " ");
+    }
+
+    private async Task LoadPlanRestrictionsAsync(MspApiClient apiClient, string baseAddress, int sessionId)
+    {
+        _restrictions.Clear();
+        var url = $"{baseAddress}/{sessionId}/api/Plan/Restrictions";
+
+        try
+        {
+            var root = await apiClient.GetAsync(url);
+            ParseRestrictions(root, clearExisting: true);
+        }
+        catch (MspApiException)
+        {
+            try
+            {
+                var root = await apiClient.PostFormAsync(url, []);
+                ParseRestrictions(root, clearExisting: true);
+            }
+            catch { }
+        }
+    }
+
+    private void ParseRestrictions(JsonElement root, bool clearExisting)
+    {
+        if (clearExisting)
+            _restrictions.Clear();
+
+        var payload = GetPayload(root);
+
+        JsonElement restrictionsEl;
+        if (payload.ValueKind == JsonValueKind.Array)
+        {
+            restrictionsEl = payload;
+        }
+        else if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("restrictions", out var nestedRestrictions))
+        {
+            restrictionsEl = nestedRestrictions;
+        }
+        else
+        {
+            return;
+        }
+
+        IEnumerable<JsonElement> items = restrictionsEl.ValueKind switch
+        {
+            JsonValueKind.Array => restrictionsEl.EnumerateArray(),
+            JsonValueKind.Object when restrictionsEl.TryGetProperty("items", out var itemsEl) && itemsEl.ValueKind == JsonValueKind.Array
+                => itemsEl.EnumerateArray(),
+            JsonValueKind.Object => restrictionsEl.EnumerateObject().Select(p => p.Value),
+            _ => []
+        };
+
+        foreach (var item in items)
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            var message = GetStringPropLoose(item, "message", "text", "description", "restriction_message") ?? "";
+            var type = GetStringPropLoose(item, "type", "severity", "level", "restriction_type") ?? "warning";
+            var startLayer = GetStringPropLoose(item, "startlayer", "start_layer", "start", "from_layer", "from", "restriction_start_layer_id") ?? "";
+            var startType = GetStringPropLoose(item, "starttype", "start_type", "start_layer_type", "from_type", "restriction_start_layer_type") ?? "";
+            var endLayer = GetStringPropLoose(item, "endlayer", "end_layer", "end", "to_layer", "to", "restriction_end_layer_id") ?? "";
+            var endType = GetStringPropLoose(item, "endtype", "end_type", "end_layer_type", "to_type", "restriction_end_layer_type") ?? "";
+            var sort = GetStringPropLoose(item, "sort", "order", "restriction_sort") ?? "";
+
+            if (string.IsNullOrWhiteSpace(startLayer) || string.IsNullOrWhiteSpace(endLayer))
+                continue;
+
+            _restrictions.Add(new RestrictionRule(message, type, startLayer, startType, endLayer, endType, sort));
+        }
+    }
+
+    private static string? GetStringPropLoose(JsonElement el, params string[] names)
+    {
+        if (el.ValueKind != JsonValueKind.Object) return null;
+
+        var normalizedNames = names.Select(NormalizeKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var prop in el.EnumerateObject())
+        {
+            if (!normalizedNames.Contains(NormalizeKey(prop.Name))) continue;
+            return prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.ToString();
+        }
+
+        return null;
+    }
+
+    private static string NormalizeKey(string value)
+    {
+        return new string(value
+            .Trim()
+            .ToLowerInvariant()
+            .Where(char.IsLetterOrDigit)
+            .ToArray());
     }
 
     private static int[] HexToRgbaArray(string hex)

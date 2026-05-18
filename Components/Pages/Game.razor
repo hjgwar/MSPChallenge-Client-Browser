@@ -327,21 +327,58 @@
                                     <span>See @_detailPlan.MessageCount message@(_detailPlan.MessageCount == 1 ? "" : "s")</span>
                                 </button>
                             </div>
-                            <button class="plan-detail-action-row" @onclick="@(() => { /* TODO: open issues panel */ })">
-                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
-                                    <path d="M8 2L1.5 13.5h13L8 2z"/>
-                                    <line x1="8" y1="6.5" x2="8" y2="9.5"/>
-                                    <circle cx="8" cy="11.5" r="0.6" fill="currentColor"/>
-                                </svg>
-                                @if (_detailPlan.IssueCount == 0)
+                            <div class="plan-detail-issues-row">
+                                @if (_planIssuesOpen)
                                 {
-                                    <span>No issues</span>
+                                    <div class="plan-message-panel plan-issues-panel">
+                                        <div class="plan-message-panel-header">
+                                            <span class="plan-message-panel-title">Issues</span>
+                                            <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePlanIssuesPanel">&#10005;</button>
+                                        </div>
+                                        <div class="plan-message-panel-body">
+                                            @if (SelectedPlanIssues.Count == 0)
+                                            {
+                                                <div class="plan-message-empty">No issues found for this plan geometry.</div>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var issue in SelectedPlanIssues)
+                                                {
+                                                    var severityClass = issue.Severity.ToLowerInvariant();
+                                                    <div class="plan-message-row plan-message-row--other">
+                                                        <button class="plan-message-bubble plan-issue-bubble plan-issue-entry"
+                                                                type="button"
+                                                                title="Focus issue on map"
+                                                                @onclick="@(async () => await FocusPlanIssueAsync(issue))">
+                                                            <div class="plan-message-meta">
+                                                                <span class="plan-issue-severity plan-issue-severity--@severityClass">@issue.Severity</span>
+                                                                <span class="plan-message-time">@issue.ChangeKind</span>
+                                                            </div>
+                                                            <div class="plan-message-text">@issue.Message</div>
+                                                            <div class="plan-issue-layers">@issue.SourceLayer &lt;-&gt; @issue.TargetLayer</div>
+                                                        </button>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
                                 }
-                                else
-                                {
-                                    <span>@_detailPlan.IssueCount issue@(_detailPlan.IssueCount == 1 ? "" : "s")</span>
-                                }
-                            </button>
+                                <button class="plan-detail-action-row" @onclick="TogglePlanIssuesPanel">
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                        <path d="M8 2L1.5 13.5h13L8 2z"/>
+                                        <line x1="8" y1="6.5" x2="8" y2="9.5"/>
+                                        <circle cx="8" cy="11.5" r="0.6" fill="currentColor"/>
+                                    </svg>
+                                    @if (SelectedPlanIssueCount == 0)
+                                    {
+                                        <span>No issues</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@SelectedPlanIssueCount issue@(SelectedPlanIssueCount == 1 ? "" : "s")</span>
+                                    }
+                                </button>
+                            </div>
                         </div>
                     </details>
                     @if (_detailPlan.PolicyNames.Count > 0)
@@ -431,6 +468,15 @@
                          @onclick="@(() => SelectPlanAsync(plan))">
                         <span class="user-dot" style="background:@_planDotColour;" title="@(_countryNames.GetValueOrDefault(plan.Country, $"Country {plan.Country}"))"></span>
                         <span class="plan-name">@plan.Name</span>
+                        @if (_planIssueSeverity.TryGetValue(plan.PlanId, out var _planBadgeSev))
+                        {
+                            <span class="plan-issue-badge plan-issue-badge--@_planBadgeSev.ToLowerInvariant()"
+                                  title="Has @_planBadgeSev.ToLowerInvariant() issues">
+                                <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-issue-badge-icon">
+                                    <path d="M8 1.5L1 14h14L8 1.5zm0 2.2l5.5 9.3H2.5L8 3.7zM7.25 7v3.5h1.5V7H7.25zm0 4.5v1.5h1.5v-1.5H7.25z"/>
+                                </svg>
+                            </span>
+                        }
                         <span class="plan-date">@MonthToDate(plan.StartDate)</span>
                     </div>
                 }
