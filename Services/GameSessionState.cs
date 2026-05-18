@@ -28,6 +28,8 @@ public sealed class GameSessionState : IDisposable
     public List<string> LegendOrderLayerIds { get; } = new();
     public Dictionary<int, string> CountryColours { get; } = new();
     public Dictionary<int, string> CountryNames   { get; } = new();
+    /// <summary>EEZ polygon geometries keyed by country ID. Used for approval calculation.</summary>
+    public IReadOnlyList<EezPolygon> EezPolygons   { get; private set; } = [];
     public string WikiBaseUrl   { get; set; } = "";
     public int    GameStartYear { get; set; } = 2000;
     public int    GameEndMonth  { get; set; } = 0;
@@ -248,6 +250,22 @@ public sealed class GameSessionState : IDisposable
                     || (arEl.ValueKind == JsonValueKind.Number && arEl.GetInt32() != 0)
                     || (arEl.ValueKind == JsonValueKind.String && arEl.GetString() is "1" or "true");
 
+            Dictionary<int, int>? votes = null;
+            if (p.TryGetProperty("votes", out var votesEl) && votesEl.ValueKind == JsonValueKind.Array)
+            {
+                votes = new Dictionary<int, int>();
+                foreach (var v in votesEl.EnumerateArray())
+                {
+                    var cidEl2 = v.TryGetProperty("country", out var cidEl) ? cidEl : default;
+                    var vEl2   = v.TryGetProperty("vote",    out var vEl)    ? vEl    : default;
+                    var cid = cidEl2.ValueKind == JsonValueKind.Number ? cidEl2.GetInt32()
+                            : cidEl2.ValueKind == JsonValueKind.String && int.TryParse(cidEl2.GetString(), out var ci) ? ci : 0;
+                    var voteVal = vEl2.ValueKind == JsonValueKind.Number ? vEl2.GetInt32()
+                                : vEl2.ValueKind == JsonValueKind.String && int.TryParse(vEl2.GetString(), out var vi) ? vi : -1;
+                    if (cid > 0) votes[cid] = voteVal;
+                }
+            }
+
             if (p.TryGetProperty("planmessages", out var planPmEl) && planPmEl.ValueKind == JsonValueKind.Array)
             {
                 var nestedMessages = new List<PlanMessageEntry>();
@@ -270,7 +288,7 @@ public sealed class GameSessionState : IDisposable
             var payloadCount = GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
             var msgCount = Math.Max(storedCount, payloadCount);
             var entry = new PlanEntry(id, name, description, state, country, startdate, constructionTime, policyNames, planLayers,
-                requiresApproval, msgCount);
+                requiresApproval, msgCount, IssueCount: 0, Votes: votes);
             var idx = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)
                 _plans[idx] = entry;
@@ -509,7 +527,7 @@ public sealed class GameSessionState : IDisposable
         // Unity-compatible source of restrictions.
         await LoadPlanRestrictionsAsync(apiClient, baseAddress, sessionId);
 
-        // Country colors/names
+        // Country colors/names + EEZ polygons
         if (configPayload.TryGetProperty("countries", out var countriesEl))
         {
             var countriesLayerName = countriesEl.GetString();
@@ -519,13 +537,18 @@ public sealed class GameSessionState : IDisposable
                     $"{baseAddress}/{sessionId}/api/Layer/MetaByName",
                     new[] { new KeyValuePair<string, string>("name", countriesLayerName) });
                 var metaPayload2 = GetPayload(metaRoot2);
+
+                // Build typeIndex → countryId mapping from layer_type
+                var typeIndexToCountry = new Dictionary<int, int>();
                 if (metaPayload2.TryGetProperty("layer_type", out var layerTypes) && layerTypes.ValueKind == JsonValueKind.Array)
                 {
+                    var ltIndex = 0;
                     foreach (var lt in layerTypes.EnumerateArray())
                     {
                         if (lt.TryGetProperty("value", out var ltVal) && ltVal.ValueKind == JsonValueKind.Number)
                         {
                             var cid = ltVal.GetInt32();
+                            typeIndexToCountry[ltIndex] = cid;
                             if (lt.TryGetProperty("polygonColor", out var ltCol))
                             {
                                 var col = ltCol.GetString();
@@ -539,7 +562,50 @@ public sealed class GameSessionState : IDisposable
                                     CountryNames[cid] = dn;
                             }
                         }
+                        ltIndex++;
                     }
+                }
+
+                // Load EEZ polygon geometry
+                var eezLayerId = metaPayload2.TryGetProperty("layer_id", out var lIdEl)
+                    ? (lIdEl.ValueKind == JsonValueKind.Number ? lIdEl.GetInt32().ToString() : lIdEl.GetString())
+                    : null;
+                if (!string.IsNullOrWhiteSpace(eezLayerId) && typeIndexToCountry.Count > 0)
+                {
+                    try
+                    {
+                        var geoRoot = await apiClient.PostFormAsync(
+                            $"{baseAddress}/{sessionId}/api/Layer/Get",
+                            new[] { new KeyValuePair<string, string>("layer_id", eezLayerId) });
+                        var geoPayload = GetPayload(geoRoot);
+                        if (geoPayload.ValueKind == JsonValueKind.Array)
+                        {
+                            var eezList = new List<EezPolygon>();
+                            foreach (var feat in geoPayload.EnumerateArray())
+                            {
+                                var typeIdx = 0;
+                                if (feat.TryGetProperty("type", out var tEl))
+                                {
+                                    if (tEl.ValueKind == JsonValueKind.Number) typeIdx = tEl.GetInt32();
+                                    else if (tEl.ValueKind == JsonValueKind.String) int.TryParse(tEl.GetString(), out typeIdx);
+                                }
+                                if (!typeIndexToCountry.TryGetValue(typeIdx, out var countryId)) continue;
+                                if (!feat.TryGetProperty("geometry", out var geomEl) || geomEl.ValueKind != JsonValueKind.Array) continue;
+
+                                var pts = new List<double[]>();
+                                foreach (var pt in geomEl.EnumerateArray())
+                                {
+                                    if (pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() >= 2
+                                        && pt[0].ValueKind == JsonValueKind.Number && pt[1].ValueKind == JsonValueKind.Number)
+                                        pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
+                                }
+                                if (pts.Count >= 3)
+                                    eezList.Add(new EezPolygon(countryId, pts));
+                            }
+                            EezPolygons = eezList;
+                        }
+                    }
+                    catch { /* EEZ geometry is optional; skip on any error */ }
                 }
             }
         }
@@ -727,8 +793,9 @@ public sealed class GameSessionState : IDisposable
                 var col = td.TryGetProperty(colorProp, out var cp) ? cp.GetString() ?? "#3388ff" : "#3388ff";
                 var tdMedia = td.TryGetProperty("media", out var tm) ? tm.GetString() ?? "" : "";
                 var tdMediaUrl = ResolveWikiUrl(tdMedia);
+                var tdApproval = td.TryGetProperty("approval", out var ap) ? ap.GetString() ?? "NotDependent" : "NotDependent";
                 if (!string.IsNullOrWhiteSpace(label))
-                    typeDefs.Add(new TypeDef(label, col, tdMediaUrl));
+                    typeDefs.Add(new TypeDef(label, col, tdMediaUrl, tdApproval));
             }
         }
 
@@ -1133,3 +1200,6 @@ public sealed class GameSessionState : IDisposable
         _initGate.Dispose();
     }
 }
+
+/// <summary>One EEZ polygon with its owning country ID. Points are [lon, lat] pairs.</summary>
+public sealed record EezPolygon(int CountryId, IReadOnlyList<double[]> Points);

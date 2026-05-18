@@ -13,7 +13,8 @@ public sealed record PlanEntry(
     IReadOnlyList<PlanLayerData> Layers,
     bool RequiresApproval = false,
     int  MessageCount     = 0,
-    int  IssueCount       = 0);
+    int  IssueCount       = 0,
+    IReadOnlyDictionary<int, int>? Votes = null);
 
 /// <summary>A layer within a plan, containing geometry items.</summary>
 public sealed record PlanLayerData(

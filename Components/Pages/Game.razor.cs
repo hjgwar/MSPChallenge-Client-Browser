@@ -57,6 +57,7 @@ public partial class Game : IAsyncDisposable
     private int _selectedPlanId;
     private bool _planMessagesOpen;
     private bool _planIssuesOpen;
+    private bool _planApprovalOpen;
     private bool _scrollPlanMessagesPending;
     private string _planMessageDraft = string.Empty;
     private bool _sendingPlanMessage;
@@ -79,6 +80,9 @@ public partial class Game : IAsyncDisposable
         string ChangeKind,
         double MarkerX,
         double MarkerY);
+    private sealed record ApprovalRequirement(int CountryId, string CountryName, IReadOnlyList<string> Reasons);
+    private readonly List<ApprovalRequirement> _approvalRequired = new();
+    private readonly HashSet<int> _approvalReasonsExpanded = new();
 
     // Dev console log (capped list of recent raw WS messages)
     private const int WsLogMaxEntries = 100;
@@ -678,7 +682,10 @@ public partial class Game : IAsyncDisposable
             _selectedPlanId = 0;
             _planViewMode = PlanViewMode.AfterChanges;
             _planIssuesOpen = false;
+            _planApprovalOpen = false;
             _selectedPlanIssues.Clear();
+            _approvalRequired.Clear();
+            _approvalReasonsExpanded.Clear();
             await _mapModule.InvokeVoidAsync("clearPlanOverlay");
             StateHasChanged();
             return;
@@ -689,9 +696,12 @@ public partial class Game : IAsyncDisposable
         _detailDescExpanded = false;
         _planMessagesOpen = false;
         _planIssuesOpen = false;
+        _planApprovalOpen = false;
         _planMessageDraft = string.Empty;
         _planMessageSendError = null;
         _selectedPlanIssues.Clear();
+        _approvalRequired.Clear();
+        _approvalReasonsExpanded.Clear();
 
         // Collect all referenced original layer IDs.
         foreach (var planLayer in plan.Layers)
@@ -773,6 +783,9 @@ public partial class Game : IAsyncDisposable
             await _mapModule.InvokeVoidAsync("clearPlanOverlay");
 
         await ApplyPlanProjectionAsync(plan.StartDate);
+
+        if (!IsApprovalCompleteState(plan.State))
+            CalculateApproval(plan);
 
         StateHasChanged();
     }
@@ -1136,6 +1149,16 @@ public partial class Game : IAsyncDisposable
         state.Equals("APPROVED",     StringComparison.OrdinalIgnoreCase) ||
         state.Equals("IMPLEMENTED",  StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsApprovalCompleteState(string? state) =>
+        state is not null &&
+        (state.Equals("APPROVED",    StringComparison.OrdinalIgnoreCase) ||
+         state.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase) ||
+         state.Equals("ARCHIVED",    StringComparison.OrdinalIgnoreCase));
+
+    private string? SelectedPlanState => _selectedPlanId == 0
+        ? null
+        : _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId)?.State;
+
     private static string NormaliseSeverity(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "";
@@ -1432,9 +1455,12 @@ public partial class Game : IAsyncDisposable
         if (_selectedPlanId == 0) return;
         _planMessagesOpen = !_planMessagesOpen;
         if (_planMessagesOpen)
+        {
             _planIssuesOpen = false;
-        if (_planMessagesOpen)
+            _planApprovalOpen = false;
+            _approvalReasonsExpanded.Clear();
             _scrollPlanMessagesPending = true;
+        }
         _planMessageSendError = null;
     }
 
@@ -1443,7 +1469,202 @@ public partial class Game : IAsyncDisposable
         if (_selectedPlanId == 0) return;
         _planIssuesOpen = !_planIssuesOpen;
         if (_planIssuesOpen)
+        {
             _planMessagesOpen = false;
+            _planApprovalOpen = false;
+            _approvalReasonsExpanded.Clear();
+        }
+    }
+
+    private void ToggleApprovalPanel()
+    {
+        if (_selectedPlanId == 0) return;
+        _planApprovalOpen = !_planApprovalOpen;
+        if (_planApprovalOpen)
+        {
+            _planMessagesOpen = false;
+            _planIssuesOpen = false;
+        }
+        else
+        {
+            _approvalReasonsExpanded.Clear();
+        }
+    }
+
+    private void ToggleApprovalReasonExpanded(int countryId)
+    {
+        if (!_approvalReasonsExpanded.Remove(countryId))
+            _approvalReasonsExpanded.Add(countryId);
+    }
+
+    private bool _sendingVote;
+
+    private async Task VoteOnPlanAsync(int planId, int vote)
+    {
+        if (_sendingVote) return;
+        _sendingVote = true;
+        StateHasChanged();
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var url = $"{baseAddress}/{SessionState.SessionId}/api/Plan/Vote";
+            await ApiClient.PostFormAsync(url, new[]
+            {
+                new KeyValuePair<string, string>("plan",    planId.ToString()),
+                new KeyValuePair<string, string>("country", SessionState.CountryId.ToString()),
+                new KeyValuePair<string, string>("vote",    vote.ToString()),
+            });
+        }
+        catch { /* Server will correct state on next update */ }
+        finally
+        {
+            _sendingVote = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Computes which country teams need to approve the plan and for what reasons,
+    /// based on the approval type defined per layer_type (AllCountries / EEZ / NotDependent)
+    /// and ownership of removed geometry derived from EEZ polygon intersection.
+    /// </summary>
+    private void CalculateApproval(PlanEntry plan)
+    {
+        _approvalRequired.Clear();
+        var eezPolygons = GameState.EezPolygons;
+        var planCountry = plan.Country;
+
+        // countryId → list of reason strings
+        var reasons = new Dictionary<int, List<string>>();
+        var allCountriesReasons = new List<string>(); // reasons that apply to every country
+
+        void AddReason(int countryId, string reason)
+        {
+            if (countryId <= 0 || countryId == planCountry) return;
+            if (!reasons.TryGetValue(countryId, out var list))
+            {
+                list = new List<string>();
+                reasons[countryId] = list;
+            }
+            if (!list.Contains(reason)) list.Add(reason);
+        }
+
+        foreach (var planLayer in plan.Layers)
+        {
+            var layerEntry = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
+            var layerDisplayName = layerEntry?.DisplayName ?? planLayer.OriginalLayerId;
+
+            // ── Deleted geometry ──────────────────────────────────────────────
+            if (planLayer.DeletedPersistentIds.Count > 0)
+            {
+                var baseGeoms = GetParsedLayerGeometries(planLayer.OriginalLayerId);
+                foreach (var deletedId in planLayer.DeletedPersistentIds)
+                {
+                    var geom = baseGeoms.FirstOrDefault(g => g.FeatureId == deletedId);
+                    if (geom is null) continue;
+
+                    var typeApproval = GetApprovalForGeom(layerEntry, geom.TypeIndex);
+                    var typeLabel    = GetTypeLabel(layerEntry, geom.TypeIndex);
+
+                    if (string.Equals(typeApproval, "AllCountries", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var r = string.IsNullOrEmpty(typeLabel)
+                            ? $"Geometry was removed on the {layerDisplayName} layer, which requires approval from all countries."
+                            : $"Geometry of type {typeLabel} was removed, which requires approval from all countries.";
+                        if (!allCountriesReasons.Contains(r)) allCountriesReasons.Add(r);
+                    }
+                    else
+                    {
+                        // Derive ownership from EEZ intersection of the representative coordinate
+                        if (geom.Coordinates.Count > 0)
+                        {
+                            var owner = GetCountryForCoordinate(geom.Coordinates[0], eezPolygons);
+                            if (owner > 0 && owner != planCountry)
+                                AddReason(owner, $"Geometry belonging to {GetCountryName(owner)} was removed on the {layerDisplayName} layer.");
+                        }
+                    }
+                }
+            }
+
+            // ── New / modified geometry ───────────────────────────────────────
+            foreach (var geomItem in planLayer.Geometry)
+            {
+                var typeApproval = GetApprovalForGeom(layerEntry, geomItem.TypeIndex);
+                var typeLabel    = GetTypeLabel(layerEntry, geomItem.TypeIndex);
+
+                if (string.Equals(typeApproval, "AllCountries", StringComparison.OrdinalIgnoreCase))
+                {
+                    var r = string.IsNullOrEmpty(typeLabel)
+                        ? $"Geometry was added or moved on the {layerDisplayName} layer, which requires approval from all countries."
+                        : $"Geometry of type {typeLabel} was added or moved, which requires approval from all countries.";
+                    if (!allCountriesReasons.Contains(r)) allCountriesReasons.Add(r);
+                }
+                else if (string.Equals(typeApproval, "EEZ", StringComparison.OrdinalIgnoreCase)
+                         && geomItem.Coordinates.Count > 0)
+                {
+                    var pt = geomItem.Coordinates[0];
+                    foreach (var eez in eezPolygons)
+                    {
+                        if (eez.CountryId != planCountry && PointInPolygon(pt, eez.Points))
+                        {
+                            var countryName = GetCountryName(eez.CountryId);
+                            AddReason(eez.CountryId, $"Geometry on the {layerDisplayName} layer was added or altered in {countryName}'s EEZ.");
+                        }
+                    }
+                }
+            }
+        }
+
+        // AllCountries: add those reasons to every non-owner country team
+        if (allCountriesReasons.Count > 0)
+        {
+            foreach (var kvp in _countryNames)
+            {
+                if (kvp.Key <= 2 || kvp.Key == planCountry) continue; // skip admin/GM slots
+                foreach (var r in allCountriesReasons)
+                    AddReason(kvp.Key, r);
+            }
+        }
+
+        // Build sorted result
+        foreach (var kvp in reasons.OrderBy(k => k.Key))
+        {
+            var name = GetCountryName(kvp.Key);
+            var dot  = _countryColours.GetValueOrDefault(kvp.Key, "#6c757d");
+            _approvalRequired.Add(new ApprovalRequirement(kvp.Key, name, kvp.Value));
+        }
+    }
+
+    private static string GetApprovalForGeom(LayerEntry? layerEntry, int typeIndex)
+    {
+        if (layerEntry is null) return "NotDependent";
+        if (typeIndex >= 0 && typeIndex < layerEntry.TypeDefs.Count)
+            return layerEntry.TypeDefs[typeIndex].Approval;
+        // Fallback: if there is exactly one type, use that regardless of index
+        if (layerEntry.TypeDefs.Count == 1)
+            return layerEntry.TypeDefs[0].Approval;
+        return "NotDependent";
+    }
+
+    private static string GetTypeLabel(LayerEntry? layerEntry, int typeIndex)
+    {
+        if (layerEntry is null) return "";
+        if (typeIndex >= 0 && typeIndex < layerEntry.TypeDefs.Count)
+            return layerEntry.TypeDefs[typeIndex].Label;
+        return "";
+    }
+
+    private string GetCountryName(int countryId) =>
+        _countryNames.TryGetValue(countryId, out var n) ? n : $"Country {countryId}";
+
+    private static int GetCountryForCoordinate(double[] pt, IReadOnlyList<EezPolygon> eezPolygons)
+    {
+        foreach (var eez in eezPolygons)
+        {
+            if (PointInPolygon(pt, eez.Points))
+                return eez.CountryId;
+        }
+        return 0;
     }
 
     private IReadOnlyList<PlanMessageEntry> SelectedPlanMessages => GameState.GetPlanMessages(_selectedPlanId);

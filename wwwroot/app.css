@@ -399,7 +399,7 @@ html, body {
 
 /* Narrower panels inside the wider right-panels container, aligned to the right */
 .map-right-panels > .plan-detail-panel {
-    width: 260px;
+    width: 295px;
     align-self: flex-end;
 }
 
@@ -509,6 +509,7 @@ html, body {
 }
 
 .user-dot {
+    display: inline-block;
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -1353,11 +1354,10 @@ html, body {
 
 /* ── Plan detail panel ───────────────────────────────────────────────────── */
 .plan-detail-panel {
-    background: rgba(33, 37, 41, 0.65);
+    background: rgba(28, 31, 35, 0.85);
     color: #f8f9fa;
     border-radius: 0.5rem;
     box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    backdrop-filter: blur(4px);
     font-size: 0.8125rem;
     display: flex;
     flex-direction: column;
@@ -1507,6 +1507,149 @@ html, body {
 .plan-detail-issues-row {
     position: relative;
     overflow: visible;
+}
+
+.plan-detail-approval-row {
+    position: relative;
+    overflow: visible;
+}
+
+/* Approval panel — same floating style as messages / issues */
+.plan-approval-panel {
+    max-height: 40vh;
+}
+
+.plan-approval-entry {
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.plan-approval-entry:last-child {
+    border-bottom: none;
+}
+
+.plan-approval-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.plan-approval-country {
+    flex: 1;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #e9ecef;
+}
+
+/* Approval table */
+.plan-approval-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.plan-approval-th {
+    font-size: 0.68rem;
+    color: #ced4da;
+    font-weight: 600;
+    text-align: center;
+    padding: 0 0.25rem 0.3rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.plan-approval-th--name {
+    text-align: left;
+    width: 100%;
+}
+
+.plan-approval-row td {
+    padding: 0.28rem 0.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.plan-approval-row:last-child td {
+    border-bottom: none;
+}
+
+.plan-approval-td--name {
+    font-size: 0.78rem;
+    color: #e9ecef;
+    white-space: nowrap;
+    padding-right: 0.5rem !important;
+}
+
+.plan-approval-td--vote {
+    text-align: center;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.plan-approval-reasons-row td {
+    padding: 0 0.25rem 0.25rem !important;
+    border-bottom: none !important;
+}
+
+/* Vote radio-style buttons (shown when plan is in APPROVAL state for user's own country) */
+.plan-approval-vote-btn {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s, opacity 0.12s;
+    vertical-align: middle;
+}
+
+.plan-approval-vote-btn:hover:not(:disabled) {
+    border-color: rgba(255,255,255,0.7);
+}
+
+.plan-approval-vote-btn--active {
+    /* background and border-color set via inline style using country colour */
+}
+
+.plan-approval-vote-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.plan-approval-why-btn {
+    background: none;
+    border: none;
+    color: #74c0fc;
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 2px 3px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+.plan-approval-why-btn:hover {
+    opacity: 1;
+    color: #a5d8ff;
+}
+
+.plan-approval-why-btn svg {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.plan-approval-reasons {
+    margin: 0.15rem 0 0.1rem 1rem;
+    padding: 0;
+    list-style: disc;
+    color: #adb5bd;
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+.plan-approval-reasons li {
+    margin-bottom: 0.15rem;
 }
 
 .plan-message-panel {
