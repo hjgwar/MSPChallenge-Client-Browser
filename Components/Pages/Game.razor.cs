@@ -351,6 +351,15 @@ public partial class Game : IAsyncDisposable
         {
             // Hidden layers are not materialized on warm return until user enables them.
             await EnsureLayerRenderedAsync(entry.LayerId, visible: true);
+
+            // If a plan is currently selected, immediately project prior-plan changes onto
+            // this layer so the user sees the correct world state without re-selecting the plan.
+            if (_selectedPlanId != 0)
+            {
+                var viewedPlan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+                if (viewedPlan is not null)
+                    await ApplyPlanProjectionAsync(viewedPlan.StartDate, entry.LayerId);
+            }
         }
         else if (_mapModule is not null)
         {
@@ -763,59 +772,71 @@ public partial class Game : IAsyncDisposable
         else
             await _mapModule.InvokeVoidAsync("clearPlanOverlay");
 
-        // Project the world state onto the map: apply all geometry changes from earlier finalised
-        // plans so the map reflects how the world would look at plan B's implementation date.
+        await ApplyPlanProjectionAsync(plan.StartDate);
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Computes and sends the world-state projection to the map for all earlier finalised plans
+    /// relative to <paramref name="planStartDate"/>.
+    /// Pass <paramref name="singleLayerId"/> to restrict processing to one layer — used when
+    /// the user activates a layer from the panel while a plan is already selected.
+    /// </summary>
+    private async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null)
+    {
+        if (_mapModule is null) return;
+
         var priorPlans = _plans
-            .Where(p => p.StartDate < plan.StartDate && IsFinalisedPlanState(p.State))
+            .Where(p => p.StartDate < planStartDate && IsFinalisedPlanState(p.State))
             .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
             .ToList();
-        if (priorPlans.Count > 0)
+        if (priorPlans.Count == 0) return;
+
+        var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var addedFeatures  = new List<object>();
+
+        foreach (var priorPlan in priorPlans)
         {
-            var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-            var addedFeatures  = new List<object>();
-
-            foreach (var priorPlan in priorPlans)
+            foreach (var planLayer in priorPlan.Layers)
             {
-                foreach (var planLayer in priorPlan.Layers)
+                if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
+                if (singleLayerId is not null &&
+                    !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
+                    hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var deletedId in planLayer.DeletedPersistentIds)
+                    ids.Add(deletedId);
+
+                var geoType = _layerEntries
+                    .FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
+
+                foreach (var geo in planLayer.Geometry)
                 {
-                    if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
-                    if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
-                        hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
+                        ids.Add(geo.PersistentId);
 
-                    // Explicit deletions.
-                    foreach (var deletedId in planLayer.DeletedPersistentIds)
-                        ids.Add(deletedId);
-
-                    var geoType = _layerEntries
-                        .FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
-
-                    foreach (var geo in planLayer.Geometry)
-                    {
-                        // Modifications: hide the original feature that this plan geometry replaces.
-                        if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
-                            ids.Add(geo.PersistentId);
-
-                        // Additions and modifications both contribute a new geometry to the map.
-                        if (geo.Coordinates.Count > 0)
-                            addedFeatures.Add(new {
-                                layerId   = planLayer.OriginalLayerId,
-                                geoType,
-                                id        = geo.Id,
-                                typeIndex = geo.TypeIndex,
-                                coords    = geo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray()
-                            });
-                    }
+                    if (geo.Coordinates.Count > 0)
+                        addedFeatures.Add(new {
+                            layerId   = planLayer.OriginalLayerId,
+                            geoType,
+                            id        = geo.Id,
+                            typeIndex = geo.TypeIndex,
+                            coords    = geo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray()
+                        });
                 }
             }
+        }
 
+        if (hiddenFeatures.Count > 0 || addedFeatures.Count > 0)
             await _mapModule.InvokeVoidAsync("applyPlanProjection",
                 JsonSerializer.Serialize(new {
                     hidden = hiddenFeatures.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray()),
                     added  = addedFeatures
                 }));
-        }
-
-        StateHasChanged();
     }
 
     private IReadOnlyList<PlanRestrictionIssue> EvaluateRestrictionsForGeometry(
