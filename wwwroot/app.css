@@ -421,7 +421,8 @@ html, body {
     box-sizing: border-box;
     height: 15vh;
     min-height: 2.5rem;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     resize: vertical;
     backdrop-filter: blur(4px);
     box-shadow: 0 2px 10px rgba(0,0,0,0.45);
@@ -434,6 +435,16 @@ html, body {
     margin-bottom: 0.4rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px solid rgba(255,255,255,0.12);
+    flex-shrink: 0;
+}
+
+.users-panel-content {
+    overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+    box-sizing: border-box;
+    padding-right: 0.65rem;
+    flex: 1;
+    min-height: 0;
 }
 
 .users-panel-title {
@@ -583,6 +594,9 @@ html, body {
 
 .plans-panel-content {
     overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+    box-sizing: border-box;
+    padding-right: 0.65rem;
     flex: 1;
     min-height: 0;
 }
@@ -726,7 +740,8 @@ html, body {
     box-sizing: border-box;
     height: 45vh;
     min-height: 2.5rem;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     resize: vertical;
     backdrop-filter: blur(4px);
     box-shadow: 0 2px 10px rgba(0,0,0,0.45);
@@ -744,6 +759,16 @@ html, body {
     border-bottom: 1px solid rgba(255,255,255,0.12);
     display: flex;
     align-items: center;
+    flex-shrink: 0;
+}
+
+.layer-panel-content {
+    overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+    box-sizing: border-box;
+    padding-right: 0.65rem;
+    flex: 1;
+    min-height: 0;
 }
 
 .layer-search {
@@ -855,7 +880,8 @@ html, body {
     box-sizing: border-box;
     height: 25vh;
     min-height: 2.5rem;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     resize: vertical;
     backdrop-filter: blur(4px);
     box-shadow: 0 2px 10px rgba(0,0,0,0.45);
@@ -872,6 +898,16 @@ html, body {
     border-bottom: 1px solid rgba(255,255,255,0.12);
     display: flex;
     align-items: center;
+    flex-shrink: 0;
+}
+
+.legend-panel-content {
+    overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
+    box-sizing: border-box;
+    padding-right: 0.65rem;
+    flex: 1;
+    min-height: 0;
 }
 
 .legend-layer {
