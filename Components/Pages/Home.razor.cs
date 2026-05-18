@@ -233,6 +233,7 @@ public partial class Home
             SessionState.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
             SessionState.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
             SessionState.CountryId       = countryId;
+            SessionState.UserName        = username;
 
             if (payload.TryGetProperty("user_id", out var userIdEl) &&
                 userIdEl.ValueKind == JsonValueKind.Number)

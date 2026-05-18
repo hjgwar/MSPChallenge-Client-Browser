@@ -362,6 +362,13 @@ export function invalidateSize() {
     if (map) map.updateSize();
 }
 
+export function scrollElementToBottom(selector) {
+    if (!selector) return;
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+}
+
 let _clickHandler = null;
 let _dotNetRef = null;
 

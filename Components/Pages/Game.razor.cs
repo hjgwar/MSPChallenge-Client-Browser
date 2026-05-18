@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
@@ -54,6 +55,11 @@ public partial class Game : IAsyncDisposable
     // Plans panel
     private bool _plansPanelOpen;
     private int _selectedPlanId;
+    private bool _planMessagesOpen;
+    private bool _scrollPlanMessagesPending;
+    private string _planMessageDraft = string.Empty;
+    private bool _sendingPlanMessage;
+    private string? _planMessageSendError;
     private PlanViewMode _planViewMode = PlanViewMode.AfterChanges;
     private bool _detailDescExpanded;
     private readonly HashSet<string> _planActivatedLayerIds  = new();
@@ -101,7 +107,15 @@ public partial class Game : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (!firstRender)
+        {
+            if (_scrollPlanMessagesPending && _mapModule is not null)
+            {
+                _scrollPlanMessagesPending = false;
+                await _mapModule.InvokeVoidAsync("scrollElementToBottom", ".plan-message-panel-body");
+            }
+            return;
+        }
 
         // Capture cold-start status before async work so warm returns can skip map refit.
         var isColdStart = _isLoading;
@@ -533,6 +547,9 @@ public partial class Game : IAsyncDisposable
         }
 
         // Data parsing is handled by GameSessionState which also subscribes to MessageReceived.
+        if (msg.HeaderName == "Game/Latest" && _planMessagesOpen && _selectedPlanId != 0)
+            _scrollPlanMessagesPending = true;
+
         InvokeAsync(StateHasChanged);
     }
 
@@ -581,6 +598,9 @@ public partial class Game : IAsyncDisposable
         _selectedPlanId = plan.PlanId;
         _planViewMode   = PlanViewMode.AfterChanges;
         _detailDescExpanded = false;
+        _planMessagesOpen = false;
+        _planMessageDraft = string.Empty;
+        _planMessageSendError = null;
 
         // Collect all referenced original layer IDs.
         foreach (var planLayer in plan.Layers)
@@ -649,6 +669,84 @@ public partial class Game : IAsyncDisposable
         var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
         if (plan is not null)
             await SelectPlanAsync(plan);
+    }
+
+    private void TogglePlanMessagesPanel()
+    {
+        if (_selectedPlanId == 0) return;
+        _planMessagesOpen = !_planMessagesOpen;
+        if (_planMessagesOpen)
+            _scrollPlanMessagesPending = true;
+        _planMessageSendError = null;
+    }
+
+    private IReadOnlyList<PlanMessageEntry> SelectedPlanMessages => GameState.GetPlanMessages(_selectedPlanId);
+
+    private bool CanSendPlanMessage =>
+        _selectedPlanId != 0 &&
+        !_sendingPlanMessage &&
+        !string.IsNullOrWhiteSpace(_planMessageDraft);
+
+    private async Task SendPlanMessageAsync()
+    {
+        if (!CanSendPlanMessage) return;
+
+        _sendingPlanMessage = true;
+        _planMessageSendError = null;
+
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var url = $"{baseAddress}/{SessionState.SessionId}/api/Plan/Message";
+
+            var fields = new List<KeyValuePair<string, string>>
+            {
+                new("plan", _selectedPlanId.ToString()),
+                new("team_id", SessionState.CountryId.ToString()),
+                new("user_name", string.IsNullOrWhiteSpace(SessionState.UserName) ? $"Team {SessionState.CountryId}" : SessionState.UserName),
+                new("text", _planMessageDraft.Trim())
+            };
+
+            await ApiClient.PostFormAsync(url, fields);
+
+            // Do not append locally. The authoritative message arrives via Game/Latest WebSocket.
+            _planMessageDraft = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _planMessageSendError = ex.Message;
+        }
+        finally
+        {
+            _sendingPlanMessage = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task HandlePlanMessageKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await SendPlanMessageAsync();
+    }
+
+    private static string FormatPlanMessageTime(DateTime sentAt)
+    {
+        var utc = sentAt.Kind switch
+        {
+            DateTimeKind.Utc => sentAt,
+            DateTimeKind.Local => sentAt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(sentAt, DateTimeKind.Utc)
+        };
+        return utc.ToLocalTime().ToString("MMM d HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private string PlanMessageDotColour(int? countryId)
+    {
+        if (!countryId.HasValue || countryId.Value <= 0)
+            return "#6c757d";
+        if (countryId.Value == 1 || countryId.Value == 2)
+            return "#ff69b4";
+        return _countryColours.GetValueOrDefault(countryId.Value, "#6c757d");
     }
 
     /// <summary>

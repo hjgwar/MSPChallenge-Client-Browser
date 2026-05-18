@@ -389,10 +389,12 @@ html, body {
     z-index: 9000;
     width: 360px;
     max-height: calc(100vh - 1.2rem);
-    overflow-y: auto;
+    overflow: visible;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    --right-panel-gap: 0.5rem;
+    --panel-connector-protrusion: 9px;
+    gap: var(--right-panel-gap);
 }
 
 /* Narrower panels inside the wider right-panels container, aligned to the right */
@@ -542,7 +544,8 @@ html, body {
     min-width: 240px;
     max-height: 80vh;
     box-sizing: border-box;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     resize: both;
     background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
@@ -572,6 +575,16 @@ html, body {
     margin-bottom: 0.4rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px solid rgba(255,255,255,0.12);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex-shrink: 0;
+}
+
+.plans-panel-content {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 
 .plans-panel-title {
@@ -1288,7 +1301,7 @@ html, body {
     font-size: 0.8125rem;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     max-height: 70vh;
 }
 
@@ -1376,6 +1389,10 @@ html, body {
     overflow: hidden;
 }
 
+.plan-detail-section--communication {
+    overflow: visible;
+}
+
 .plan-detail-section:last-of-type {
     border-bottom: none;
 }
@@ -1420,6 +1437,217 @@ html, body {
 .plan-detail-info-row,
 .plan-detail-item-row,
 .plan-detail-action-row {
+}
+
+.plan-detail-chat-row {
+    position: relative;
+    overflow: visible;
+}
+
+.plan-message-panel {
+    position: absolute;
+    right: calc(100% + var(--right-panel-gap) + var(--panel-connector-protrusion));
+    top: -0.25rem;
+    width: 320px;
+    max-width: min(320px, calc(100vw - 5rem));
+    max-height: 38vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 0.5rem;
+    background: rgba(33, 37, 41, 0.65);
+    color: #f8f9fa;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+    overflow: visible;
+    z-index: 9650;
+}
+
+.plan-message-panel::after {
+    content: '';
+    position: absolute;
+    right: -7px;
+    top: 0.8rem;
+    width: 12px;
+    height: 12px;
+    background: rgba(33, 37, 41, 0.65);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.plan-message-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.35rem 0.55rem 0.3rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    position: relative;
+}
+
+.plan-message-panel-title {
+    flex: 1;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #adb5bd;
+}
+
+
+
+.plan-message-panel-body {
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    overflow-y: auto;
+    min-height: 135px;
+    max-height: 25vh;
+    background: rgba(255,255,255,0.02);
+}
+
+.plan-message-empty {
+    color: #adb5bd;
+    font-size: 0.76rem;
+    padding: 0.2rem 0.15rem;
+}
+
+.plan-message-row {
+    display: flex;
+}
+
+.plan-message-row--own {
+    justify-content: flex-end;
+}
+
+.plan-message-row--other {
+    justify-content: flex-start;
+}
+
+.plan-message-bubble {
+    max-width: 82%;
+    border-radius: 0.7rem;
+    padding: 0.45rem 0.55rem 0.4rem;
+    background: rgba(248,249,250,0.95);
+    color: #212529;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.14);
+}
+
+.plan-message-row--own .plan-message-bubble {
+    background: rgba(248,249,250,0.96);
+}
+
+.plan-message-row--other .plan-message-bubble {
+    background: rgba(234,242,255,0.98);
+}
+
+.plan-message-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin-bottom: 0.1rem;
+    font-size: 0.66rem;
+    line-height: 1.2;
+}
+
+.plan-message-dot {
+    width: 8px;
+    height: 8px;
+    align-self: center;
+}
+
+.plan-message-sender {
+    font-weight: 700;
+    color: #0d6e6b;
+}
+
+.plan-message-time {
+    color: #6c757d;
+    white-space: nowrap;
+}
+
+.plan-message-text {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.plan-message-panel-composer {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.45rem 0.55rem;
+    border-top: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.02);
+}
+
+/* ── Common input textbox style ──────────────────────────────────────────── */
+.app-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.3rem;
+    color: #f8f9fa;
+    font-size: 0.78rem;
+    padding: 0.2rem 0.45rem;
+    outline: none;
+    font: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.app-input::placeholder {
+    color: #6c757d;
+}
+
+.app-input:focus {
+    border-color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.12);
+}
+
+.plan-message-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+}
+
+.plan-message-send {
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #dee2e6;
+    background: rgba(255,255,255,0.07);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.plan-message-send:hover {
+    background: rgba(255,255,255,0.13);
+    border-color: rgba(255,255,255,0.28);
+    color: #f8f9fa;
+}
+
+.plan-message-panel .panel-close-btn:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.plan-message-send:disabled,
+.plan-message-input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.plan-message-send-error {
+    color: #ff8787;
+    font-size: 0.7rem;
+    padding: 0 0.55rem 0.35rem;
 }
 
 .plan-detail-action-row {

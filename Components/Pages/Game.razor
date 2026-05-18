@@ -246,7 +246,7 @@
                             </div>
                         </div>
                     </details>
-                    <details class="plan-detail-section" open>
+                    <details class="plan-detail-section plan-detail-section--communication" open>
                         <summary class="plan-detail-section-hdr">Communication</summary>
                         <div class="plan-detail-section-body">
                             <button class="plan-detail-action-row" @onclick="@(() => { /* TODO: open approval dialog */ })">
@@ -266,12 +266,67 @@
                                     <span>No approval required</span>
                                 }
                             </button>
-                            <button class="plan-detail-action-row" @onclick="@(() => { /* TODO: open messages panel */ })">
-                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
-                                    <path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z"/>
-                                </svg>
-                                <span>See @_detailPlan.MessageCount message@(_detailPlan.MessageCount == 1 ? "" : "s")</span>
-                            </button>
+                            <div class="plan-detail-chat-row">
+                                @if (_planMessagesOpen)
+                                {
+                                    <div class="plan-message-panel">
+                                        <div class="plan-message-panel-header">
+                                            <span class="plan-message-panel-title">Communication</span>
+                                            <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePlanMessagesPanel">&#10005;</button>
+                                        </div>
+                                        <div class="plan-message-panel-body">
+                                            @if (SelectedPlanMessages.Count == 0)
+                                            {
+                                                <div class="plan-message-empty">No messages yet.</div>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var message in SelectedPlanMessages)
+                                                {
+                                                    var isOwnTeam = message.CountryId.HasValue && message.CountryId.Value == SessionState.CountryId;
+                                                    var messageDotColour = PlanMessageDotColour(message.CountryId);
+                                                    <div class="plan-message-row @(isOwnTeam ? "plan-message-row--own" : "plan-message-row--other")">
+                                                        <div class="plan-message-bubble">
+                                                            <div class="plan-message-meta">
+                                                                <span class="user-dot plan-message-dot" style="background:@messageDotColour" title="@message.CountryName"></span>
+                                                                <span class="plan-message-sender">@(!string.IsNullOrWhiteSpace(message.UserName) ? message.UserName : message.CountryName)</span>
+                                                                @if (message.SentAt is not null)
+                                                                {
+                                                                    <span class="plan-message-time">@FormatPlanMessageTime(message.SentAt.Value)</span>
+                                                                }
+                                                            </div>
+                                                            <div class="plan-message-text">@message.Message</div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                        <div class="plan-message-panel-composer">
+                                            <input class="plan-message-input app-input"
+                                                   type="text"
+                                                   placeholder="Write message..."
+                                                   @bind="_planMessageDraft"
+                                                   @bind:event="oninput"
+                                                  @onkeydown="HandlePlanMessageKeyDown"
+                                                   disabled="@_sendingPlanMessage" />
+                                            <button class="plan-message-send"
+                                                    type="button"
+                                                    @onclick="SendPlanMessageAsync"
+                                                    disabled="@(!CanSendPlanMessage)">Send</button>
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(_planMessageSendError))
+                                        {
+                                            <div class="plan-message-send-error">@_planMessageSendError</div>
+                                        }
+                                    </div>
+                                }
+                                <button class="plan-detail-action-row" @onclick="TogglePlanMessagesPanel">
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                                        <path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z"/>
+                                    </svg>
+                                    <span>See @_detailPlan.MessageCount message@(_detailPlan.MessageCount == 1 ? "" : "s")</span>
+                                </button>
+                            </div>
                             <button class="plan-detail-action-row" @onclick="@(() => { /* TODO: open issues panel */ })">
                                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
                                     <path d="M8 2L1.5 13.5h13L8 2z"/>
@@ -340,6 +395,7 @@
         <span class="plans-panel-title">Plans</span>
         <button class="panel-close-btn" title="Close" @onclick="@(() => SetPlansPanelOpen(false))">&#10005;</button>
     </div>
+    <div class="plans-panel-content">
     @{
         bool _isPrivileged = SessionState.CountryId == 1 || SessionState.CountryId == 2;
         var _visiblePlans = _plans
@@ -381,6 +437,7 @@
             }
         </details>
     }
+    </div>
     </div>
 }
 

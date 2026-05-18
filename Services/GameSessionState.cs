@@ -59,6 +59,13 @@ public sealed class GameSessionState : IDisposable
 
     public IReadOnlyList<PlanEntry> Plans => _plans;
     private readonly List<PlanEntry> _plans = new();
+    private readonly Dictionary<int, List<PlanMessageEntry>> _planMessagesByPlanId = new();
+    private int _nextPlanMessageSequence = 1;
+
+    public IReadOnlyList<PlanMessageEntry> GetPlanMessages(int planId) =>
+        _planMessagesByPlanId.TryGetValue(planId, out var messages)
+            ? messages
+            : Array.Empty<PlanMessageEntry>();
 
     // ── Dependency graph data (from Game/Config) ───────────────────────────────
     public IReadOnlyList<DependencyGroup> DependencyGroups { get; private set; } = [];
@@ -119,15 +126,30 @@ public sealed class GameSessionState : IDisposable
                     System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : EraTimeLeft;
         }
 
-        // Plan messages: count per plan_id
-        var planMessageCounts = new Dictionary<int, int>();
+        // Plan messages: cache full message threads per plan_id.
+        var parsedPlanMessages = new Dictionary<int, List<PlanMessageEntry>>();
         if (payload.TryGetProperty("planmessages", out var pmEl) && pmEl.ValueKind == JsonValueKind.Array)
         {
             foreach (var pm in pmEl.EnumerateArray())
             {
                 var pmPlanId = GetIntProp(pm, "plan_id");
-                if (pmPlanId > 0)
-                    planMessageCounts[pmPlanId] = planMessageCounts.GetValueOrDefault(pmPlanId) + 1;
+                if (pmPlanId <= 0) continue;
+
+                var message = ParsePlanMessage(pm, pmPlanId, _nextPlanMessageSequence++);
+                if (message is null) continue;
+
+                if (!parsedPlanMessages.TryGetValue(pmPlanId, out var messages))
+                {
+                    messages = new List<PlanMessageEntry>();
+                    parsedPlanMessages[pmPlanId] = messages;
+                }
+
+                messages.Add(message);
+            }
+
+            foreach (var kvp in parsedPlanMessages)
+            {
+                MergePlanMessages(kvp.Key, kvp.Value);
             }
         }
 
@@ -224,7 +246,27 @@ public sealed class GameSessionState : IDisposable
                     || (arEl.ValueKind == JsonValueKind.Number && arEl.GetInt32() != 0)
                     || (arEl.ValueKind == JsonValueKind.String && arEl.GetString() is "1" or "true");
 
-            var msgCount = planMessageCounts.GetValueOrDefault(id, 0);
+            if (p.TryGetProperty("planmessages", out var planPmEl) && planPmEl.ValueKind == JsonValueKind.Array)
+            {
+                var nestedMessages = new List<PlanMessageEntry>();
+                foreach (var pm in planPmEl.EnumerateArray())
+                {
+                    var message = ParsePlanMessage(pm, id, _nextPlanMessageSequence++);
+                    if (message is not null)
+                        nestedMessages.Add(message);
+                }
+
+                if (nestedMessages.Count > 0)
+                {
+                    MergePlanMessages(id, nestedMessages);
+                }
+            }
+
+            var storedCount = _planMessagesByPlanId.TryGetValue(id, out var storedMessages)
+                ? storedMessages.Count
+                : 0;
+            var payloadCount = GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
+            var msgCount = Math.Max(storedCount, payloadCount);
             var entry = new PlanEntry(id, name, description, state, country, startdate, constructionTime, policyNames, planLayers,
                 requiresApproval, msgCount);
             var idx = _plans.FindIndex(e => e.PlanId == id);
@@ -241,6 +283,42 @@ public sealed class GameSessionState : IDisposable
             var dp = a.StartDate.CompareTo(b.StartDate);
             return dp != 0 ? dp : a.PlanId.CompareTo(b.PlanId);
         });
+    }
+
+    private void MergePlanMessages(int planId, IEnumerable<PlanMessageEntry> incoming)
+    {
+        if (!_planMessagesByPlanId.TryGetValue(planId, out var existing))
+        {
+            existing = new List<PlanMessageEntry>();
+            _planMessagesByPlanId[planId] = existing;
+        }
+
+        foreach (var message in incoming)
+        {
+            var duplicate = existing.Any(e => IsSameMessage(e, message));
+            if (!duplicate)
+                existing.Add(message);
+        }
+
+        existing.Sort((a, b) =>
+        {
+            var at = a.SentAt ?? DateTime.MinValue;
+            var bt = b.SentAt ?? DateTime.MinValue;
+            var t = at.CompareTo(bt);
+            if (t != 0) return t;
+            return a.Sequence.CompareTo(b.Sequence);
+        });
+    }
+
+    private static bool IsSameMessage(PlanMessageEntry a, PlanMessageEntry b)
+    {
+        if (!string.IsNullOrWhiteSpace(a.MessageId) && !string.IsNullOrWhiteSpace(b.MessageId))
+            return string.Equals(a.MessageId, b.MessageId, StringComparison.OrdinalIgnoreCase);
+
+        return a.PlanId == b.PlanId
+            && string.Equals(a.UserName, b.UserName, StringComparison.Ordinal)
+            && string.Equals(a.Message, b.Message, StringComparison.Ordinal)
+            && Nullable.Equals(a.SentAt, b.SentAt);
     }
 
     // ── Display helpers ────────────────────────────────────────────────────────
@@ -328,6 +406,7 @@ public sealed class GameSessionState : IDisposable
         CountryColours.Clear();
         CountryNames.Clear();
         _plans.Clear();
+        _planMessagesByPlanId.Clear();
         DependencyGroups = [];
         DependencyLinks = [];
 
@@ -818,6 +897,46 @@ public sealed class GameSessionState : IDisposable
         return [r, g, b, a];
     }
 
+    private static PlanMessageEntry? ParsePlanMessage(JsonElement pm, int planId, int sequence)
+    {
+        var messageId = GetStringProp(pm, "message_id")
+                     ?? GetStringProp(pm, "id")
+                     ?? "";
+
+        var userName = GetStringProp(pm, "user_name")
+                    ?? GetStringProp(pm, "username")
+                    ?? GetStringProp(pm, "name")
+                    ?? "Unknown";
+
+        var message = GetStringProp(pm, "message")
+                   ?? GetStringProp(pm, "text")
+                   ?? GetStringProp(pm, "body")
+                   ?? GetStringProp(pm, "content")
+                   ?? pm.ToString();
+
+        var countryId = GetNullableIntProp(pm,
+            "team_id",
+            "country_id",
+            "country",
+            "sender_country_id",
+            "user_country_id");
+
+        var countryName = GetStringProp(pm, "country_name")
+                       ?? GetStringProp(pm, "country_display_name")
+                       ?? (countryId.HasValue && countryId.Value > 0 ? countryId.Value.ToString() : "");
+
+        var sentAt = GetDateTimeProp(pm,
+            "created_at",
+            "created",
+            "sent_at",
+            "timestamp",
+            "time");
+
+        if (string.IsNullOrWhiteSpace(message)) return null;
+
+        return new PlanMessageEntry(messageId, planId, countryId, countryName, userName, message, sentAt, sequence);
+    }
+
     // ── JSON helpers (private) ─────────────────────────────────────────────────
     private static JsonElement GetPayload(JsonElement root)
     {
@@ -845,6 +964,65 @@ public sealed class GameSessionState : IDisposable
         {
             if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
             return prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.ToString();
+        }
+        return null;
+    }
+
+    private static int? GetNullableIntProp(JsonElement el, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            foreach (var prop in el.EnumerateObject())
+            {
+                if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+                if (prop.Value.ValueKind == JsonValueKind.Number) return prop.Value.GetInt32();
+                if (prop.Value.ValueKind == JsonValueKind.String && int.TryParse(prop.Value.GetString(), out var parsed))
+                    return parsed;
+            }
+        }
+        return null;
+    }
+
+    private static DateTime? GetDateTimeProp(JsonElement el, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            foreach (var prop in el.EnumerateObject())
+            {
+                if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+                if (prop.Value.ValueKind == JsonValueKind.String)
+                {
+                    var text = prop.Value.GetString();
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    if (DateTime.TryParseExact(
+                        text,
+                        ["MMM d HH:mm", "MMM dd HH:mm"],
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None,
+                        out var monthDayTime))
+                    {
+                        return new DateTime(
+                            DateTime.UtcNow.Year,
+                            monthDayTime.Month,
+                            monthDayTime.Day,
+                            monthDayTime.Hour,
+                            monthDayTime.Minute,
+                            0,
+                            DateTimeKind.Utc);
+                    }
+
+                    var styles = System.Globalization.DateTimeStyles.AssumeUniversal
+                               | System.Globalization.DateTimeStyles.AdjustToUniversal;
+
+                    if (DateTimeOffset.TryParse(
+                        text,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        styles,
+                        out var parsedOffset))
+                        return parsedOffset.UtcDateTime;
+                }
+            }
         }
         return null;
     }
