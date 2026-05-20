@@ -4,7 +4,20 @@ using MSPChallenge_Client_Browser.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddHttpClient();
+if (builder.Environment.IsDevelopment())
+{
+    // Allow plain HTTP and self-signed HTTPS certs when targeting a local game server.
+    builder.Services.AddHttpClient(string.Empty)
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback =
+                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        });
+}
+else
+{
+    builder.Services.AddHttpClient();
+}
 builder.Services.AddScoped<SessionState>();
 builder.Services.AddScoped<MspApiClient>();
 builder.Services.AddScoped<GameWebSocketService>();

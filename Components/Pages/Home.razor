@@ -89,12 +89,12 @@ else
             {
                 <p>Loading session configuration...</p>
             }
-            else if (!string.IsNullOrEmpty(errorMessage))
-            {
-                <div class="alert alert-danger">@errorMessage</div>
-            }
             else if (configLoaded)
             {
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
                 <form @onsubmit="ConnectAsync">
                     <div class="mb-3">
                         <label for="country" class="form-label">Country</label>
@@ -116,7 +116,7 @@ else
                     {
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
-                            <input id="password" class="form-control" type="password" @bind="password" placeholder="Enter password" />
+                            <input id="password" class="form-control" type="password" @bind="password" @bind:event="oninput" placeholder="Enter password" />
                         </div>
                     }
 
@@ -128,6 +128,10 @@ else
                         Back
                     </button>
                 </form>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
             }
         </div>
     </div>

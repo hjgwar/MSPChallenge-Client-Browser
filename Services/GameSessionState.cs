@@ -75,6 +75,9 @@ public sealed class GameSessionState : IDisposable
     public IReadOnlyList<RestrictionRule> Restrictions => _restrictions;
     private readonly List<RestrictionRule> _restrictions = new();
 
+    // ── Available policies (from Game/Config policy_settings) ─────────────────
+    public IReadOnlyList<PolicySetting> AvailablePolicies { get; private set; } = [];
+
     public void SetDependencies(
         IReadOnlyList<DependencyGroup> groups,
         IReadOnlyList<DependencyLink>  links)
@@ -227,6 +230,7 @@ public sealed class GameSessionState : IDisposable
                 .Max();
 
             var policyNames = new List<string>();
+            var policyTypes = new List<string>();
             if (p.TryGetProperty("policies", out var polEl) && polEl.ValueKind == JsonValueKind.Array)
             {
                 foreach (var pol in polEl.EnumerateArray())
@@ -240,7 +244,10 @@ public sealed class GameSessionState : IDisposable
                         _          => null
                     };
                     if (display is not null && !policyNames.Contains(display))
+                    {
                         policyNames.Add(display);
+                        policyTypes.Add(ptype!);
+                    }
                 }
             }
 
@@ -282,13 +289,14 @@ public sealed class GameSessionState : IDisposable
                 }
             }
 
+            var lockedByUserId = GetIntProp(p, "locked");
             var storedCount = _planMessagesByPlanId.TryGetValue(id, out var storedMessages)
                 ? storedMessages.Count
                 : 0;
             var payloadCount = GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
             var msgCount = Math.Max(storedCount, payloadCount);
-            var entry = new PlanEntry(id, name, description, state, country, startdate, constructionTime, policyNames, planLayers,
-                requiresApproval, msgCount, IssueCount: 0, Votes: votes);
+            var entry = new PlanEntry(id, name, description, state, country, startdate, constructionTime, policyNames, policyTypes, planLayers,
+                requiresApproval, msgCount, IssueCount: 0, Votes: votes, LockedByUserId: lockedByUserId);
             var idx = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)
                 _plans[idx] = entry;
@@ -386,6 +394,49 @@ public sealed class GameSessionState : IDisposable
         "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "IMPLEMENTED", "ARCHIVED"
     ];
 
+    // ── Reset (navigate home) ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Stops the WebSocket and clears all game data so the next session can
+    /// start completely fresh.  Call before navigating back to the Home page.
+    /// </summary>
+    public async Task ResetAsync()
+    {
+        await _ws.StopAsync();
+
+        LayerEntries.Clear();
+        MapLayerSnapshots.Clear();
+        LegendOrderLayerIds.Clear();
+        CountryColours.Clear();
+        CountryNames.Clear();
+        EezPolygons        = [];
+        WikiBaseUrl        = "";
+        GameStartYear      = 2000;
+        GameEndMonth       = 0;
+        GameEndYear        = 0;
+
+        LayerPanelOpen    = true;
+        LegendPanelOpen   = true;
+        UsersPanelOpen    = false;
+        PlansPanelOpen    = false;
+        MapLat = MapLng = MapZoom = null;
+
+        GameCurrentMonth = 0;
+        GameState        = "";
+        EraTimeLeft      = 0;
+
+        _plans.Clear();
+        _planMessagesByPlanId.Clear();
+        _nextPlanMessageSequence = 1;
+
+        DependencyGroups   = [];
+        DependencyLinks    = [];
+        _restrictions.Clear();
+        AvailablePolicies  = [];
+
+        IsGameDataLoaded = false;
+    }
+
     // ── Data load status ───────────────────────────────────────────────────────
     /// <summary>True if game config has been loaded at least once in this circuit.</summary>
     public bool IsGameDataLoaded { get; set; } = false;
@@ -481,6 +532,70 @@ public sealed class GameSessionState : IDisposable
                     break;
                 }
             }
+        }
+
+        // Parse policy_settings to know which policy types are enabled for this session
+        if (configPayload.TryGetProperty("policy_settings", out var policySettingsEl))
+        {
+            static string? PolicyDisplayName(string type) => type.ToLowerInvariant() switch
+            {
+                "fishing"  => "Fishing Effort",
+                "energy"   => "Energy Distribution",
+                "shipping" => "Shipping Safety Zones",
+                _          => null,
+            };
+
+            var policies = new List<PolicySetting>();
+            if (policySettingsEl.ValueKind == JsonValueKind.Object)
+            {
+                // Object format: { "fishing": { "enabled": true }, ... }
+                foreach (var kv in policySettingsEl.EnumerateObject())
+                {
+                    var enabled = true;
+                    if (kv.Value.TryGetProperty("enabled", out var enEl))
+                        enabled = enEl.ValueKind != JsonValueKind.False
+                                  && !(enEl.ValueKind == JsonValueKind.Number && enEl.GetInt32() == 0)
+                                  && !(enEl.ValueKind == JsonValueKind.String && enEl.GetString() is "0" or "false");
+                    var display = PolicyDisplayName(kv.Name) ?? kv.Name;
+                    policies.Add(new PolicySetting(kv.Name.ToLowerInvariant(), display, enabled));
+                }
+            }
+            else if (policySettingsEl.ValueKind == JsonValueKind.Array)
+            {
+                // Array format: [ { "type": "fishing", "enabled": true }, ... ]
+                foreach (var el in policySettingsEl.EnumerateArray())
+                {
+                    var ptype = GetStringProp(el, "type") ?? GetStringProp(el, "policy_type") ?? "";
+                    if (string.IsNullOrWhiteSpace(ptype)) continue;
+                    var enabled = true;
+                    if (el.TryGetProperty("enabled", out var enEl))
+                        enabled = enEl.ValueKind != JsonValueKind.False
+                                  && !(enEl.ValueKind == JsonValueKind.Number && enEl.GetInt32() == 0)
+                                  && !(enEl.ValueKind == JsonValueKind.String && enEl.GetString() is "0" or "false");
+                    var display = PolicyDisplayName(ptype) ?? ptype;
+                    policies.Add(new PolicySetting(ptype.ToLowerInvariant(), display, enabled));
+                }
+            }
+
+            // Fall back: if server doesn't expose policy_settings at all, seed from known types
+            if (policies.Count == 0)
+            {
+                policies.Add(new PolicySetting("fishing",  "Fishing Effort",         true));
+                policies.Add(new PolicySetting("energy",   "Energy Distribution",    true));
+                policies.Add(new PolicySetting("shipping", "Shipping Safety Zones",  true));
+            }
+
+            AvailablePolicies = policies;
+        }
+        else
+        {
+            // No policy_settings key — default to all three known types enabled
+            AvailablePolicies = new List<PolicySetting>
+            {
+                new("fishing",  "Fishing Effort",        true),
+                new("energy",   "Energy Distribution",   true),
+                new("shipping", "Shipping Safety Zones", true),
+            };
         }
 
         if (configPayload.TryGetProperty("dependencies", out var depsEl) && depsEl.ValueKind == JsonValueKind.Object)
@@ -764,6 +879,7 @@ public sealed class GameSessionState : IDisposable
                        aos.ValueKind == JsonValueKind.Number && aos.GetInt32() != 0;
         var depth = layer.TryGetProperty("layer_depth", out var ld) && ld.ValueKind == JsonValueKind.Number ? ld.GetInt32() : 0;
         var toggleable = layer.TryGetProperty("layer_toggleable", out var lt2) && lt2.ValueKind == JsonValueKind.Number ? lt2.GetInt32() != 0 : true;
+        var editable   = layer.TryGetProperty("layer_editable",   out var leEl) && leEl.ValueKind == JsonValueKind.Number ? leEl.GetInt32() != 0 : false;
         var isBase = layerName.IndexOf("_PLAYAREA", StringComparison.OrdinalIgnoreCase) >= 0;
 
         // Prepare metadata entry used across pages.
@@ -907,7 +1023,8 @@ public sealed class GameSessionState : IDisposable
             IsRaster = string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase),
             RasterThresholds = rasterThresholds,
             GeoType = geoType ?? "",
-            AssemblyTime = ParseAssemblyTime(layer)
+            AssemblyTime = ParseAssemblyTime(layer),
+            Editable = editable
         });
 
         return new MapLayerSnapshot
@@ -1203,3 +1320,6 @@ public sealed class GameSessionState : IDisposable
 
 /// <summary>One EEZ polygon with its owning country ID. Points are [lon, lat] pairs.</summary>
 public sealed record EezPolygon(int CountryId, IReadOnlyList<double[]> Points);
+
+/// <summary>A plan policy type available in this game session.</summary>
+public sealed record PolicySetting(string PolicyType, string DisplayName, bool Enabled);

@@ -55,7 +55,12 @@ public partial class Home
             if (!host.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !host.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                host = "https://" + host;
+                // Default to plain HTTP for localhost/loopback, HTTPS for everything else.
+                var hostOnly = host.Split(':')[0];
+                var isLocal = hostOnly.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                           || hostOnly == "127.0.0.1"
+                           || hostOnly == "::1";
+                host = (isLocal ? "http://" : "https://") + host;
             }
 
             var root = await ApiClient.GetAsync($"{host}/manager/gamelist");
@@ -104,8 +109,8 @@ public partial class Home
     {
         selectedSession = session;
         SessionState.SessionId = session.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0;
-        SessionState.GameServerAddress = GetString(session, "game_server_address");
-        SessionState.GameWsServerAddress = GetString(session, "game_ws_server_address");
+        SessionState.GameServerAddress   = ResolveDockerHost(GetString(session, "game_server_address"));
+        SessionState.GameWsServerAddress = ResolveDockerHost(GetString(session, "game_ws_server_address"));
 
         // Load session config (countries, password requirements)
         await LoadSessionConfigAsync();
@@ -243,9 +248,17 @@ public partial class Home
 
             NavigationManager.NavigateTo("/game");
         }
+        catch (MspApiException ex)
+        {
+            errorMessage = FirstLine(ex.Message);
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Could not reach the server: {FirstLine(ex.Message)}";
+        }
         catch (Exception ex)
         {
-            errorMessage = $"An error occurred: {ex.Message}";
+            errorMessage = $"An error occurred: {FirstLine(ex.Message)}";
         }
         finally
         {
@@ -262,6 +275,19 @@ public partial class Home
         username = string.Empty;
         password = string.Empty;
     }
+
+    /// <summary>
+    /// Replaces the Docker-internal host alias with localhost so that addresses
+    /// advertised by a containerised game server are reachable from the Windows host.
+    /// </summary>
+    /// <summary>Returns only the first non-empty line of a (possibly multi-line) message.</summary>
+    private static string FirstLine(string message) =>
+        message.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+               .FirstOrDefault()
+               ?.Trim() ?? message;
+
+    private static string ResolveDockerHost(string address) =>
+        address.Replace("host.docker.internal", "localhost", StringComparison.OrdinalIgnoreCase);
 
     private static string GetString(JsonElement element, params string[] candidates)
     {

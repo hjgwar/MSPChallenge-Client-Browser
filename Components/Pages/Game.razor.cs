@@ -54,6 +54,30 @@ public partial class Game : IAsyncDisposable
 
     // Plans panel
     private bool _plansPanelOpen;
+    private bool _editMode;
+
+    // Create plan panel
+    private bool   _createPlanOpen;
+    private string _createPlanName        = string.Empty;
+    private string _createPlanDescription = string.Empty;
+    private int    _createPlanStartYear;
+    private int    _createPlanStartMonth  = 1;  // 1-12
+    private bool   _createPlanSaving;
+    private string? _createPlanError;
+    private int    _pendingSelectPlanId;
+    private bool   _pendingEnterEditMode;
+    private string _editName        = string.Empty;
+    private string _editDescription = string.Empty;
+    private int    _editStartYear;
+    private int    _editStartMonth = 1;  // 1-12
+    private int    _editMinConstructionMonths;
+    private bool _editSaving;
+    private string? _editError;
+    private bool _policyPickerOpen;
+    private HashSet<string> _editPolicyTypes = new();
+    private bool _layerPickerOpen;
+    private HashSet<string> _editPlanLayerIds = new();
+
     private int _selectedPlanId;
     private bool _planMessagesOpen;
     private bool _planIssuesOpen;
@@ -91,18 +115,23 @@ public partial class Game : IAsyncDisposable
     // Dev console log (capped list of recent raw WS messages)
     private const int WsLogMaxEntries = 100;
     private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = new();
-    private string? _wsSelectedRaw;
     private bool    _wsLogVisible;
+    private bool    _wsCopied;
 
-    private static string PrettyPrintJson(string raw)
+    private bool IsAdmin => SessionState.CountryId == 1 || SessionState.CountryId == 2;
+
+    private async Task CopyWsMessageAsync(string raw)
     {
         try
         {
-            using var doc = JsonDocument.Parse(raw);
-            return JsonSerializer.Serialize(doc.RootElement,
-                new JsonSerializerOptions { WriteIndented = true });
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", raw);
         }
-        catch { return raw; }
+        catch { return; }
+        _wsCopied = true;
+        StateHasChanged();
+        await Task.Delay(1500);
+        _wsCopied = false;
+        StateHasChanged();
     }
 
     protected override Task OnInitializedAsync()
@@ -640,6 +669,23 @@ public partial class Game : IAsyncDisposable
         if (msg.HeaderName == "Game/Latest" && _planMessagesOpen && _selectedPlanId != 0)
             _scrollPlanMessagesPending = true;
 
+        if (_pendingSelectPlanId != 0)
+        {
+            var newPlan = _plans.FirstOrDefault(p => p.PlanId == _pendingSelectPlanId);
+            if (newPlan is not null)
+            {
+                _pendingSelectPlanId  = 0;
+                var enterEdit = _pendingEnterEditMode;
+                _pendingEnterEditMode = false;
+                _ = InvokeAsync(async () =>
+                {
+                    await SelectPlanAsync(newPlan);
+                    if (enterEdit) await EnterEditModeAsync();
+                });
+                return;
+            }
+        }
+
         InvokeAsync(StateHasChanged);
     }
 
@@ -680,6 +726,8 @@ public partial class Game : IAsyncDisposable
         _projectedGeometryCache.Clear();
         await _mapModule.InvokeVoidAsync("clearPlanProjection");
 
+        _createPlanOpen = false;
+
         if (_selectedPlanId == plan.PlanId)
         {
             // Toggling the same plan off.
@@ -688,6 +736,11 @@ public partial class Game : IAsyncDisposable
             _planIssuesOpen = false;
             _planApprovalOpen = false;
             _planStateOpen = false;
+            _editMode = false;
+            _policyPickerOpen = false;
+            _editPolicyTypes.Clear();
+            _layerPickerOpen  = false;
+            _editPlanLayerIds.Clear();
             _selectedPlanIssues.Clear();
             _approvalRequired.Clear();
             _approvalReasonsExpanded.Clear();
@@ -703,6 +756,11 @@ public partial class Game : IAsyncDisposable
         _planIssuesOpen = false;
         _planApprovalOpen = false;
         _planStateOpen = false;
+        _editMode = false;
+        _policyPickerOpen = false;
+        _editPolicyTypes.Clear();
+        _layerPickerOpen  = false;
+        _editPlanLayerIds.Clear();
         _planMessageDraft = string.Empty;
         _planMessageSendError = null;
         _selectedPlanIssues.Clear();
@@ -1451,6 +1509,8 @@ public partial class Game : IAsyncDisposable
 
     private async Task ClosePlanDetailAsync()
     {
+        if (_editMode)
+            await CancelEditAsync();
         var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
         if (plan is not null)
             await SelectPlanAsync(plan);
@@ -1526,6 +1586,419 @@ public partial class Game : IAsyncDisposable
         else
         {
             _planStateDropdownOpen = false;
+        }
+    }
+
+    // ── Edit mode ────────────────────────────────────────────────────────────
+
+    private bool CanEnterEditMode =>
+        _selectedPlanId != 0 &&
+        _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId) is { } ep &&
+        ep.State.Equals("DESIGN", StringComparison.OrdinalIgnoreCase) &&
+        (SessionState.CountryId <= 2 || ep.Country == SessionState.CountryId);
+
+    // ── Create plan panel ──────────────────────────────────────────────────
+
+    private DateTime CreatePlanEarliestStart =>
+        _gameStartYear > 0
+            ? new DateTime(_gameStartYear, 1, 1).AddMonths(_gameCurrentMonth + 1)
+            : DateTime.Now.AddMonths(1);
+
+    private bool CreatePlanStartDateValid =>
+        _createPlanStartYear > CreatePlanEarliestStart.Year ||
+        (_createPlanStartYear == CreatePlanEarliestStart.Year && _createPlanStartMonth >= CreatePlanEarliestStart.Month);
+
+    private bool CreatePlanMonthDisabled(int m) =>
+        _createPlanStartYear == CreatePlanEarliestStart.Year && m < CreatePlanEarliestStart.Month;
+
+    private void OpenCreatePlanPanel()
+    {
+        // Close any open plan detail
+        _selectedPlanId   = 0;
+        _editMode         = false;
+        _policyPickerOpen = false;
+
+        var earliest = CreatePlanEarliestStart;
+        _createPlanName        = string.Empty;
+        _createPlanDescription = string.Empty;
+        _createPlanStartYear   = earliest.Year;
+        _createPlanStartMonth  = earliest.Month;
+        _createPlanSaving      = false;
+        _createPlanError       = null;
+        _createPlanOpen        = true;
+    }
+
+    private void CloseCreatePlanPanel()
+    {
+        _createPlanOpen  = false;
+        _createPlanError = null;
+    }
+
+    private async Task CreatePlanAsync()
+    {
+        if (_createPlanSaving) return;
+
+        var name = _createPlanName.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            _createPlanError = "Plan name is required.";
+            StateHasChanged();
+            return;
+        }
+        if (!CreatePlanStartDateValid)
+        {
+            _createPlanError = $"Start date must be {CreatePlanEarliestStart:MMM yyyy} or later.";
+            StateHasChanged();
+            return;
+        }
+
+        _createPlanSaving = true;
+        _createPlanError  = null;
+        StateHasChanged();
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var sessionPath = SessionState.SessionId.ToString();
+            var userId      = SessionState.UserId.ToString();
+            int time        = (_createPlanStartYear - _gameStartYear) * 12 + (_createPlanStartMonth - 1);
+
+            // Step 1 — create the plan; server returns the new plan ID
+            var postResult = await ApiClient.PostFormAsync(
+                $"{baseAddress}/{sessionPath}/api/Plan/Post",
+                new[]
+                {
+                    new KeyValuePair<string, string>("country", SessionState.CountryId.ToString()),
+                    new KeyValuePair<string, string>("name",    name),
+                    new KeyValuePair<string, string>("time",    time.ToString()),
+                });
+
+            // Extract plan_id — server may return it in payload or at root
+            var payload = postResult.TryGetProperty("payload", out var p) ? p : postResult;
+            int newPlanId = 0;
+            if (payload.ValueKind == System.Text.Json.JsonValueKind.Number)
+                newPlanId = payload.GetInt32();
+            else if (payload.TryGetProperty("plan_id", out var pidProp))
+                newPlanId = pidProp.GetInt32();
+
+            // Step 2 — set description directly (only if provided and plan was created)
+            var desc = _createPlanDescription.Trim();
+            if (newPlanId != 0 && !string.IsNullOrWhiteSpace(desc))
+            {
+                await ApiClient.PostFormAsync(
+                    $"{baseAddress}/{sessionPath}/api/Plan/Description",
+                    new[]
+                    {
+                        new KeyValuePair<string, string>("id",          newPlanId.ToString()),
+                        new KeyValuePair<string, string>("description", desc),
+                    });
+            }
+
+            _createPlanOpen = false;
+
+            if (newPlanId != 0)
+            {
+                // Plan may already be in the list if the WS update arrived first
+                var existing = _plans.FirstOrDefault(q => q.PlanId == newPlanId);
+                if (existing is not null)
+                {
+                    await SelectPlanAsync(existing);
+                    await EnterEditModeAsync();
+                }
+                else
+                {
+                    _pendingEnterEditMode = true;
+                    _pendingSelectPlanId  = newPlanId; // select + edit when next WS update arrives
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _createPlanError = ex.Message;
+        }
+        finally
+        {
+            _createPlanSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Edit mode ────────────────────────────────────────────────────────────
+
+    // Earliest calendar date the plan may start (current sim month + min construction)
+    private DateTime EditEarliestStart =>
+        new DateTime(_gameStartYear, 1, 1).AddMonths(_gameCurrentMonth + _editMinConstructionMonths);
+
+    private bool EditStartDateValid =>
+        _editStartYear > EditEarliestStart.Year ||
+        (_editStartYear == EditEarliestStart.Year && _editStartMonth >= EditEarliestStart.Month);
+
+    // For the month <select>: months 1-12, but disable months before minimum when on the earliest year
+    private bool EditMonthDisabled(int m) =>
+        _editStartYear == EditEarliestStart.Year && m < EditEarliestStart.Month;
+
+    private static string MonthName(int m) => m switch {
+        1 => "January", 2 => "February", 3 => "March",    4 => "April",
+        5 => "May",     6 => "June",     7 => "July",     8 => "August",
+        9 => "September", 10 => "October", 11 => "November", 12 => "December",
+        _ => m.ToString()
+    };
+
+    private async Task EnterEditModeAsync()
+    {
+        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        if (plan is null) return;
+
+        var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+        var sessionPath = SessionState.SessionId.ToString();
+        try
+        {
+            await ApiClient.PostFormAsync(
+                $"{baseAddress}/{sessionPath}/api/Plan/Lock",
+                new[]
+                {
+                    new KeyValuePair<string, string>("id",   _selectedPlanId.ToString()),
+                    new KeyValuePair<string, string>("user", SessionState.UserId.ToString()),
+                });
+        }
+        catch
+        {
+            // Lock failed (plan locked by someone else) — abort silently
+            return;
+        }
+
+        _editName        = plan.Name;
+        _editDescription = plan.Description ?? string.Empty;
+        var startDate    = new DateTime(_gameStartYear, 1, 1).AddMonths(plan.StartDate);
+        _editStartYear   = startDate.Year;
+        _editStartMonth  = startDate.Month;
+        _editMinConstructionMonths = plan.ConstructionTime; // max AssemblyTime from layers
+        _editPolicyTypes = plan.PolicyTypes.ToHashSet();
+        _policyPickerOpen = false;
+        _editPlanLayerIds = plan.Layers.Select(l => l.OriginalLayerId).ToHashSet();
+        _layerPickerOpen  = false;
+        _editError       = null;
+        _editMode        = true;
+    }
+
+    private async Task CancelEditAsync()
+    {
+        _editSaving = true;
+        StateHasChanged();
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var sessionPath = SessionState.SessionId.ToString();
+            await ApiClient.PostFormAsync(
+                $"{baseAddress}/{sessionPath}/api/Plan/Unlock",
+                new[]
+                {
+                    new KeyValuePair<string, string>("id",           _selectedPlanId.ToString()),
+                    new KeyValuePair<string, string>("force_unlock", "0"),
+                    new KeyValuePair<string, string>("user",         SessionState.UserId.ToString()),
+                });
+        }
+        catch { }
+        finally
+        {
+            _editMode         = false;
+            _policyPickerOpen = false;
+            _layerPickerOpen  = false;
+            _editSaving = false;
+            _editError  = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ForceUnlockPlanAsync(int planId)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            "Force unlock this plan? Any unsaved changes by the current editor will be lost.");
+        if (!confirmed) return;
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var sessionPath = SessionState.SessionId.ToString();
+            await ApiClient.PostFormAsync(
+                $"{baseAddress}/{sessionPath}/api/Plan/Unlock",
+                new[]
+                {
+                    new KeyValuePair<string, string>("id",           planId.ToString()),
+                    new KeyValuePair<string, string>("force_unlock", "1"),
+                    new KeyValuePair<string, string>("user",         SessionState.UserId.ToString()),
+                });
+        }
+        catch { }
+    }
+
+    private void TogglePolicyPicker()
+    {
+        _policyPickerOpen = !_policyPickerOpen;
+        if (_policyPickerOpen) _layerPickerOpen = false;
+    }
+
+    private void ToggleLayerPicker()
+    {
+        _layerPickerOpen = !_layerPickerOpen;
+        if (_layerPickerOpen) _policyPickerOpen = false;
+    }
+
+    private void ToggleEditPlanLayer(string layerId)
+    {
+        if (!_editPlanLayerIds.Remove(layerId))
+            _editPlanLayerIds.Add(layerId);
+    }
+
+    private void TogglePolicyType(string policyType)
+    {
+        if (!_editPolicyTypes.Remove(policyType))
+            _editPolicyTypes.Add(policyType);
+    }
+
+    /// <summary>Closes the policy picker (Accept). API call is a stub — pending future work.</summary>
+    private void AcceptPolicies() => _policyPickerOpen = false;
+
+    private async Task AcceptEditAsync()
+    {
+        if (_editSaving || _selectedPlanId == 0) return;
+        if (!EditStartDateValid)
+        {
+            _editError = $"Start date must be {EditEarliestStart:MMM yyyy} or later.";
+            StateHasChanged();
+            return;
+        }
+        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        if (plan is null) return;
+
+        _editSaving = true;
+        _editError  = null;
+        StateHasChanged();
+        try
+        {
+            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
+            var sessionPath = SessionState.SessionId.ToString();
+            var userId      = SessionState.UserId.ToString();
+
+            // Convert year+month back to month int offset
+            int newStartDate = (_editStartYear - _gameStartYear) * 12 + (_editStartMonth - 1);
+
+            var requests = new List<object>();
+            int callId = 1;
+
+            // Unlock (always first)
+            requests.Add(new
+            {
+                call_id       = callId++,
+                endpoint      = "api/Plan/Unlock",
+                endpoint_data = System.Text.Json.JsonSerializer.Serialize(new { id = _selectedPlanId, force_unlock = 0, user = userId }),
+                group         = 100,
+            });
+
+            // Name (only if changed and non-empty)
+            var newName = _editName.Trim();
+            if (newName != plan.Name && !string.IsNullOrWhiteSpace(newName))
+                requests.Add(new
+                {
+                    call_id       = callId++,
+                    endpoint      = "api/Plan/Name",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new { id = _selectedPlanId, name = newName }),
+                    group         = 5,
+                });
+
+            // Description (server stores " " for empty)
+            var newDesc    = _editDescription.Trim();
+            var serverDesc = string.IsNullOrWhiteSpace(newDesc) ? " " : newDesc;
+            if (serverDesc != (plan.Description ?? string.Empty))
+                requests.Add(new
+                {
+                    call_id       = callId++,
+                    endpoint      = "api/Plan/Description",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new { id = _selectedPlanId, description = serverDesc }),
+                    group         = 5,
+                });
+
+            // Date (only if changed)
+            if (newStartDate != plan.StartDate)
+                requests.Add(new
+                {
+                    call_id       = callId++,
+                    endpoint      = "api/Plan/Date",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new { id = _selectedPlanId, date = newStartDate }),
+                    group         = 5,
+                });
+
+            // Policy changes
+            var originalPolicyTypes = plan.PolicyTypes.ToHashSet();
+            var policiesToAdd    = _editPolicyTypes.Except(originalPolicyTypes).ToList();
+            var policiesToRemove = originalPolicyTypes.Except(_editPolicyTypes).ToList();
+
+            foreach (var pt in policiesToAdd)
+                requests.Add(new
+                {
+                    call_id       = callId++,
+                    endpoint      = "api/Plan/SetGeneralPolicyData",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        plan_id     = _selectedPlanId,
+                        policy_data = System.Text.Json.JsonSerializer.Serialize(new { policy_type = pt }),
+                    }),
+                    group = 5,
+                });
+
+            foreach (var pt in policiesToRemove)
+                requests.Add(new
+                {
+                    call_id       = callId++,
+                    endpoint      = "api/Plan/DeleteGeneralPolicy",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new { plan_id = _selectedPlanId, policy_type = pt }),
+                    group         = 5,
+                });
+
+            // Layer changes
+            var originalLayerIds = plan.Layers.Select(l => l.OriginalLayerId).ToHashSet();
+            var layersToAdd    = _editPlanLayerIds.Except(originalLayerIds).ToList();
+            // For removals we need the plan layer's own ID (LayerId), not the original layer ID.
+            var planLayerIdByOriginal = plan.Layers.ToDictionary(l => l.OriginalLayerId, l => l.LayerId);
+            var layersToRemove = originalLayerIds.Except(_editPlanLayerIds).ToList();
+
+            foreach (var lid in layersToAdd)
+                requests.Add(new
+                {
+                    call_id       = callId++,
+                    endpoint      = "api/Plan/Layer",
+                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new { id = _selectedPlanId, layerid = int.Parse(lid) }),
+                    group         = 5,
+                });
+
+            foreach (var lid in layersToRemove)
+                if (planLayerIdByOriginal.TryGetValue(lid, out var planLayerId))
+                    requests.Add(new
+                    {
+                        call_id       = callId++,
+                        endpoint      = "api/Plan/DeleteLayer",
+                        endpoint_data = System.Text.Json.JsonSerializer.Serialize(new { id = int.Parse(planLayerId) }),
+                        group         = 5,
+                    });
+
+            await ApiClient.PostFormAsync(
+                $"{baseAddress}/{sessionPath}/api/Batch/ExecuteBatch",
+                new[]
+                {
+                    new KeyValuePair<string, string>("country_id", SessionState.CountryId.ToString()),
+                    new KeyValuePair<string, string>("user_id",    userId),
+                    new KeyValuePair<string, string>("batch_guid", Guid.NewGuid().ToString()),
+                    new KeyValuePair<string, string>("requests",   System.Text.Json.JsonSerializer.Serialize(requests)),
+                });
+
+            _editMode = false;
+        }
+        catch
+        {
+            _editError = "Failed to save changes. Please try again.";
+        }
+        finally
+        {
+            _editSaving = false;
+            StateHasChanged();
         }
     }
 

@@ -26,4 +26,7 @@ public sealed class LayerEntry
 
     // Number of months of construction (ASSEMBLY state time); 0 means no construction phase.
     public int AssemblyTime { get; init; }
+
+    // Whether this layer can be added to a plan for editing.
+    public bool Editable { get; init; }
 }

@@ -10,11 +10,13 @@ public sealed record PlanEntry(
     int    StartDate,
     int    ConstructionTime,
     IReadOnlyList<string>        PolicyNames,
+    IReadOnlyList<string>        PolicyTypes,
     IReadOnlyList<PlanLayerData> Layers,
     bool RequiresApproval = false,
     int  MessageCount     = 0,
     int  IssueCount       = 0,
-    IReadOnlyDictionary<int, int>? Votes = null);
+    IReadOnlyDictionary<int, int>? Votes = null,
+    int  LockedByUserId = 0);
 
 /// <summary>A layer within a plan, containing geometry items.</summary>
 public sealed record PlanLayerData(

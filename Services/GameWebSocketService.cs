@@ -164,6 +164,40 @@ public sealed class GameWebSocketService : IAsyncDisposable
            ? v.GetString()
            : null;
 
+    // ── Disconnect (navigate-away / reset) ────────────────────────────────────
+
+    /// <summary>
+    /// Closes the WebSocket and resets internal state so the service can be
+    /// reused for a fresh <see cref="ConnectAndSubscribeAsync"/> call.
+    /// </summary>
+    public async Task StopAsync()
+    {
+        await _cts.CancelAsync();
+
+        if (_ws is not null)
+        {
+            try
+            {
+                if (_ws.State == WebSocketState.Open)
+                    await _ws.CloseAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Navigating home",
+                        CancellationToken.None);
+            }
+            catch { }
+
+            _ws.Dispose();
+            _ws = null;
+        }
+
+        _cts.Dispose();
+        _cts = new CancellationTokenSource();
+
+        _gameLatest.Clear();
+        _executeBatch.Clear();
+        _immersiveSessions.Clear();
+    }
+
     // ── Disposal ───────────────────────────────────────────────────────────────
 
     public async ValueTask DisposeAsync()
