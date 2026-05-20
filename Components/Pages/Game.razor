@@ -192,6 +192,7 @@
 
 @* Floating panels attached to the sidebar *@
 
+        <div class="map-plan-panels">
         @* Plan detail panel — shown when a plan is selected *@
         @if (_selectedPlanId != 0)
         {
@@ -644,26 +645,6 @@
                     {
                         <details class="plan-detail-section @(_editMode ? "plan-detail-section--policies-picker" : "")" open>
                             <summary class="plan-detail-section-hdr">Policies</summary>
-                            @if (_editMode && _policyPickerOpen)
-                            {
-                                <div class="plan-message-panel plan-policy-panel">
-                                    <div class="plan-message-panel-header">
-                                        <span class="plan-message-panel-title">Policy Picker</span>
-                                        <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePolicyPicker">&#x2715;</button>
-                                    </div>
-                                    <div class="plan-message-panel-body plan-policy-picker-body">
-                                        @foreach (var policy in GameState.AvailablePolicies)
-                                        {
-                                            var isSelected = _editPolicyTypes.Contains(policy.PolicyType);
-                                            <div class="plan-policy-item @(!policy.Enabled ? "plan-policy-item--disabled" : "")"
-                                                 @onclick="@(policy.Enabled ? () => TogglePolicyType(policy.PolicyType) : (Action)(() => {}))" >
-                                                <span class="plan-policy-toggle @(isSelected ? "plan-policy-toggle--on" : "") @(!policy.Enabled ? "plan-policy-toggle--disabled" : "")"></span>
-                                                <span class="plan-policy-name">@policy.DisplayName</span>
-                                            </div>
-                                        }
-                                    </div>
-                                </div>
-                            }
                             <div class="plan-detail-section-body">
                                 @{
                                     var _displayedPolicies = _editMode
@@ -685,6 +666,26 @@
                                 @if (_editMode)
                                 {
                                     <div class="plan-detail-policy-row">
+                                        @if (_policyPickerOpen)
+                                        {
+                                            <div class="plan-message-panel plan-policy-panel">
+                                                <div class="plan-message-panel-header">
+                                                    <span class="plan-message-panel-title">Policy Picker</span>
+                                                    <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePolicyPicker">&#x2715;</button>
+                                                </div>
+                                                <div class="plan-message-panel-body plan-policy-picker-body">
+                                                    @foreach (var policy in GameState.AvailablePolicies)
+                                                    {
+                                                        var isSelected = _editPolicyTypes.Contains(policy.PolicyType);
+                                                        <div class="plan-policy-item @(!policy.Enabled ? "plan-policy-item--disabled" : "")"
+                                                             @onclick="@(policy.Enabled ? () => TogglePolicyType(policy.PolicyType) : (Action)(() => {}))" >
+                                                            <input type="checkbox" class="plan-policy-toggle" checked="@isSelected" disabled="@(!policy.Enabled)" tabindex="-1" />
+                                                            <span class="plan-policy-name">@policy.DisplayName</span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
                                         <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="TogglePolicyPicker">
                                             Add or remove policies
                                         </button>
@@ -709,47 +710,6 @@
                     {
                         <details class="plan-detail-section @(_editMode ? "plan-detail-section--layers-picker" : "")" open>
                             <summary class="plan-detail-section-hdr">Data Layers</summary>
-                            @if (_editMode && _layerPickerOpen)
-                            {
-                                <div class="plan-message-panel plan-layer-picker-panel">
-                                    <div class="plan-message-panel-header">
-                                        <span class="plan-message-panel-title">Data Layers</span>
-                                        <button class="panel-close-btn" type="button" title="Close" @onclick="ToggleLayerPicker">&#10005;</button>
-                                    </div>
-                                    <div class="plan-message-panel-body plan-layer-picker-body">
-                                        @if (_editableLayers.Count == 0)
-                                        {
-                                            <div class="plan-message-empty">No editable layers available.</div>
-                                        }
-                                        else
-                                        {
-                                            @foreach (var lcat in _editableLayers
-                                                .GroupBy(e => e.Category)
-                                                .OrderBy(g => g.Key))
-                                            {
-                                                <details class="layer-cat" open>
-                                                    <summary class="layer-cat-header">@TitleCase(lcat.Key)</summary>
-                                                    @foreach (var lsub in lcat.GroupBy(e => e.Subcategory).OrderBy(g => g.Key))
-                                                    {
-                                                        <details class="layer-sub" open>
-                                                            <summary class="layer-sub-header">@TitleCase(lsub.Key)</summary>
-                                                            @foreach (var le in lsub)
-                                                            {
-                                                                var _leSelected = _editPlanLayerIds.Contains(le.LayerId);
-                                                                <div class="plan-policy-item"
-                                                                     @onclick="@(() => ToggleEditPlanLayer(le.LayerId))">
-                                                                    <span class="plan-policy-toggle @(_leSelected ? "plan-policy-toggle--on" : "")"></span>
-                                                                    <span class="plan-policy-name">@le.DisplayName</span>
-                                                                </div>
-                                                            }
-                                                        </details>
-                                                    }
-                                                </details>
-                                            }
-                                        }
-                                    </div>
-                                </div>
-                            }
                             <div class="plan-detail-section-body">
                                 <div class="plan-detail-layers-list">
                                 @foreach (var lname in _displayedLayers)
@@ -766,6 +726,47 @@
                                 @if (_editMode)
                                 {
                                     <div class="plan-detail-layers-row">
+                                        @if (_layerPickerOpen)
+                                        {
+                                            <div class="plan-message-panel plan-layer-picker-panel">
+                                                <div class="plan-message-panel-header">
+                                                    <span class="plan-message-panel-title">Data Layers</span>
+                                                    <button class="panel-close-btn" type="button" title="Close" @onclick="ToggleLayerPicker">&#10005;</button>
+                                                </div>
+                                                <div class="plan-message-panel-body plan-layer-picker-body">
+                                                    @if (_editableLayers.Count == 0)
+                                                    {
+                                                        <div class="plan-message-empty">No editable layers available.</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        @foreach (var lcat in _editableLayers
+                                                            .GroupBy(e => e.Category)
+                                                            .OrderBy(g => g.Key))
+                                                        {
+                                                            <details class="layer-cat" open>
+                                                                <summary class="layer-cat-header">@TitleCase(lcat.Key)</summary>
+                                                                @foreach (var lsub in lcat.GroupBy(e => e.Subcategory).OrderBy(g => g.Key))
+                                                                {
+                                                                    <details class="layer-sub" open>
+                                                                        <summary class="layer-sub-header">@TitleCase(lsub.Key)</summary>
+                                                                        @foreach (var le in lsub)
+                                                                        {
+                                                                            var _leSelected = _editPlanLayerIds.Contains(le.LayerId);
+                                                                            <div class="plan-policy-item"
+                                                                                 @onclick="@(() => ToggleEditPlanLayer(le.LayerId))">
+                                                                                <input type="checkbox" class="plan-policy-toggle" checked="@_leSelected" tabindex="-1" />
+                                                                                <span class="plan-policy-name">@le.DisplayName</span>
+                                                                            </div>
+                                                                        }
+                                                                    </details>
+                                                                }
+                                                            </details>
+                                                        }
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
                                         <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="ToggleLayerPicker">
                                             Add or remove data layers
                                         </button>
@@ -875,6 +876,7 @@
             </div>
         }
 
+        </div>@* /map-plan-panels *@
     </div>
 }
 

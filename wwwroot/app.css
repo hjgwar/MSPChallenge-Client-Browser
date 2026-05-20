@@ -410,10 +410,14 @@ html, body {
     pointer-events: auto;
 }
 
-/* Narrower panels inside the wider right-panels container, aligned to the right */
-.map-right-panels > .plan-detail-panel {
+/* Plan detail / create-plan panels — fixed to bottom-right, grow upward */
+.map-plan-panels {
+    position: fixed;
+    bottom: 0.75rem;
+    right: 0.75rem;
     width: 295px;
-    align-self: flex-end;
+    z-index: 9000;
+    pointer-events: none;
 }
 
 /* Shared text baseline for all panels */
@@ -2413,20 +2417,25 @@ button.plan-lock-icon:hover {
     overflow: visible;
 }
 
+/* Picker panels opened from button rows: align bottom edge to the button row */
+.plan-detail-policy-row .plan-message-panel,
+.plan-detail-layers-row .plan-message-panel {
+    top: auto;
+    bottom: 0;
+}
+
 /* The policies section must not clip its side-panel when picker is open */
 .plan-detail-section--policies-picker {
     overflow: visible;
-    position: relative;
 }
 
 .plan-detail-section--layers-picker {
     overflow: visible;
-    position: relative;
 }
 
 /* Scrollable list of selected layer names — keeps the section from growing unbounded */
 .plan-detail-layers-list {
-    max-height: 5rem;
+    max-height: 4rem;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -2466,6 +2475,8 @@ button.plan-lock-icon:hover {
 
 /* rows anchoring the picker panel's toggle button */
 .plan-detail-layers-row {
+    position: relative;
+    overflow: visible;
 }
 
 .plan-policy-item {
@@ -2489,22 +2500,12 @@ button.plan-lock-icon:hover {
 }
 
 .plan-policy-toggle {
+    accent-color: #74c0fc;
     flex-shrink: 0;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.35);
-    background: transparent;
-    transition: background 0.12s, border-color 0.12s;
-}
-
-.plan-policy-toggle--on {
-    background: #e67e22;
-    border-color: #e67e22;
-}
-
-.plan-policy-toggle--disabled {
-    border-color: rgba(255,255,255,0.15);
+    width: 1rem;
+    height: 1rem;
+    pointer-events: none;
+    cursor: default;
 }
 
 .plan-policy-name {

@@ -1522,9 +1522,11 @@ public partial class Game : IAsyncDisposable
         _planMessagesOpen = !_planMessagesOpen;
         if (_planMessagesOpen)
         {
-            _planIssuesOpen = false;
+            _planIssuesOpen   = false;
             _planApprovalOpen = false;
-            _planStateOpen = false;
+            _planStateOpen    = false;
+            _policyPickerOpen = false;
+            _layerPickerOpen  = false;
             _approvalReasonsExpanded.Clear();
             _scrollPlanMessagesPending = true;
         }
@@ -1539,7 +1541,9 @@ public partial class Game : IAsyncDisposable
         {
             _planMessagesOpen = false;
             _planApprovalOpen = false;
-            _planStateOpen = false;
+            _planStateOpen    = false;
+            _policyPickerOpen = false;
+            _layerPickerOpen  = false;
             _approvalReasonsExpanded.Clear();
         }
     }
@@ -1551,8 +1555,10 @@ public partial class Game : IAsyncDisposable
         if (_planApprovalOpen)
         {
             _planMessagesOpen = false;
-            _planIssuesOpen = false;
-            _planStateOpen = false;
+            _planIssuesOpen   = false;
+            _planStateOpen    = false;
+            _policyPickerOpen = false;
+            _layerPickerOpen  = false;
         }
         else
         {
@@ -1578,8 +1584,10 @@ public partial class Game : IAsyncDisposable
         if (_planStateOpen)
         {
             _planMessagesOpen = false;
-            _planIssuesOpen = false;
+            _planIssuesOpen   = false;
             _planApprovalOpen = false;
+            _policyPickerOpen = false;
+            _layerPickerOpen  = false;
             _approvalReasonsExpanded.Clear();
             _planStatePending = plan.State.ToUpperInvariant();
         }
@@ -1833,13 +1841,27 @@ public partial class Game : IAsyncDisposable
     private void TogglePolicyPicker()
     {
         _policyPickerOpen = !_policyPickerOpen;
-        if (_policyPickerOpen) _layerPickerOpen = false;
+        if (_policyPickerOpen)
+        {
+            _layerPickerOpen  = false;
+            _planMessagesOpen = false;
+            _planIssuesOpen   = false;
+            _planApprovalOpen = false;
+            _planStateOpen    = false;
+        }
     }
 
     private void ToggleLayerPicker()
     {
         _layerPickerOpen = !_layerPickerOpen;
-        if (_layerPickerOpen) _policyPickerOpen = false;
+        if (_layerPickerOpen)
+        {
+            _policyPickerOpen = false;
+            _planMessagesOpen = false;
+            _planIssuesOpen   = false;
+            _planApprovalOpen = false;
+            _planStateOpen    = false;
+        }
     }
 
     private void ToggleEditPlanLayer(string layerId)
