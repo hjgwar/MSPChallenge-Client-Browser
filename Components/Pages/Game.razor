@@ -855,7 +855,7 @@
                                             <div class="plan-message-panel plan-layer-picker-panel">
                                                 <div class="plan-message-panel-header">
                                                     <span class="plan-message-panel-title">Layer Picker</span>
-                                                    <button class="panel-close-btn" type="button" title="Close" @onclick="ToggleLayerPicker">&#10005;</button>
+                                                    <button class="panel-close-btn" type="button" title="Close" @onclick="ToggleLayerPickerAsync">&#10005;</button>
                                                 </div>
                                                 <div class="plan-message-panel-body plan-layer-picker-body">
                                                     @if (_editableLayers.Count == 0)
@@ -891,7 +891,7 @@
                                                 </div>
                                             </div>
                                         }
-                                        <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="ToggleLayerPicker">
+                                        <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="ToggleLayerPickerAsync">
                                             Add or remove data layers
                                         </button>
                                     </div>

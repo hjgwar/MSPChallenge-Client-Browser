@@ -56,7 +56,15 @@ public partial class Game
             return;
         }
         if (_mapModule is null) return;
+        
+        // Close all other panels when opening geometry tool
         _layerPickerOpen               = false;
+        _policyPickerOpen              = false;
+        _planMessagesOpen              = false;
+        _planIssuesOpen                = false;
+        _planApprovalOpen              = false;
+        _planStateOpen                 = false;
+        
         _geometryToolLayerId           = layerId;
         _geometryEditedLayerId         = layerId;
         _geometryToolTypeIndex         = 0;
@@ -72,36 +80,41 @@ public partial class Game
 
         // Load world-state (projected) features for this layer so the user can edit them
         var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
-        if (plan is not null)
-        {
-            var worldState  = GetProjectedLayerGeometries(layerId, plan.StartDate);
-            var layerEntry  = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
-            var geoType     = layerEntry?.GeoType ?? "polygon";
+        var isNewPlan = _selectedPlanId == 0;
+        
+        // For new plans, use current sim month; for existing plans, use plan's start date
+        int startDate = isNewPlan 
+            ? (_gameStartYear > 0 ? (DateTime.UtcNow.Year - _gameStartYear) * 12 + DateTime.UtcNow.Month - 1 : 0)
+            : (plan?.StartDate ?? 0);
+        
+        var worldState  = GetProjectedLayerGeometries(layerId, startDate);
+        var layerEntry  = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
+        var geoType     = layerEntry?.GeoType ?? "polygon";
 
-            // IDs already in this plan's overlay (plan's own geometry for this layer)
-            var planOwnIds  = plan.Layers
-                .FirstOrDefault(l => string.Equals(l.OriginalLayerId, layerId, StringComparison.OrdinalIgnoreCase))
-                ?.Geometry
-                .Select(g => g.Id)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase)
-                ?? new HashSet<string>();
+        // IDs already in this plan's overlay (plan's own geometry for this layer)
+        var planOwnIds  = plan?.Layers
+            .FirstOrDefault(l => string.Equals(l.OriginalLayerId, layerId, StringComparison.OrdinalIgnoreCase))
+            ?.Geometry
+            .Select(g => g.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? new HashSet<string>();
 
-            var toLoad = worldState
-                .Where(g => !planOwnIds.Contains(g.FeatureId) && g.Coordinates.Count > 0)
-                .Select(g => new
-                {
-                    id        = g.FeatureId,
-                    layerId   = layerId,
-                    geoType,
-                    typeIndex = g.TypeIndex,
-                    coords    = g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
-                })
-                .ToList();
+        var toLoad = worldState
+            .Where(g => !planOwnIds.Contains(g.FeatureId) && g.Coordinates.Count > 0)
+            .Select(g => new
+            {
+                id        = g.FeatureId,
+                layerId   = layerId,
+                geoType,
+                typeIndex = g.TypeIndex,
+                coords    = g.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
+            })
+            .ToList();
 
-            if (toLoad.Count > 0)
-                await _mapModule.InvokeVoidAsync("loadWorldStateFeatures",
-                    JsonSerializer.Serialize(toLoad));
-        }
+        if (toLoad.Count > 0)
+            await _mapModule.InvokeVoidAsync("loadWorldStateFeatures",
+                JsonSerializer.Serialize(toLoad));
+        
         StateHasChanged();
     }
 
@@ -985,7 +998,7 @@ public partial class Game
         catch { }
     }
 
-    private void TogglePolicyPicker()
+    private async Task TogglePolicyPicker()
     {
         _policyPickerOpen = !_policyPickerOpen;
         if (_policyPickerOpen)
@@ -995,14 +1008,21 @@ public partial class Game
             _planIssuesOpen   = false;
             _planApprovalOpen = false;
             _planStateOpen    = false;
+            
+            // Close geometry tool
+            if (_geometryToolLayerId is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
+            _geometryToolLayerId = null;
         }
     }
 
-    private void ToggleLayerPicker()
+    private async Task ToggleLayerPickerAsync()
     {
         _layerPickerOpen = !_layerPickerOpen;
         if (_layerPickerOpen)
         {
+            if (_geometryToolLayerId is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
             _geometryToolLayerId  = null;
             _policyPickerOpen = false;
             _planMessagesOpen = false;
@@ -1440,6 +1460,11 @@ public partial class Game
                         new KeyValuePair<string, string>("user",         SessionState.UserId.ToString()),
                     });
             }
+            
+            // Stop geometry editing if active
+            if (_geometryToolLayerId is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
+                
             _editWsConfirmationTcs              = null;
             _geometryToolLayerId                = null;
             _geometryEditedLayerId              = null;
@@ -1453,6 +1478,9 @@ public partial class Game
             // After save, keep plan selected in view mode
             // For new plans, _pendingBatchGuid and _pendingCreatePlanCallId are already set above
             // For existing plans, the plan is already selected, so no action needed
+            
+            // Recalculate restriction issues and approval requirements
+            await RecalculatePlanIssuesAndApprovalAsync();
         }
         catch (Exception ex)
         {

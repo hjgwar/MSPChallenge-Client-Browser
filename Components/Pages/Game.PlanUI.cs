@@ -346,6 +346,107 @@ public partial class Game
          state.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase) ||
          state.Equals("ARCHIVED",    StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// Recalculates restriction issues and approval requirements for the currently selected plan.
+    /// Should be called after saving a plan to update the issues list and approval badges.
+    /// </summary>
+    private async Task RecalculatePlanIssuesAndApprovalAsync()
+    {
+        if (_selectedPlanId == 0) return;
+        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        if (plan is null) return;
+
+        // Clear and recalculate issues
+        _selectedPlanIssues.Clear();
+
+        foreach (var planLayer in plan.Layers)
+        {
+            var geoType = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType
+                       ?? InferGeoType(planLayer.Geometry);
+
+            foreach (var geometry in planLayer.Geometry)
+            {
+                var isNewGeometry = string.IsNullOrEmpty(geometry.PersistentId) || geometry.Id == geometry.PersistentId;
+                var geometryIssues = EvaluateRestrictionsForGeometry(planLayer.OriginalLayerId, geoType, geometry, isNewGeometry, plan.StartDate);
+                _selectedPlanIssues.AddRange(geometryIssues);
+            }
+        }
+
+        _selectedPlanIssues.Sort((a, b) =>
+        {
+            var s = SeveritySortRank(b.Severity).CompareTo(SeveritySortRank(a.Severity));
+            if (s != 0) return s;
+            s = string.Compare(a.TargetLayer, b.TargetLayer, StringComparison.OrdinalIgnoreCase);
+            return s != 0 ? s : string.Compare(a.Message, b.Message, StringComparison.OrdinalIgnoreCase);
+        });
+
+        // Update severity badge
+        if (_selectedPlanIssues.Count > 0)
+            _planIssueSeverity[plan.PlanId] = NormaliseSeverity(_selectedPlanIssues[0].Severity);
+        else
+            _planIssueSeverity.Remove(plan.PlanId);
+
+        // Recalculate approval if not in a completed state
+        if (!IsApprovalCompleteState(plan.State))
+            CalculateApproval(plan);
+
+        // Update the plan geometry overlay with new restriction markers
+        if (_mapModule is not null)
+        {
+            var layersData = new List<object>();
+            foreach (var planLayer in plan.Layers)
+            {
+                var geoType = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType
+                           ?? InferGeoType(planLayer.Geometry);
+
+                var geometries = new List<object>();
+                foreach (var geometry in planLayer.Geometry)
+                {
+                    var isNewGeometry = string.IsNullOrEmpty(geometry.PersistentId) || geometry.Id == geometry.PersistentId;
+                    var geometryIssues = _selectedPlanIssues.Where(i =>
+                        string.Equals(i.TargetLayer, planLayer.OriginalLayerId, StringComparison.OrdinalIgnoreCase) &&
+                        geometry.Coordinates.Any(c => Math.Abs(c[0] - i.MarkerX) < 0.01 && Math.Abs(c[1] - i.MarkerY) < 0.01)
+                    ).ToList();
+
+                    geometries.Add(new {
+                        id     = geometry.Id,
+                        coords = geometry.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
+                        isNew  = isNewGeometry,
+                        mspType = geometry.TypeIndex,
+                        restrictionMarkers = geometryIssues
+                            .Select(r => new
+                            {
+                                severity = NormaliseSeverity(r.Severity),
+                                message = r.Message,
+                                sourceLayer = r.SourceLayer,
+                                targetLayer = r.TargetLayer,
+                                changeKind = r.ChangeKind,
+                                coord = new[] { r.MarkerX, r.MarkerY }
+                            })
+                            .ToArray(),
+                        restrictions = geometryIssues
+                            .Select(r => NormaliseSeverity(r.Severity))
+                            .Where(r => !string.IsNullOrEmpty(r))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToArray()
+                    });
+                }
+
+                layersData.Add(new {
+                    geoType,
+                    geometries = geometries.ToArray(),
+                    originalLayerId = planLayer.OriginalLayerId,
+                    deletedIds      = planLayer.DeletedPersistentIds
+                });
+            }
+
+            if (layersData.Count > 0)
+                await _mapModule.InvokeVoidAsync("showPlanGeometry", JsonSerializer.Serialize(layersData));
+        }
+
+        StateHasChanged();
+    }
+
     private string? SelectedPlanState => _selectedPlanId == 0
         ? null
         : _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId)?.State;
@@ -421,7 +522,7 @@ public partial class Game
             await SelectPlanAsync(plan);
     }
 
-    private void TogglePlanMessagesPanel()
+    private async Task TogglePlanMessagesPanel()
     {
         if (_selectedPlanId == 0) return;
         _planMessagesOpen = !_planMessagesOpen;
@@ -434,11 +535,16 @@ public partial class Game
             _layerPickerOpen  = false;
             _approvalReasonsExpanded.Clear();
             _scrollPlanMessagesPending = true;
+            
+            // Close geometry tool
+            if (_geometryToolLayerId is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
+            _geometryToolLayerId = null;
         }
         _planMessageSendError = null;
     }
 
-    private void TogglePlanIssuesPanel()
+    private async Task TogglePlanIssuesPanel()
     {
         if (_selectedPlanId == 0) return;
         _planIssuesOpen = !_planIssuesOpen;
@@ -450,10 +556,15 @@ public partial class Game
             _policyPickerOpen = false;
             _layerPickerOpen  = false;
             _approvalReasonsExpanded.Clear();
+            
+            // Close geometry tool
+            if (_geometryToolLayerId is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
+            _geometryToolLayerId = null;
         }
     }
 
-    private void ToggleApprovalPanel()
+    private async Task ToggleApprovalPanel()
     {
         if (_selectedPlanId == 0) return;
         _planApprovalOpen = !_planApprovalOpen;
@@ -464,6 +575,11 @@ public partial class Game
             _planStateOpen    = false;
             _policyPickerOpen = false;
             _layerPickerOpen  = false;
+            
+            // Close geometry tool
+            if (_geometryToolLayerId is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
+            _geometryToolLayerId = null;
         }
         else
         {
@@ -477,7 +593,7 @@ public partial class Game
             _approvalReasonsExpanded.Add(countryId);
     }
 
-    private void TogglePlanStatePanel()
+    private async Task TogglePlanStatePanel()
     {
         if (_selectedPlanId == 0) return;
         var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
@@ -495,6 +611,11 @@ public partial class Game
             _layerPickerOpen  = false;
             _approvalReasonsExpanded.Clear();
             _planStatePending = plan.State.ToUpperInvariant();
+            
+            // Close geometry tool
+            if (_geometryToolLayerId is not null && _mapModule is not null)
+                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
+            _geometryToolLayerId = null;
         }
         else
         {

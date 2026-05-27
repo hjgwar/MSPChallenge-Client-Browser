@@ -544,6 +544,16 @@ const planOverlayStyle = new ol.style.Style({
     })
 });
 
+const worldStateUnmodifiedStyle = new ol.style.Style({
+    fill:   new ol.style.Fill({ color: 'rgba(0, 0, 0, 0)' }),
+    stroke: new ol.style.Stroke({ color: 'rgba(0, 0, 0, 0)', width: 0 }),
+    image:  new ol.style.Circle({
+        radius: 0,
+        fill:   new ol.style.Fill({ color: 'rgba(0, 0, 0, 0)' }),
+        stroke: new ol.style.Stroke({ color: 'rgba(0, 0, 0, 0)', width: 0 })
+    })
+});
+
 const deletionHighlightStyle = new ol.style.Style({
     fill:   new ol.style.Fill({ color: 'rgba(220, 53, 69, 0.25)' }),
     stroke: new ol.style.Stroke({ color: '#dc3545', width: 2.5, lineDash: [6, 4] }),
@@ -905,8 +915,20 @@ export function startGeometryEdit(targetLayerId, dotNetRef) {
             delete _modifyStartCoords[id];
             if (!oldCoords) continue;
             const newCoords = geometryToCoords(f.getGeometry()).map(c => [...c]);
+            
+            // If this is a world-state feature, check if it's been modified
+            const worldStateId = f.get('_worldStateId');
+            if (worldStateId && !f.get('_worldStateModified')) {
+                const origCoords = f.get('_worldStateOrigCoords');
+                if (origCoords && !_coordsEqual(origCoords, newCoords)) {
+                    // Feature was modified - switch to gold style
+                    f.set('_worldStateModified', true);
+                    f.setStyle(null); // Use default planOverlayStyle (gold)
+                }
+            }
+            
             _drawDotNetRef?.invokeMethodAsync('OnGeometryModified',
-                JSON.stringify({ featureId: id, worldStateId: f.get('_worldStateId') ?? null, oldCoords, newCoords }));
+                JSON.stringify({ featureId: id, worldStateId: worldStateId ?? null, oldCoords, newCoords }));
         }
     });
 
@@ -1032,6 +1054,8 @@ export function loadWorldStateFeatures(featuresJson) {
         f.set('mspType',              item.typeIndex ?? 0);
         f.set('_worldStateId',        String(item.id));                    // id = worldStateId for base/prior features
         f.set('_worldStateOrigCoords', coords.map(c => [...c]));          // snapshot for change detection
+        f.set('_worldStateModified',  false);                              // not modified yet
+        f.setStyle(worldStateUnmodifiedStyle);                             // transparent until modified
         f.setId(String(item.id));
         source.addFeature(f);
     }
