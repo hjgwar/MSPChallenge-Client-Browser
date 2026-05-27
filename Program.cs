@@ -23,7 +23,14 @@ builder.Services.AddScoped<MspApiClient>();
 builder.Services.AddScoped<GameWebSocketService>();
 builder.Services.AddScoped<GameSessionState>();
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(2);
+    });
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB
+});
 
 var app = builder.Build();
 

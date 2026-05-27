@@ -922,7 +922,7 @@ html, body {
     padding: 0.5rem 0.75rem 0.6rem;
     width: 100%;
     box-sizing: border-box;
-    height: 25vh;
+    height: 30vh;
     min-height: 2.5rem;
     display: flex;
     flex-direction: column;
@@ -1414,6 +1414,21 @@ html, body {
 .plan-detail-panel .plan-detail-state-row,
 .plan-message-panel {
     pointer-events: auto;
+}
+
+.plan-detail-panel-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #adb5bd;
+    padding: 0.4rem 0.55rem 0.3rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.5rem 0.5rem 0 0;
+    flex-shrink: 0;
 }
 
 .plan-detail-header {
@@ -1919,7 +1934,7 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    max-height: 25vh;
+    max-height: 40vh;
     background: rgba(255,255,255,0.02);
     overflow-y: auto;
 }
@@ -2310,6 +2325,160 @@ html, body {
     color: #ff8080;
 }
 
+.plan-edit-status {
+    margin: 0.3rem 0.75rem 0;
+    font-size: 0.75rem;
+    color: #adb5bd;
+    text-align: center;
+}
+
+/* ── Geometry Tool Panel ─────────────────────────────────────────────────────── */
+.geometry-tool-panel {
+    position: absolute;
+    right: calc(100% + var(--right-panel-gap) + var(--panel-connector-protrusion));
+    top: auto;
+    bottom: 0;
+    width: 240px;
+    max-width: min(240px, calc(100vw - 5rem));
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 0.5rem;
+    background: rgba(33, 37, 41, 0.65);
+    color: #f8f9fa;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    overflow: visible;
+    z-index: 9650;
+    pointer-events: auto;
+}
+
+.geometry-tool-panel::after {
+    content: '';
+    position: absolute;
+    right: -7px;
+    bottom: 0.8rem;
+    width: 12px;
+    height: 12px;
+    background: rgba(33, 37, 41, 0.65);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.geometry-tool-section {
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.geometry-tool-section-title {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6c757d;
+    margin-bottom: 0.35rem;
+}
+
+.geometry-type-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.22rem 0.2rem;
+    font-size: 0.82rem;
+    color: #c9d1d9;
+    cursor: pointer;
+    border-radius: 0.25rem;
+}
+
+.geometry-type-row:hover { background: rgba(255, 255, 255, 0.05); }
+
+.geometry-type-row--active { color: #fff; font-weight: 600; }
+
+.geometry-type-row input[type="radio"],
+.geometry-type-row input[type="checkbox"] { accent-color: #0d6efd; cursor: pointer; }
+
+.geometry-type-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.geometry-tool-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.35rem;
+    padding: 0.55rem;
+}
+
+.geometry-tool-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.4rem 0.2rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.35rem;
+    color: #c9d1d9;
+    font-size: 0.68rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    pointer-events: auto;
+}
+
+.geometry-tool-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.geometry-tool-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.geometry-tool-btn--active {
+    background: rgba(253, 126, 20, 0.22);
+    border-color: rgba(253, 126, 20, 0.55);
+    color: #fd7e14;
+}
+
+.geometry-tool-btn--active:hover:not(:disabled) { background: rgba(253, 126, 20, 0.32); }
+
+.geometry-tool-btn--danger:not(:disabled) { color: #ff8080; }
+
+.geometry-tool-btn--danger:hover:not(:disabled) {
+    background: rgba(220, 53, 69, 0.15);
+    border-color: rgba(220, 53, 69, 0.4);
+}
+
+.geometry-tool-btn svg { width: 18px; height: 18px; }
+
+/* Selectable layer rows in edit mode */
+.plan-detail-item-row--selectable {
+    cursor: pointer;
+    border-radius: 0.3rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.plan-detail-item-row--selectable:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.plan-detail-item-row--active {
+    background: rgba(253, 126, 20, 0.15) !important;
+    border-color: rgba(253, 126, 20, 0.45) !important;
+}
+
 /* Cancel / Accept footer */
 .plan-edit-footer {
     display: flex;
@@ -2417,11 +2586,17 @@ button.plan-lock-icon:hover {
     overflow: visible;
 }
 
-/* Picker panels opened from button rows: align bottom edge to the button row */
+/* Picker panels anchored to their triggering button row, growing upward */
 .plan-detail-policy-row .plan-message-panel,
 .plan-detail-layers-row .plan-message-panel {
     top: auto;
     bottom: 0;
+}
+
+.plan-detail-policy-row .plan-message-panel::after,
+.plan-detail-layers-row .plan-message-panel::after {
+    top: auto;
+    bottom: 0.8rem;
 }
 
 /* The policies section must not clip its side-panel when picker is open */

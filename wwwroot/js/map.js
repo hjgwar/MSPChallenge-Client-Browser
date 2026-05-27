@@ -719,7 +719,10 @@ export function showPlanGeometry(layersJson) {
             } else {
                 olGeom = new ol.geom.Point(coordSet[0]);
             }
-            features.push(new ol.Feature({ geometry: olGeom, mspOriginalLayerId: layer.originalLayerId, mspType: (geo.mspType ?? 0) }));
+            const planFeatId = geo.id || ('plan_' + features.length + '_' + Math.random().toString(36).slice(2));
+            const planFeat = new ol.Feature({ geometry: olGeom, mspOriginalLayerId: layer.originalLayerId, mspType: (geo.mspType ?? 0), mspId: planFeatId });
+            planFeat.setId(planFeatId);
+            features.push(planFeat);
 
             // Badge placed at the bounding-box centre of the geometry
             const badge  = geo.isNew ? plusBadge : editBadge;
@@ -793,8 +796,6 @@ export function showPlanGeometry(layersJson) {
         }
     }
 
-    if (features.length === 0) return;
-
     const overlayLayer = new ol.layer.Vector({
         source: new ol.source.Vector({ features }),
         style:  feature => feature.getStyle() ?? planOverlayStyle,
@@ -807,6 +808,289 @@ export function showPlanGeometry(layersJson) {
 
 export function clearPlanOverlay() {
     removeLayer(PLAN_OVERLAY_ID);
+}
+
+// ── Geometry Drawing Tool ─────────────────────────────────────────────────────
+
+let _drawDotNetRef    = null;
+let _drawTargetLayerId = null;
+let _drawModify       = null;
+let _drawDraw         = null;
+let _drawSelect       = null;
+let _modifyStartCoords = {};
+
+function getPlanOverlaySource() {
+    const layer = vectorLayers[PLAN_OVERLAY_ID];
+    return layer ? layer.getSource() : null;
+}
+
+// Ensures the plan overlay layer exists (creates an empty one if needed).
+// Call this before any geometry drawing/editing operation.
+function ensurePlanOverlay() {
+    if (!vectorLayers[PLAN_OVERLAY_ID]) {
+        const overlayLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: [] }),
+            style:  feature => feature.getStyle() ?? planOverlayStyle,
+            zIndex: 99999
+        });
+        map.addLayer(overlayLayer);
+        vectorLayers[PLAN_OVERLAY_ID] = overlayLayer;
+    }
+    return vectorLayers[PLAN_OVERLAY_ID].getSource();
+}
+
+function getPlanOverlayFeatureById(featureId) {
+    const source = getPlanOverlaySource();
+    if (!source) return null;
+    const byId = source.getFeatureById(featureId);
+    if (byId) return byId;
+    return source.getFeatures().find(f => f.get('mspId') === featureId) ?? null;
+}
+
+function geometryToCoords(geom) {
+    if (geom instanceof ol.geom.Polygon)    return geom.getCoordinates()[0];
+    if (geom instanceof ol.geom.LineString) return geom.getCoordinates();
+    if (geom instanceof ol.geom.Point)      return [geom.getCoordinates()];
+    return [];
+}
+
+function setGeometryFromCoords(geom, coords) {
+    if      (geom instanceof ol.geom.Polygon)    geom.setCoordinates([coords]);
+    else if (geom instanceof ol.geom.LineString) geom.setCoordinates(coords);
+    else if (geom instanceof ol.geom.Point)      geom.setCoordinates(coords[0] ?? [0, 0]);
+}
+
+function olDrawType(geoType) {
+    const gt = (geoType || '').toLowerCase();
+    if (gt === 'polygon' || gt === 'polygons') return 'Polygon';
+    if (gt === 'line'    || gt === 'lines')    return 'LineString';
+    return 'Point';
+}
+
+export function stopGeometryEditing() {
+    if (_drawModify) { map.removeInteraction(_drawModify); _drawModify = null; }
+    if (_drawDraw)   { map.removeInteraction(_drawDraw);   _drawDraw   = null; }
+    if (_drawSelect) { map.removeInteraction(_drawSelect); _drawSelect = null; }
+    _modifyStartCoords = {};
+    _drawDotNetRef     = null;
+    _drawTargetLayerId = null;
+}
+
+export function startGeometryEdit(targetLayerId, dotNetRef) {
+    stopGeometryEditing();
+    _drawDotNetRef     = dotNetRef;
+    _drawTargetLayerId = targetLayerId;
+    const source = ensurePlanOverlay();
+    if (!map) return;
+
+    // Restrict editing to features belonging to this layer only.
+    _drawModify = new ol.interaction.Modify({
+        source:          source,
+        filter:          f => !f.get('_isBadge') && f.get('mspOriginalLayerId') === targetLayerId,
+        deleteCondition: () => false,
+    });
+
+    _drawModify.on('modifystart', evt => {
+        for (const f of evt.features.getArray()) {
+            const id = f.get('mspId');
+            if (id) _modifyStartCoords[id] = geometryToCoords(f.getGeometry()).map(c => [...c]);
+        }
+    });
+
+    _drawModify.on('modifyend', evt => {
+        for (const f of evt.features.getArray()) {
+            const id = f.get('mspId');
+            if (!id) continue;
+            const oldCoords = _modifyStartCoords[id];
+            delete _modifyStartCoords[id];
+            if (!oldCoords) continue;
+            const newCoords = geometryToCoords(f.getGeometry()).map(c => [...c]);
+            _drawDotNetRef?.invokeMethodAsync('OnGeometryModified',
+                JSON.stringify({ featureId: id, worldStateId: f.get('_worldStateId') ?? null, oldCoords, newCoords }));
+        }
+    });
+
+    map.addInteraction(_drawModify);
+
+    const selectedStyle = new ol.style.Style({
+        fill:   new ol.style.Fill({ color: 'rgba(255, 165, 0, 0.35)' }),
+        stroke: new ol.style.Stroke({ color: '#ff6b00', width: 2.5, lineDash: [6, 3] }),
+        image:  new ol.style.Circle({
+            radius: 8,
+            fill:   new ol.style.Fill({ color: 'rgba(255, 165, 0, 0.55)' }),
+            stroke: new ol.style.Stroke({ color: '#ff6b00', width: 2 }),
+        }),
+    });
+
+    _drawSelect = new ol.interaction.Select({
+        filter:    f => !f.get('_isBadge') && f.get('mspOriginalLayerId') === targetLayerId,
+        layers:    [vectorLayers[PLAN_OVERLAY_ID]],
+        style:     selectedStyle,
+    });
+
+    _drawSelect.on('select', evt => {
+        if (evt.selected.length > 0) {
+            const f      = evt.selected[0];
+            const coords = geometryToCoords(f.getGeometry()).map(c => [...c]);
+            _drawDotNetRef?.invokeMethodAsync('OnGeometrySelected', JSON.stringify({
+                featureId: f.get('mspId'), typeIndex: f.get('mspType') ?? 0, coords,
+                worldStateId: f.get('_worldStateId') ?? null,
+            }));
+        } else {
+            _drawDotNetRef?.invokeMethodAsync('OnGeometrySelected',
+                JSON.stringify({ featureId: null }));
+        }
+    });
+
+    map.addInteraction(_drawSelect);
+}
+
+export function startGeometryCreate(targetLayerId, geoType, typeIndex, dotNetRef) {
+    stopGeometryEditing();
+    _drawDotNetRef     = dotNetRef;
+    _drawTargetLayerId = targetLayerId;
+    const source = ensurePlanOverlay();
+    if (!map) return;
+
+    _drawDraw = new ol.interaction.Draw({
+        source, type: olDrawType(geoType),
+    });
+
+    _drawDraw.on('drawend', evt => {
+        const f      = evt.feature;
+        const tempId = 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        f.set('mspId', tempId);
+        f.set('mspOriginalLayerId', targetLayerId);
+        f.set('mspType', typeIndex);
+        f.setId(tempId);
+        const coords = geometryToCoords(f.getGeometry()).map(c => [...c]);
+        _drawDotNetRef?.invokeMethodAsync('OnGeometryCreated', JSON.stringify({
+            tempId, originalLayerId: targetLayerId, typeIndex, geoType, coords,
+        }));
+    });
+
+    map.addInteraction(_drawDraw);
+}
+
+export function setFeatureCoords(featureId, coords) {
+    const f = getPlanOverlayFeatureById(featureId);
+    if (!f) return;
+    setGeometryFromCoords(f.getGeometry(), coords);
+    getPlanOverlaySource()?.changed();
+}
+
+export function removeFeatureFromOverlay(featureId) {
+    const source = getPlanOverlaySource();
+    if (!source) return;
+    const f = getPlanOverlayFeatureById(featureId);
+    if (f) source.removeFeature(f);
+}
+
+export function addFeatureToOverlay(featureJson) {
+    const source = getPlanOverlaySource();
+    if (!source) return;
+    const data = JSON.parse(featureJson);
+    const { featureId, originalLayerId, typeIndex, geoType, coords } = data;
+    const gt = (geoType || '').toLowerCase();
+    let olGeom;
+    if      (gt === 'polygon' || gt === 'polygons') olGeom = new ol.geom.Polygon([coords]);
+    else if (gt === 'line'    || gt === 'lines')    olGeom = new ol.geom.LineString(coords);
+    else                                            olGeom = new ol.geom.Point(coords[0] ?? [0, 0]);
+    const f = new ol.Feature({ geometry: olGeom });
+    f.set('mspId', featureId);
+    f.set('mspOriginalLayerId', originalLayerId);
+    f.set('mspType', typeIndex ?? 0);
+    if (data.worldStateId) {
+        f.set('_worldStateId', data.worldStateId);
+        f.set('_worldStateOrigCoords', coords.map(c => [...c]));
+    }
+    f.setId(featureId);
+    source.addFeature(f);
+}
+
+/**
+ * Load world-state (projected) features for a layer into the plan overlay as editable items.
+ * Skips features already present in the overlay (plan's own geometry).
+ * Each feature gets _worldStateId and _worldStateOrigCoords for change-detection on save.
+ * @param {string} featuresJson  JSON array of {id, layerId, geoType, typeIndex, coords, worldStateId}
+ */
+export function loadWorldStateFeatures(featuresJson) {
+    const source = ensurePlanOverlay();
+    const features = JSON.parse(featuresJson);
+    for (const item of features) {
+        if (source.getFeatureById(String(item.id))) continue; // already present
+        const gt = (item.geoType || 'polygon').toLowerCase();
+        const coords = item.coords;
+        if (!coords || coords.length === 0) continue;
+        let olGeom;
+        if      (gt === 'polygon' || gt === 'polygons') olGeom = new ol.geom.Polygon([coords]);
+        else if (gt === 'line'    || gt === 'lines')    olGeom = new ol.geom.LineString(coords);
+        else                                            olGeom = new ol.geom.Point(coords[0] ?? [0, 0]);
+        const f = new ol.Feature({ geometry: olGeom });
+        f.set('mspId',                String(item.id));
+        f.set('mspOriginalLayerId',   item.layerId);
+        f.set('mspType',              item.typeIndex ?? 0);
+        f.set('_worldStateId',        String(item.id));                    // id = worldStateId for base/prior features
+        f.set('_worldStateOrigCoords', coords.map(c => [...c]));          // snapshot for change detection
+        f.setId(String(item.id));
+        source.addFeature(f);
+    }
+}
+
+/**
+ * When the geometry tool closes, remove world-state features whose coordinates are unchanged.
+ * Modified world-state features are kept in the overlay so they can be saved on Accept.
+ * @param {string} layerId
+ */
+export function removeUnchangedWorldStateFeatures(layerId) {
+    const source = getPlanOverlaySource();
+    if (!source) return;
+    const toRemove = [];
+    for (const f of source.getFeatures()) {
+        if (f.get('mspOriginalLayerId') !== layerId) continue;
+        if (!f.get('_worldStateId')) continue; // not a world-state feature
+        const origCoords = f.get('_worldStateOrigCoords');
+        if (!origCoords) { toRemove.push(f); continue; }
+        const curCoords = geometryToCoords(f.getGeometry());
+        if (_coordsEqual(origCoords, curCoords)) toRemove.push(f); // unchanged
+        // else: modified — keep in overlay until Accept
+    }
+    for (const f of toRemove) source.removeFeature(f);
+}
+
+function _coordsEqual(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (!a[i] || !b[i]) return false;
+        if (Math.abs(a[i][0] - b[i][0]) > 0.01) return false;
+        if (Math.abs(a[i][1] - b[i][1]) > 0.01) return false;
+    }
+    return true;
+}
+
+/**
+ * Returns JSON array of all plan-overlay features for a layer.
+ * Used by AcceptEditAsync to determine geometry changes to save.
+ * Each entry: { featureId, typeIndex, worldStateId, originalCoords, coords }
+ */
+export function getOverlayFeaturesJson(layerId) {
+    const source = getPlanOverlaySource();
+    if (!source) return '[]';
+    const result = [];
+    for (const f of source.getFeatures()) {
+        if (f.get('mspOriginalLayerId') !== layerId) continue;
+        if (f.get('_isBadge')) continue;
+        const coords     = geometryToCoords(f.getGeometry()).map(c => [...c]);
+        const origCoords = f.get('_worldStateOrigCoords');
+        result.push({
+            featureId:      String(f.getId() ?? f.get('mspId') ?? ''),
+            typeIndex:      f.get('mspType') ?? 0,
+            worldStateId:   f.get('_worldStateId') ?? null,
+            originalCoords: origCoords ? origCoords.map(c => [...c]) : null,
+            coords,
+        });
+    }
+    return JSON.stringify(result);
 }
 
 /**

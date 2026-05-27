@@ -29,4 +29,9 @@ public sealed class LayerEntry
 
     // Whether this layer can be added to a plan for editing.
     public bool Editable { get; init; }
+
+    // Editing type: "multitype" means multiple geometry types can be selected simultaneously (bitmask).
+    public string EditingType { get; init; } = "";
+
+    public bool IsMultiType => EditingType.Equals("multitype", StringComparison.OrdinalIgnoreCase);
 }

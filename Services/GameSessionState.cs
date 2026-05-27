@@ -880,6 +880,7 @@ public sealed class GameSessionState : IDisposable
         var depth = layer.TryGetProperty("layer_depth", out var ld) && ld.ValueKind == JsonValueKind.Number ? ld.GetInt32() : 0;
         var toggleable = layer.TryGetProperty("layer_toggleable", out var lt2) && lt2.ValueKind == JsonValueKind.Number ? lt2.GetInt32() != 0 : true;
         var editable   = layer.TryGetProperty("layer_editable",   out var leEl) && leEl.ValueKind == JsonValueKind.Number ? leEl.GetInt32() != 0 : false;
+        var editingType = layer.TryGetProperty("layer_editing_type", out var letEl) ? letEl.GetString() ?? "" : "";
         var isBase = layerName.IndexOf("_PLAYAREA", StringComparison.OrdinalIgnoreCase) >= 0;
 
         // Prepare metadata entry used across pages.
@@ -1024,7 +1025,8 @@ public sealed class GameSessionState : IDisposable
             RasterThresholds = rasterThresholds,
             GeoType = geoType ?? "",
             AssemblyTime = ParseAssemblyTime(layer),
-            Editable = editable
+            Editable = editable,
+            EditingType = editingType
         });
 
         return new MapLayerSnapshot
