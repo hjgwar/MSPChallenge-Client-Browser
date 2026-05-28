@@ -2379,7 +2379,7 @@ html, body {
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #6c757d;
+    color: #adb5bd;
     margin-bottom: 0.35rem;
 }
 
@@ -2452,6 +2452,13 @@ html, body {
 .geometry-tool-btn--danger:hover:not(:disabled) {
     background: rgba(220, 53, 69, 0.15);
     border-color: rgba(220, 53, 69, 0.4);
+}
+
+.geometry-tool-btn--success:not(:disabled) { color: #80c080; }
+
+.geometry-tool-btn--success:hover:not(:disabled) {
+    background: rgba(40, 167, 69, 0.15);
+    border-color: rgba(40, 167, 69, 0.4);
 }
 
 .geometry-tool-btn svg { width: 18px; height: 18px; }

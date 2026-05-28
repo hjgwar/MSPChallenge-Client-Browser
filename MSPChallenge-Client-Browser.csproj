@@ -13,6 +13,7 @@
     <Compile Remove="MSPChallenge.Tests\**" />
     <EmbeddedResource Remove="MSPChallenge.Tests\**" />
     <None Remove="MSPChallenge.Tests\**" />
+    <Content Remove="MSPChallenge.Tests\**" />
   </ItemGroup>
 
 </Project>

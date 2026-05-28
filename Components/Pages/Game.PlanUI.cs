@@ -264,7 +264,7 @@ public partial class Game
         else
             await _mapModule.InvokeVoidAsync("clearPlanOverlay");
 
-        await ApplyPlanProjectionAsync(plan.StartDate);
+        await ApplyPlanProjectionAsync(plan.StartDate, currentPlan: plan);
 
         if (!IsApprovalCompleteState(plan.State))
             CalculateApproval(plan);
@@ -278,7 +278,14 @@ public partial class Game
     /// Pass <paramref name="singleLayerId"/> to restrict processing to one layer â€” used when
     /// the user activates a layer from the panel while a plan is already selected.
     /// </summary>
-    private async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null)
+    /// <summary>
+    /// Computes and sends the world-state projection to the map for all earlier finalised plans
+    /// relative to <paramref name="planStartDate"/>.
+    /// Pass <paramref name="singleLayerId"/> to restrict processing to one layer — used when
+    /// the user activates a layer from the panel while a plan is already selected.
+    /// Pass <paramref name="currentPlan"/> to also hide base geometry that the current plan modifies.
+    /// </summary>
+    private async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null, PlanEntry? currentPlan = null)
     {
         if (_mapModule is null) return;
 
@@ -286,11 +293,11 @@ public partial class Game
             .Where(p => p.StartDate < planStartDate && IsFinalisedPlanState(p.State))
             .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
             .ToList();
-        if (priorPlans.Count == 0) return;
 
         var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var addedFeatures  = new List<object>();
 
+        // Process prior finalized plans
         foreach (var priorPlan in priorPlans)
         {
             foreach (var planLayer in priorPlan.Layers)
@@ -322,6 +329,33 @@ public partial class Game
                             typeIndex = geo.TypeIndex,
                             coords    = geo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray()
                         });
+                }
+            }
+        }
+
+        // Process current plan if provided - hide base geometry that it modifies
+        // Note: Don't add current plan's geometry to base layers (it's in the overlay)
+        if (currentPlan is not null)
+        {
+            foreach (var planLayer in currentPlan.Layers)
+            {
+                if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
+                if (singleLayerId is not null &&
+                    !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
+                    hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // Hide deleted base geometry
+                foreach (var deletedId in planLayer.DeletedPersistentIds)
+                    ids.Add(deletedId);
+
+                // Hide modified base geometry (where PersistentId != Id)
+                foreach (var geo in planLayer.Geometry)
+                {
+                    if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
+                        ids.Add(geo.PersistentId);
                 }
             }
         }

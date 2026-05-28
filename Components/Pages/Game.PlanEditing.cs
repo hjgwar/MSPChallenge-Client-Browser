@@ -38,7 +38,9 @@ public partial class Game
     private string?    _geometryToolSelectedFeatureId;
     private string?    _geometryToolSelectedWorldStateId;
     private int        _geometryToolSelectedTypeIndex;
+    private int        _geometryToolSelectedOriginalTypeIndex;
     private double[][] _geometryToolSelectedCoords = [];
+    private bool       _geometryToolSelectedIsMarkedForDeletion;
     private List<DrawingAction> _drawingUndoStack   = [];
     private List<DrawingAction> _drawingRedoStack   = [];
     private HashSet<string>     _deletedWorldStateIds = [];
@@ -76,10 +78,21 @@ public partial class Game
         _drawingUndoStack.Clear();
         _drawingRedoStack.Clear();
         _deletedWorldStateIds.Clear();
+        
         await _mapModule.InvokeVoidAsync("startGeometryEdit", layerId, _dotNetRef);
 
         // Load world-state (projected) features for this layer so the user can edit them
         var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        
+        // Populate deleted IDs from plan if re-entering edit mode with existing deletions
+        var planLayer = plan?.Layers.FirstOrDefault(l => 
+            string.Equals(l.OriginalLayerId, layerId, StringComparison.OrdinalIgnoreCase));
+        if (planLayer?.DeletedPersistentIds != null)
+        {
+            foreach (var deletedId in planLayer.DeletedPersistentIds)
+                _deletedWorldStateIds.Add(deletedId);
+        }
+        
         var isNewPlan = _selectedPlanId == 0;
         
         // For new plans, use current sim month; for existing plans, use plan's start date
@@ -114,6 +127,25 @@ public partial class Game
         if (toLoad.Count > 0)
             await _mapModule.InvokeVoidAsync("loadWorldStateFeatures",
                 JsonSerializer.Serialize(toLoad));
+        
+        // Mark deleted features as deleted in the overlay
+        foreach (var deletedId in _deletedWorldStateIds)
+        {
+            await _mapModule.InvokeVoidAsync("markFeatureAsDeleted", deletedId);
+        }
+        
+        // Hide base geometry that the plan has already modified
+        // (Plan geometry with PersistentId != Id indicates a modification of base geometry)
+        if (planLayer is not null)
+        {
+            foreach (var geo in planLayer.Geometry)
+            {
+                if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
+                {
+                    await _mapModule.InvokeVoidAsync("hideBaseGeometry", layerId, geo.PersistentId);
+                }
+            }
+        }
         
         StateHasChanged();
     }
@@ -159,6 +191,40 @@ public partial class Game
 
     private async Task SetGeometryTypeIndexAsync(int idx)
     {
+        // Handle type change for existing selected geometry
+        if (_geometryToolSelectedFeatureId is not null && !_geometryToolCreate && idx != _geometryToolSelectedTypeIndex)
+        {
+            var oldType = _geometryToolSelectedTypeIndex;
+            _geometryToolTypeIndex = idx;
+            _geometryToolSelectedTypeIndex = idx;
+            
+            // Track as undo action if type differs from original
+            if (idx != _geometryToolSelectedOriginalTypeIndex || _geometryToolSelectedWorldStateId is not null)
+            {
+                _drawingUndoStack.Add(new TypeChangeAction(
+                    _geometryToolSelectedFeatureId, 
+                    oldType, 
+                    idx, 
+                    _geometryToolSelectedWorldStateId,
+                    _geometryToolSelectedWorldStateId is not null ? _geometryToolSelectedOriginalTypeIndex : null));
+                _drawingRedoStack.Clear();
+                
+                // Update feature type in overlay
+                if (_mapModule is not null)
+                    await _mapModule.InvokeVoidAsync("setFeatureType", _geometryToolSelectedFeatureId, idx);
+                
+                // Mark world-state features as modified with edit badge and hide base geometry
+                if (_geometryToolSelectedWorldStateId is not null && _geometryToolLayerId is not null)
+                {
+                    await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "edit");
+                    await _mapModule.InvokeVoidAsync("hideBaseGeometry", _geometryToolLayerId, _geometryToolSelectedWorldStateId);
+                }
+            }
+            
+            StateHasChanged();
+            return;
+        }
+        
         _geometryToolTypeIndex = idx;
         if (_geometryToolCreate && _mapModule is not null && _geometryToolLayerId is not null)
         {
@@ -209,35 +275,110 @@ public partial class Game
             case MoveAction m:
                 var coords = undo ? m.OldCoords : m.NewCoords;
                 await _mapModule.InvokeVoidAsync("setFeatureCoords", m.FeatureId, coords);
+                if (m.WorldStateId is not null && m.LayerId is not null)
+                {
+                    if (undo)
+                    {
+                        // Check if undo restored to original state
+                        await _mapModule.InvokeVoidAsync("checkAndUnhideIfOriginal", m.LayerId, m.FeatureId);
+                        var isOriginal = await _mapModule.InvokeAsync<bool>("isFeatureInOriginalState", m.FeatureId);
+                        await UpdateGeometryBadgeAsync(m.FeatureId, isOriginal ? "none" : "edit");
+                    }
+                    else
+                    {
+                        // Redo: hide base geometry and show edit badge
+                        await UpdateGeometryBadgeAsync(m.FeatureId, "edit");
+                        await _mapModule.InvokeVoidAsync("hideBaseGeometry", m.LayerId, m.WorldStateId);
+                    }
+                }
                 break;
             case AddAction a:
                 if (undo)
+                {
+                    // Remove badge before removing feature
+                    await UpdateGeometryBadgeAsync(a.TempId, "none");
                     await _mapModule.InvokeVoidAsync("removeFeatureFromOverlay", a.TempId);
+                }
                 else
+                {
                     await _mapModule.InvokeVoidAsync("addFeatureToOverlay", JsonSerializer.Serialize(new
                     {
                         featureId = a.TempId, originalLayerId = a.OriginalLayerId,
                         typeIndex = a.TypeIndex, geoType = a.GeoType, coords = a.Coords
                     }));
+                    // New features should show plus badge
+                    await UpdateGeometryBadgeAsync(a.TempId, "plus");
+                }
                 break;
             case DeleteAction d:
                 if (undo)
                 {
-                    // Restore deleted feature (including world-state marker)
                     if (d.WorldStateId is not null)
-                        _deletedWorldStateIds.Remove(d.WorldStateId);
-                    await _mapModule.InvokeVoidAsync("addFeatureToOverlay", JsonSerializer.Serialize(new
                     {
-                        featureId = d.FeatureId, originalLayerId = d.OriginalLayerId,
-                        typeIndex = d.TypeIndex, geoType = d.GeoType, coords = d.Coords,
-                        worldStateId = d.WorldStateId,
-                    }));
+                        // Undoing deletion of world-state feature: restore normal styling and badge
+                        _deletedWorldStateIds.Remove(d.WorldStateId);
+                        await _mapModule.InvokeVoidAsync("unmarkFeatureAsDeleted", d.FeatureId);
+                        
+                        // If it wasn't modified before deletion, check if it's back to original state
+                        if (!d.WasModified && d.OriginalLayerId is not null)
+                        {
+                            await _mapModule.InvokeVoidAsync("checkAndUnhideIfOriginal", d.OriginalLayerId, d.FeatureId);
+                            var isOriginal = await _mapModule.InvokeAsync<bool>("isFeatureInOriginalState", d.FeatureId);
+                            await UpdateGeometryBadgeAsync(d.FeatureId, isOriginal ? "none" : "edit");
+                        }
+                        else
+                        {
+                            // Was modified before deletion, restore edit badge
+                            await UpdateGeometryBadgeAsync(d.FeatureId, "edit");
+                        }
+                    }
+                    else
+                    {
+                        // Undoing deletion of new feature: re-add it with plus badge
+                        await _mapModule.InvokeVoidAsync("addFeatureToOverlay", JsonSerializer.Serialize(new
+                        {
+                            featureId = d.FeatureId, originalLayerId = d.OriginalLayerId,
+                            typeIndex = d.TypeIndex, geoType = d.GeoType, coords = d.Coords
+                        }));
+                        await UpdateGeometryBadgeAsync(d.FeatureId, "plus");
+                    }
                 }
                 else
                 {
+                    // Applying (redoing) deletion
                     if (d.WorldStateId is not null)
+                    {
+                        // World-state feature: mark as deleted
                         _deletedWorldStateIds.Add(d.WorldStateId);
-                    await _mapModule.InvokeVoidAsync("removeFeatureFromOverlay", d.FeatureId);
+                        await _mapModule.InvokeVoidAsync("markFeatureAsDeleted", d.FeatureId);
+                    }
+                    else
+                    {
+                        // New feature: remove completely
+                        await UpdateGeometryBadgeAsync(d.FeatureId, "none");
+                        await _mapModule.InvokeVoidAsync("removeFeatureFromOverlay", d.FeatureId);
+                    }
+                }
+                break;
+            case TypeChangeAction t:
+                var typeIndex = undo ? t.OldTypeIndex : t.NewTypeIndex;
+                await _mapModule.InvokeVoidAsync("setFeatureType", t.FeatureId, typeIndex);
+                // Update badge and base geometry visibility for world-state features
+                if (t.WorldStateId is not null && _geometryToolLayerId is not null)
+                {
+                    if (undo)
+                    {
+                        // Check if undoing back to fully original state (both coords and type)
+                        await _mapModule.InvokeVoidAsync("checkAndUnhideIfOriginal", _geometryToolLayerId, t.FeatureId);
+                        var isOriginal = await _mapModule.InvokeAsync<bool>("isFeatureInOriginalState", t.FeatureId);
+                        await UpdateGeometryBadgeAsync(t.FeatureId, isOriginal ? "none" : "edit");
+                    }
+                    else
+                    {
+                        // Redo: Type changed from original - show edit badge and hide base
+                        await UpdateGeometryBadgeAsync(t.FeatureId, "edit");
+                        await _mapModule.InvokeVoidAsync("hideBaseGeometry", _geometryToolLayerId, t.WorldStateId);
+                    }
                 }
                 break;
         }
@@ -248,16 +389,46 @@ public partial class Game
         if (_geometryToolSelectedFeatureId is null || _geometryToolLayerId is null || _mapModule is null) return;
         var layerEntry = _layerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
         var worldStateId = _geometryToolSelectedWorldStateId;
+        // Check if the feature was modified before deletion
+        var wasModified = worldStateId is not null 
+            && await _mapModule.InvokeAsync<bool>("getFeatureModifiedStatus", _geometryToolSelectedFeatureId);
         _drawingUndoStack.Add(new DeleteAction(
             _geometryToolSelectedFeatureId, _geometryToolLayerId,
             _geometryToolSelectedTypeIndex, layerEntry?.GeoType ?? "polygon",
-            _geometryToolSelectedCoords, worldStateId));
+            _geometryToolSelectedCoords, worldStateId, wasModified));
         _drawingRedoStack.Clear();
         if (worldStateId is not null)
+        {
+            // World-state features: mark as deleted with red styling and minus badge
             _deletedWorldStateIds.Add(worldStateId);
-        await _mapModule.InvokeVoidAsync("removeFeatureFromOverlay", _geometryToolSelectedFeatureId);
+            await _mapModule.InvokeVoidAsync("markFeatureAsDeleted", _geometryToolSelectedFeatureId);
+        }
+        else
+        {
+            // New features: remove completely
+            await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "none");
+            await _mapModule.InvokeVoidAsync("removeFeatureFromOverlay", _geometryToolSelectedFeatureId);
+        }
         _geometryToolSelectedFeatureId    = null;
         _geometryToolSelectedWorldStateId = null;
+        StateHasChanged();
+    }
+
+    private async Task RestoreSelectedGeometryAsync()
+    {
+        if (_geometryToolSelectedFeatureId is null || _geometryToolSelectedWorldStateId is null 
+            || _mapModule is null || !_geometryToolSelectedIsMarkedForDeletion) return;
+        
+        // Remove from deleted set
+        _deletedWorldStateIds.Remove(_geometryToolSelectedWorldStateId);
+        
+        // Restore visual styling
+        await _mapModule.InvokeVoidAsync("unmarkFeatureAsDeleted", _geometryToolSelectedFeatureId);
+        
+        // Remove deletion badge (feature might have edit badge if it was modified before deletion)
+        await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "none");
+        
+        _geometryToolSelectedIsMarkedForDeletion = false;
         StateHasChanged();
     }
 
@@ -268,11 +439,26 @@ public partial class Game
             if (_drawingUndoStack[i] is not DeleteAction d) continue;
             _drawingUndoStack.RemoveAt(i);
             if (_mapModule is not null)
-                await _mapModule.InvokeVoidAsync("addFeatureToOverlay", JsonSerializer.Serialize(new
+            {
+                if (d.WorldStateId is not null)
                 {
-                    featureId = d.FeatureId, originalLayerId = d.OriginalLayerId,
-                    typeIndex = d.TypeIndex, geoType = d.GeoType, coords = d.Coords
-                }));
+                    // Restore world-state feature: unmark deletion and restore badge
+                    _deletedWorldStateIds.Remove(d.WorldStateId);
+                    await _mapModule.InvokeVoidAsync("unmarkFeatureAsDeleted", d.FeatureId);
+                    var badgeType = d.WasModified ? "edit" : "none";
+                    await UpdateGeometryBadgeAsync(d.FeatureId, badgeType);
+                }
+                else
+                {
+                    // Restore new feature
+                    await _mapModule.InvokeVoidAsync("addFeatureToOverlay", JsonSerializer.Serialize(new
+                    {
+                        featureId = d.FeatureId, originalLayerId = d.OriginalLayerId,
+                        typeIndex = d.TypeIndex, geoType = d.GeoType, coords = d.Coords
+                    }));
+                    await UpdateGeometryBadgeAsync(d.FeatureId, "plus");
+                }
+            }
             StateHasChanged();
             return;
         }
@@ -292,7 +478,22 @@ public partial class Game
             var newCoords    = ParseCoordArray(root.GetProperty("newCoords"));
             _drawingUndoStack.Add(new MoveAction(featureId, _geometryToolLayerId ?? "", oldCoords, newCoords, worldStateId));
             _drawingRedoStack.Clear();
-            InvokeAsync(StateHasChanged);
+            // Add edit badge for modified world-state features
+            if (worldStateId is not null && !string.IsNullOrEmpty(featureId))
+            {
+                InvokeAsync(async () =>
+                {
+                    await UpdateGeometryBadgeAsync(featureId, "edit");
+                    // Hide the base geometry immediately when world-state feature is modified
+                    if (_geometryToolLayerId is not null)
+                        await _mapModule.InvokeVoidAsync("hideBaseGeometry", _geometryToolLayerId, worldStateId);
+                    StateHasChanged();
+                });
+            }
+            else
+            {
+                InvokeAsync(StateHasChanged);
+            }
         }
         catch { /* ignore parse errors */ }
     }
@@ -311,7 +512,19 @@ public partial class Game
             var coords        = ParseCoordArray(root.GetProperty("coords"));
             _drawingUndoStack.Add(new AddAction(tempId, layerId, typeIndex, geoType, coords));
             _drawingRedoStack.Clear();
-            InvokeAsync(StateHasChanged);
+            // Add plus badge for newly created geometry
+            if (!string.IsNullOrEmpty(tempId))
+            {
+                InvokeAsync(async () =>
+                {
+                    await UpdateGeometryBadgeAsync(tempId, "plus");
+                    StateHasChanged();
+                });
+            }
+            else
+            {
+                InvokeAsync(StateHasChanged);
+            }
         }
         catch { /* ignore parse errors */ }
     }
@@ -329,14 +542,21 @@ public partial class Game
             {
                 _geometryToolSelectedFeatureId    = fid;
                 _geometryToolSelectedTypeIndex    = root.TryGetProperty("typeIndex", out var tiEl) ? tiEl.GetInt32() : 0;
+                _geometryToolSelectedOriginalTypeIndex = _geometryToolSelectedTypeIndex; // Store original for change detection
                 _geometryToolSelectedCoords       = root.TryGetProperty("coords", out var ceEl) ? ParseCoordArray(ceEl) : [];
                 _geometryToolSelectedWorldStateId = root.TryGetProperty("worldStateId", out var wsEl) && wsEl.ValueKind != JsonValueKind.Null
                     ? wsEl.GetString() : null;
+                // Check if this feature is marked for deletion
+                _geometryToolSelectedIsMarkedForDeletion = _geometryToolSelectedWorldStateId is not null
+                    && _deletedWorldStateIds.Contains(_geometryToolSelectedWorldStateId);
+                // Update the layer type selector to show the selected geometry's type
+                _geometryToolTypeIndex = _geometryToolSelectedTypeIndex;
             }
             else
             {
                 _geometryToolSelectedFeatureId    = null;
                 _geometryToolSelectedWorldStateId = null;
+                _geometryToolSelectedIsMarkedForDeletion = false;
             }
             InvokeAsync(StateHasChanged);
         }
@@ -351,6 +571,23 @@ public partial class Game
             if (item.ValueKind == JsonValueKind.Array)
                 result.Add(item.EnumerateArray().Select(v => v.GetDouble()).ToArray());
         return [.. result];
+    }
+
+    /// <summary>
+    /// Updates the visual badge for a specific geometry feature to provide immediate feedback.
+    /// </summary>
+    private async Task UpdateGeometryBadgeAsync(string featureId, string badgeType)
+    {
+        if (_mapModule is null || string.IsNullOrEmpty(featureId)) return;
+        try
+        {
+            await _mapModule.InvokeVoidAsync("updateFeatureBadge", featureId, badgeType);
+        }
+        catch (Exception ex)
+        {
+            if (HostEnvironment.IsDevelopment())
+                Console.WriteLine($"[UpdateGeometryBadgeAsync] Error: {ex.Message}");
+        }
     }
 
     private IReadOnlyList<PlanRestrictionIssue> EvaluateRestrictionsForGeometry(
@@ -1269,11 +1506,24 @@ public partial class Game
 
                         if (item.WorldStateId is not null)
                         {
-                            // World-state feature — only include if coordinates changed
+                            // World-state feature — create plan geometry via POST + Data
+                            // This is needed whenever coords OR type change from the base world-state
                             double[][]? origCoords = item.OriginalCoords;
-                            if (origCoords is null && worldStateMap.TryGetValue(item.WorldStateId, out var wsGeo))
-                                origCoords = wsGeo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray();
-                            if (origCoords is not null && !GeometryCoordsChanged(item.Coords, origCoords))
+                            int? origTypeIndex = null;
+                            
+                            // Always try to get original data from world state
+                            if (worldStateMap.TryGetValue(item.WorldStateId, out var wsGeo))
+                            {
+                                if (origCoords is null)
+                                    origCoords = wsGeo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray();
+                                origTypeIndex = wsGeo.TypeIndex;
+                            }
+                            
+                            var coordsChanged = origCoords is null || GeometryCoordsChanged(item.Coords, origCoords);
+                            var typeChanged = origTypeIndex.HasValue && item.TypeIndex != origTypeIndex.Value;
+                            
+                            // Skip only if NEITHER coords NOR type changed
+                            if (!coordsChanged && !typeChanged)
                                 continue;
 
                             object persistentVal = int.TryParse(item.WorldStateId, out var wsInt)
@@ -1300,7 +1550,7 @@ public partial class Game
                                 endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
                                 {
                                     id   = $"!Ref:{geoCallId}",
-                                    data = "",
+                                    data = "{}",
                                     type = item.TypeIndex.ToString(),
                                 }),
                                 group = 10,
@@ -1308,24 +1558,49 @@ public partial class Game
                         }
                         else if (planOwnGeo.TryGetValue(item.FeatureId, out var planGeo))
                         {
-                            // Existing plan geometry — update only if coordinates changed
+                            // Existing plan geometry — update if coordinates or type changed
                             var origCoords = planGeo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray();
-                            if (!GeometryCoordsChanged(item.Coords, origCoords)) continue;
+                            var coordsChanged = GeometryCoordsChanged(item.Coords, origCoords);
+                            var typeChanged = item.TypeIndex != planGeo.TypeIndex;
+                            
+                            if (!coordsChanged && !typeChanged) continue;
 
                             object featureIdVal = int.TryParse(item.FeatureId, out var fidInt)
                                 ? (object)fidInt : item.FeatureId;
-                            requests.Add(new
+                            
+                            // Update coordinates if changed
+                            if (coordsChanged)
                             {
-                                call_id       = callId++,
-                                endpoint      = "api/Geometry/Update",
-                                endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                                requests.Add(new
                                 {
-                                    id       = featureIdVal,
-                                    country  = countryInt,
-                                    geometry = System.Text.Json.JsonSerializer.Serialize(item.Coords),
-                                }),
-                                group = 5,
-                            });
+                                    call_id       = callId++,
+                                    endpoint      = "api/Geometry/Update",
+                                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                                    {
+                                        id       = featureIdVal,
+                                        country  = countryInt,
+                                        geometry = System.Text.Json.JsonSerializer.Serialize(item.Coords),
+                                    }),
+                                    group = 5,
+                                });
+                            }
+                            
+                            // Update type if changed
+                            if (typeChanged)
+                            {
+                                requests.Add(new
+                                {
+                                    call_id       = callId++,
+                                    endpoint      = "api/Geometry/Data",
+                                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                                    {
+                                        id   = featureIdVal,
+                                        data = "{}",
+                                        type = item.TypeIndex.ToString(),
+                                    }),
+                                    group = 10,
+                                });
+                            }
                         }
                         else
                         {
@@ -1351,7 +1626,7 @@ public partial class Game
                                 endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
                                 {
                                     id   = $"!Ref:{geoCallId}",
-                                    data = "",
+                                    data = "{}",
                                     type = item.TypeIndex.ToString(),
                                 }),
                                 group = 10,
@@ -1395,6 +1670,33 @@ public partial class Game
                             }),
                             group = 4,
                         });
+                    }
+                    
+                    // Restored world-state features (previously deleted, now undeleted)
+                    if (planLayer is not null)
+                    {
+                        var currentlyDeletedIds = planLayer.DeletedPersistentIds ?? [];
+                        foreach (var deletedId in currentlyDeletedIds)
+                        {
+                            // If this ID was in plan's deletedIds but is NOT in our current _deletedWorldStateIds,
+                            // it means the user restored it in this edit session
+                            if (!_deletedWorldStateIds.Contains(deletedId))
+                            {
+                                object wsIdVal = int.TryParse(deletedId, out var wsInt3)
+                                    ? (object)wsInt3 : deletedId;
+                                requests.Add(new
+                                {
+                                    call_id       = callId++,
+                                    endpoint      = "api/Geometry/UnmarkForDelete",
+                                    endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
+                                    {
+                                        id   = wsIdVal,
+                                        plan = planIdVal,
+                                    }),
+                                    group = 4,
+                                });
+                            }
+                        }
                     }
                 }
             }
@@ -1533,7 +1835,14 @@ public partial class Game
         int        TypeIndex,
         string     GeoType,
         double[][] Coords,
-        string?    WorldStateId) : DrawingAction;
+        string?    WorldStateId,
+        bool       WasModified) : DrawingAction;
+    private sealed record TypeChangeAction(
+        string     FeatureId,
+        int        OldTypeIndex,
+        int        NewTypeIndex,
+        string?    WorldStateId,
+        int?       OriginalWorldStateTypeIndex = null) : DrawingAction;
 
     private sealed record ParsedLayerGeometry(
         string                  FeatureId,

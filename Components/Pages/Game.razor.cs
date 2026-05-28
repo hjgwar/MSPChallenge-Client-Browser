@@ -297,7 +297,7 @@ public partial class Game : IAsyncDisposable
             {
                 var viewedPlan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
                 if (viewedPlan is not null)
-                    await ApplyPlanProjectionAsync(viewedPlan.StartDate, entry.LayerId);
+                    await ApplyPlanProjectionAsync(viewedPlan.StartDate, entry.LayerId, currentPlan: viewedPlan);
             }
         }
         else if (_mapModule is not null)
