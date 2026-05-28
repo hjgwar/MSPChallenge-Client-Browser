@@ -709,26 +709,10 @@ public partial class Game
     // Earliest calendar date the plan may start (current sim month + min construction)
     private IReadOnlyList<string> GetAvailablePlanStates(PlanEntry plan)
     {
-        var current = plan.State.ToUpperInvariant();
-
-        if (current == "IMPLEMENTED")
-            return [];
-
-        if (current == "ARCHIVED")
-            return ["DESIGN"];
-
         bool hasErrors = _selectedPlanIssues.Any(
             i => i.Severity.Equals("ERROR", StringComparison.OrdinalIgnoreCase));
 
-        if (hasErrors)
-            return ["DESIGN", "ARCHIVED"];
-
-        // Normal flow
-        var states = new List<string> { "DESIGN", "CONSULTATION", "APPROVAL" };
-        if (!plan.RequiresApproval)
-            states.Add("APPROVED");
-        states.Add("ARCHIVED");
-        return states;
+        return PlanStateTransitions.GetAvailablePlanStates(plan.State, plan.RequiresApproval, hasErrors);
     }
 
     private async Task SetPlanStateAsync()
