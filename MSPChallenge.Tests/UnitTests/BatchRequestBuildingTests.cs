@@ -18,28 +18,73 @@ public class BatchRequestBuildingTests
         var planDescription = "Test Description";
         var startMonth = 120; // 10 years * 12 months
         var countryId = 1;
+        var createPlanCallId = 1;
 
-        // Act
-        var request = new
+        // Act - Production code splits this into multiple requests:
+        // 1. POST to create plan (group 1)
+        var createRequest = new
         {
-            call_id = 1,
+            call_id = createPlanCallId,
             endpoint = "api/Plan/Post",
-            endpoint_data = new Dictionary<string, string>
-            {
-                { "country", countryId.ToString() },
-                { "name", planName },
-                { "description", planDescription },
-                { "startdate", startMonth.ToString() }
-            },
+            endpoint_data = JsonSerializer.Serialize(new { country = countryId }),
             group = 1
         };
 
-        // Assert
-        request.call_id.Should().Be(1);
-        request.endpoint.Should().Be("api/Plan/Post");
-        request.group.Should().Be(1, "plan creation should be in group 1");
-        request.endpoint_data["name"].Should().Be(planName);
-        request.endpoint_data["startdate"].Should().Be("120");
+        // 2. Name request (group 5)
+        var nameRequest = new
+        {
+            call_id = 2,
+            endpoint = "api/Plan/Name",
+            endpoint_data = JsonSerializer.Serialize(new
+            {
+                id = $"!Ref:{createPlanCallId}",
+                name = planName
+            }),
+            group = 5
+        };
+
+        // 3. Description request (group 5)
+        var descriptionRequest = new
+        {
+            call_id = 3,
+            endpoint = "api/Plan/Description",
+            endpoint_data = JsonSerializer.Serialize(new
+            {
+                id = $"!Ref:{createPlanCallId}",
+                description = planDescription
+            }),
+            group = 5
+        };
+
+        // 4. Date request (group 5)
+        var dateRequest = new
+        {
+            call_id = 4,
+            endpoint = "api/Plan/Date",
+            endpoint_data = JsonSerializer.Serialize(new
+            {
+                id = $"!Ref:{createPlanCallId}",
+                date = startMonth
+            }),
+            group = 5
+        };
+
+        // Assert - Validate create request
+        createRequest.call_id.Should().Be(1);
+        createRequest.endpoint.Should().Be("api/Plan/Post");
+        createRequest.group.Should().Be(1, "plan creation should be in group 1");
+        createRequest.endpoint_data.Should().Contain("country");
+        createRequest.endpoint_data.Should().NotContain("name", "name is sent separately");
+
+        // Assert - Validate name request
+        nameRequest.endpoint.Should().Be("api/Plan/Name");
+        nameRequest.group.Should().Be(5, "plan name update should be in group 5");
+        nameRequest.endpoint_data.Should().Contain(planName);
+        nameRequest.endpoint_data.Should().Contain("!Ref:1", "should reference plan creation call");
+
+        // Assert - Validate date request
+        dateRequest.endpoint.Should().Be("api/Plan/Date");
+        dateRequest.endpoint_data.Should().Contain("120");
     }
 
     [Fact]
