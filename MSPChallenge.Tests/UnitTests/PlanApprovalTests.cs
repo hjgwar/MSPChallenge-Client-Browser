@@ -1,134 +1,259 @@
 using FluentAssertions;
+using MSPChallenge_Client_Browser.Models;
+using MSPChallenge_Client_Browser.Services;
 using Xunit;
 
 namespace MSPChallenge.Tests.UnitTests;
 
 /// <summary>
 /// Unit tests for plan approval calculation logic.
-/// These tests validate the business rules for when approval is required.
+/// These tests validate the production implementation's business rules for when approval is required,
+/// including plan layers, geometry state, per-layer approval modes, EEZ intersections, and admin/GM slots.
 /// </summary>
 public class PlanApprovalTests
 {
+    private readonly PlanApprovalService _service = new();
+
     [Fact]
-    public void ApprovalCalculation_NoRestrictionsFromOtherCountries_ReturnsEmptyList()
+    public void ApprovalCalculation_PlanWithNoLayers_ReturnsEmptyList()
     {
         // Arrange
-        var planCountryId = 1;
-        var restrictions = new List<TestRestriction>(); // No restrictions
+        var plan = CreatePlan(country: 1, layers: []);
+        var eezPolygons = new List<EezPolygon>();
+        var layerEntries = new List<LayerEntry>();
+        var countryNames = new Dictionary<int, string> { { 1, "Country 1" }, { 2, "Country 2" } };
 
         // Act
-        var result = CalculateApprovalRequirements(planCountryId, restrictions);
+        var result = _service.CalculateApproval(
+            plan, plan.Country, eezPolygons, layerEntries, countryNames, _ => []);
 
         // Assert
-        result.Should().BeEmpty("plan with no restrictions should not require approval");
+        result.Should().BeEmpty("plan with no layers should not require approval");
     }
 
     [Fact]
-    public void ApprovalCalculation_RestrictionsFromSameCountry_ReturnsEmptyList()
+    public void ApprovalCalculation_GeometryWithNotDependentApproval_ReturnsEmptyList()
     {
         // Arrange
-        var planCountryId = 1;
-        var restrictions = new List<TestRestriction>
+        var geometry = new PlanGeometryItem(Coordinates: [[1.0, 2.0]]);
+        var layer = new PlanLayerData("layer1", "layer1", "active", [geometry], []);
+        var plan = CreatePlan(country: 1, layers: [layer]);
+
+        var layerEntry = new LayerEntry
         {
-            new(CountryId: 1, Message: "Self-restriction") // Same country as plan
+            LayerId = "layer1",
+            DisplayName = "Test Layer",
+            TypeDefs = [new TypeDef("Type1", "Color1", null, "NotDependent")]
         };
+        var eezPolygons = new List<EezPolygon>();
+        var countryNames = new Dictionary<int, string> { { 1, "Country 1" } };
 
         // Act
-        var result = CalculateApprovalRequirements(planCountryId, restrictions);
+        var result = _service.CalculateApproval(
+            plan, plan.Country, eezPolygons, [layerEntry], countryNames, _ => []);
 
         // Assert
-        result.Should().BeEmpty("restrictions from the same country should not require approval");
+        result.Should().BeEmpty("geometry with NotDependent approval should not require approval");
     }
 
     [Fact]
-    public void ApprovalCalculation_RestrictionsFromDifferentCountries_ReturnsApprovalRequired()
+    public void ApprovalCalculation_GeometryWithAllCountriesApproval_RequiresAllCountries()
     {
         // Arrange
-        var planCountryId = 1;
-        var restrictions = new List<TestRestriction>
+        var geometry = new PlanGeometryItem(Coordinates: [[1.0, 2.0]]);
+        var layer = new PlanLayerData("layer1", "layer1", "active", [geometry], []);
+        var plan = CreatePlan(country: 1, layers: [layer]);
+
+        var layerEntry = new LayerEntry
         {
-            new(CountryId: 2, Message: "Overlaps shipping lane"),
-            new(CountryId: 3, Message: "Overlaps fishing zone")
+            LayerId = "layer1",
+            DisplayName = "Test Layer",
+            TypeDefs = [new TypeDef("Type1", "Color1", null, "AllCountries")]
+        };
+        var eezPolygons = new List<EezPolygon>();
+        var countryNames = new Dictionary<int, string>
+        {
+            { 1, "Country 1" }, // Owner (admin)
+            { 2, "Country 2" }, // Admin/GM - should be skipped
+            { 3, "Country 3" }, // Should require approval
+            { 4, "Country 4" }  // Should require approval
         };
 
         // Act
-        var result = CalculateApprovalRequirements(planCountryId, restrictions);
+        var result = _service.CalculateApproval(
+            plan, plan.Country, eezPolygons, [layerEntry], countryNames, _ => []);
 
         // Assert
-        result.Should().HaveCount(2, "two different countries have restrictions");
-        result.Should().Contain(a => a.CountryId == 2);
+        result.Should().HaveCount(2, "should require approval from all countries except owner and admin/GM slots");
         result.Should().Contain(a => a.CountryId == 3);
+        result.Should().Contain(a => a.CountryId == 4);
+        result.Should().NotContain(a => a.CountryId == 1, "owner should not be included");
+        result.Should().NotContain(a => a.CountryId == 2, "admin/GM slot should not be included");
     }
 
     [Fact]
-    public void ApprovalCalculation_MultipleRestrictionsFromSameCountry_ReturnsOneApprovalEntry()
+    public void ApprovalCalculation_GeometryInOtherCountryEEZ_RequiresEEZOwnerApproval()
     {
         // Arrange
-        var planCountryId = 1;
-        var restrictions = new List<TestRestriction>
+        var geometry = new PlanGeometryItem(Coordinates: [[10.0, 20.0]]);
+        var layer = new PlanLayerData("layer1", "layer1", "active", [geometry], []);
+        var plan = CreatePlan(country: 1, layers: [layer]);
+
+        var layerEntry = new LayerEntry
         {
-            new(CountryId: 2, Message: "Restriction 1"),
-            new(CountryId: 2, Message: "Restriction 2")
+            LayerId = "layer1",
+            DisplayName = "Test Layer",
+            TypeDefs = [new TypeDef("Type1", "Color1", null, "EEZ")]
+        };
+        var eezPolygons = new List<EezPolygon>
+        {
+            new(CountryId: 2, Points: [[0.0, 0.0], [20.0, 0.0], [20.0, 30.0], [0.0, 30.0]])
+        };
+        var countryNames = new Dictionary<int, string>
+        {
+            { 1, "Country 1" },
+            { 2, "Country 2" }
         };
 
         // Act
-        var result = CalculateApprovalRequirements(planCountryId, restrictions);
+        var result = _service.CalculateApproval(
+            plan, plan.Country, eezPolygons, [layerEntry], countryNames, _ => []);
 
         // Assert
-        result.Should().HaveCount(1, "multiple restrictions from same country should be grouped");
-        var approval = result[0];
-        approval.CountryId.Should().Be(2);
-        approval.Reasons.Should().HaveCount(2, "both restriction messages should be included");
-        approval.Reasons.Should().Contain("Restriction 1");
-        approval.Reasons.Should().Contain("Restriction 2");
+        result.Should().HaveCount(1, "geometry in other country's EEZ should require approval");
+        result[0].CountryId.Should().Be(2);
+        result[0].Reasons.Should().Contain(r => r.Contains("Country 2's EEZ"));
     }
 
-    [Theory]
-    [InlineData(1, 2, true)]  // Different country - requires approval
-    [InlineData(1, 1, false)] // Same country - no approval needed
-    [InlineData(2, 3, true)]  // Different country - requires approval
-    [InlineData(5, 5, false)] // Same country - no approval needed
-    public void ApprovalCalculation_VariousCountryCombinations_ReturnsExpectedResult(
-        int planCountry, int restrictingCountry, bool shouldRequireApproval)
+    [Fact]
+    public void ApprovalCalculation_GeometryInOwnEEZ_ReturnsEmptyList()
     {
         // Arrange
-        var restrictions = new List<TestRestriction>
+        var geometry = new PlanGeometryItem(Coordinates: [[10.0, 20.0]]);
+        var layer = new PlanLayerData("layer1", "layer1", "active", [geometry], []);
+        var plan = CreatePlan(country: 1, layers: [layer]);
+
+        var layerEntry = new LayerEntry
         {
-            new(CountryId: restrictingCountry, Message: "Test restriction")
+            LayerId = "layer1",
+            DisplayName = "Test Layer",
+            TypeDefs = [new TypeDef("Type1", "Color1", null, "EEZ")]
+        };
+        var eezPolygons = new List<EezPolygon>
+        {
+            new(CountryId: 1, Points: [[0.0, 0.0], [20.0, 0.0], [20.0, 30.0], [0.0, 30.0]])
+        };
+        var countryNames = new Dictionary<int, string> { { 1, "Country 1" } };
+
+        // Act
+        var result = _service.CalculateApproval(
+            plan, plan.Country, eezPolygons, [layerEntry], countryNames, _ => []);
+
+        // Assert
+        result.Should().BeEmpty("geometry in own EEZ should not require approval");
+    }
+
+    [Fact]
+    public void ApprovalCalculation_DeletedGeometryFromOtherCountryEEZ_RequiresApproval()
+    {
+        // Arrange
+        var layer = new PlanLayerData("layer1", "layer1", "active", [], DeletedPersistentIds: ["geom1"]);
+        var plan = CreatePlan(country: 1, layers: [layer]);
+
+        var layerEntry = new LayerEntry
+        {
+            LayerId = "layer1",
+            DisplayName = "Test Layer",
+            TypeDefs = [new TypeDef("Type1", "Color1", null, "NotDependent")]
+        };
+        var eezPolygons = new List<EezPolygon>
+        {
+            new(CountryId: 2, Points: [[0.0, 0.0], [20.0, 0.0], [20.0, 30.0], [0.0, 30.0]])
+        };
+        var countryNames = new Dictionary<int, string>
+        {
+            { 1, "Country 1" },
+            { 2, "Country 2" }
+        };
+
+        // Provide base geometry that is in country 2's EEZ
+        var baseGeometry = new List<ParsedGeometry>
+        {
+            new("geom1", TypeIndex: 0, Coordinates: [[10.0, 20.0]])
         };
 
         // Act
-        var result = CalculateApprovalRequirements(planCountry, restrictions);
+        var result = _service.CalculateApproval(
+            plan, plan.Country, eezPolygons, [layerEntry], countryNames, _ => baseGeometry);
 
         // Assert
-        if (shouldRequireApproval)
-            result.Should().HaveCount(1, $"country {restrictingCountry} should require approval");
-        else
-            result.Should().BeEmpty($"country {restrictingCountry} should not require approval");
+        result.Should().HaveCount(1, "deleted geometry from other country should require approval");
+        result[0].CountryId.Should().Be(2);
+        result[0].Reasons.Should().Contain(r => r.Contains("Country 2") && r.Contains("removed"));
     }
 
-    /// <summary>
-    /// Helper method that simulates the approval calculation logic.
-    /// Mimics the core business rule: restrictions from other countries require approval.
-    /// </summary>
-    private List<TestApprovalRequirement> CalculateApprovalRequirements(
-        int planCountryId,
-        List<TestRestriction> restrictions)
+    [Fact]
+    public void ApprovalCalculation_MultipleLayersWithDifferentApprovalModes_CombinesRequirements()
     {
-        var grouped = restrictions
-            .Where(r => r.CountryId != planCountryId)
-            .GroupBy(r => r.CountryId)
-            .Select(g => new TestApprovalRequirement(
-                CountryId: g.Key,
-                CountryName: $"Country {g.Key}",
-                Reasons: g.Select(r => r.Message).ToList()
-            ))
-            .ToList();
+        // Arrange
+        var geom1 = new PlanGeometryItem(Coordinates: [[1.0, 2.0]]);
+        var layer1 = new PlanLayerData("layer1", "layer1", "active", [geom1], []);
+        
+        var geom2 = new PlanGeometryItem(Coordinates: [[10.0, 20.0]]);
+        var layer2 = new PlanLayerData("layer2", "layer2", "active", [geom2], []);
+        
+        var plan = CreatePlan(country: 1, layers: [layer1, layer2]);
 
-        return grouped;
+        var layerEntries = new List<LayerEntry>
+        {
+            new()
+            {
+                LayerId = "layer1",
+                DisplayName = "AllCountries Layer",
+                TypeDefs = [new TypeDef("Type1", "Color1", null, "AllCountries")]
+            },
+            new()
+            {
+                LayerId = "layer2",
+                DisplayName = "EEZ Layer",
+                TypeDefs = [new TypeDef("Type2", "Color2", null, "EEZ")]
+            }
+        };
+        var eezPolygons = new List<EezPolygon>
+        {
+            new(CountryId: 3, Points: [[0.0, 0.0], [20.0, 0.0], [20.0, 30.0], [0.0, 30.0]])
+        };
+        var countryNames = new Dictionary<int, string>
+        {
+            { 1, "Country 1" },
+            { 2, "Country 2" },
+            { 3, "Country 3" },
+            { 4, "Country 4" }
+        };
+
+        // Act
+        var result = _service.CalculateApproval(
+            plan, plan.Country, eezPolygons, layerEntries, countryNames, _ => []);
+
+        // Assert
+        result.Should().HaveCount(2, "should combine requirements from both layers");
+        // Country 3 appears from both AllCountries and EEZ
+        result.Should().Contain(a => a.CountryId == 3);
+        // Country 4 appears only from AllCountries (not in EEZ)
+        result.Should().Contain(a => a.CountryId == 4);
     }
 
-    // Test-only types that mirror the structure used in the actual code
-    private record TestRestriction(int CountryId, string Message);
-    private record TestApprovalRequirement(int CountryId, string CountryName, List<string> Reasons);
+    private static PlanEntry CreatePlan(int country, IReadOnlyList<PlanLayerData> layers) =>
+        new(
+            PlanId: 1,
+            Name: "Test Plan",
+            Description: "Test",
+            State: "DESIGN",
+            Country: country,
+            StartDate: 0,
+            ConstructionTime: 0,
+            PolicyNames: [],
+            PolicyTypes: [],
+            Layers: layers
+        );
 }
