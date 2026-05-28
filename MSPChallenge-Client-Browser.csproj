@@ -9,4 +9,10 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="MSPChallenge.Tests\**" />
+    <EmbeddedResource Remove="MSPChallenge.Tests\**" />
+    <None Remove="MSPChallenge.Tests\**" />
+  </ItemGroup>
+
 </Project>
