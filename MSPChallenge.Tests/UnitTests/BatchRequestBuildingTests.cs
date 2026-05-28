@@ -174,25 +174,27 @@ public class BatchRequestBuildingTests
     public void BuildLayerAddRequest_ReferencesNewPlanId()
     {
         // Arrange
-        var layerId = "SHIPPING";
+        var layerId = 10; // Integer layer ID as used in production
         var createPlanCallId = 1;
 
-        // Act
+        // Act - Production code uses api/Plan/Layer endpoint
         var request = new
         {
             call_id = 2,
-            endpoint = "api/Plan/AddLayer",
-            endpoint_data = new Dictionary<string, string>
+            endpoint = "api/Plan/Layer",
+            endpoint_data = JsonSerializer.Serialize(new
             {
-                { "id", $"!Ref:{createPlanCallId}" },
-                { "layer", layerId }
-            },
+                id = $"!Ref:{createPlanCallId}",
+                layerid = layerId
+            }),
             group = 3
         };
 
         // Assert
-        request.endpoint_data["id"].Should().Be("!Ref:1", 
+        request.endpoint.Should().Be("api/Plan/Layer", "production uses api/Plan/Layer endpoint");
+        request.endpoint_data.Should().Contain("!Ref:1", 
             "layer addition should reference the plan creation call");
+        request.endpoint_data.Should().Contain("\"layerid\"", "should use layerid parameter");
         request.group.Should().Be(3, "layer operations should be in group 3");
     }
 
