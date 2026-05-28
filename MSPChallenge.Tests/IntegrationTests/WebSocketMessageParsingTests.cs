@@ -98,10 +98,15 @@ public class WebSocketMessageParsingTests
         var wsMessage = new
         {
             header_name = "Game/Latest",
-            game_state = new
+            payload = new
             {
                 month = 120,
-                plans_added = new[] { 123, 124 }
+                game_state = "PLAY",
+                plan = new[]
+                {
+                    new { id = 123, name = "Test Plan 1", state = "DESIGN" },
+                    new { id = 124, name = "Test Plan 2", state = "CONSULTATION" }
+                }
             }
         };
 
@@ -110,11 +115,15 @@ public class WebSocketMessageParsingTests
         // Act
         var parsed = JsonDocument.Parse(json);
         var headerName = parsed.RootElement.GetProperty("header_name").GetString();
-        var gameState = parsed.RootElement.GetProperty("game_state");
-        var month = gameState.GetProperty("month").GetInt32();
+        var payload = parsed.RootElement.GetProperty("payload");
+        var month = payload.GetProperty("month").GetInt32();
+        var gameState = payload.GetProperty("game_state").GetString();
+        var plan = payload.GetProperty("plan");
 
         // Assert
         headerName.Should().Be("Game/Latest");
         month.Should().Be(120);
+        gameState.Should().Be("PLAY");
+        plan.GetArrayLength().Should().Be(2);
     }
 }
