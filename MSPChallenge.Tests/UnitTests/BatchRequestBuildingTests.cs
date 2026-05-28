@@ -95,29 +95,54 @@ public class BatchRequestBuildingTests
         var coords = new[] { new[] { 100.0, 50.0 }, new[] { 101.0, 51.0 } };
         var typeIndex = 1;
         var planIdRef = "!Ref:1";
+        var countryId = 1;
+        var geoCallId = 5;
 
-        // Act
+        // Act - Production code splits geometry creation into two requests:
+        // 1. POST to create geometry (group 5)
         var geometryJson = JsonSerializer.Serialize(coords);
-        var request = new
+        var createRequest = new
         {
-            call_id = 5,
-            endpoint = "api/Plan/AddGeometry",
-            endpoint_data = new Dictionary<string, string>
+            call_id = geoCallId,
+            endpoint = "api/Geometry/Post",
+            endpoint_data = JsonSerializer.Serialize(new
             {
-                { "id", planIdRef },
-                { "layer", layerId },
-                { "geometry", geometryJson },
-                { "type", typeIndex.ToString() }
-            },
+                geometry = geometryJson,
+                country = countryId,
+                layer = layerId,
+                plan = planIdRef
+            }),
             group = 5
         };
 
-        // Assert
-        request.endpoint.Should().Be("api/Plan/AddGeometry");
-        request.group.Should().Be(5, "geometry additions should be in group 5");
-        request.endpoint_data["id"].Should().Be("!Ref:1", "should reference plan creation call");
-        request.endpoint_data["geometry"].Should().Contain("100");
-        request.endpoint_data["geometry"].Should().Contain("50");
+        // 2. Data request to set type (group 10)
+        var dataRequest = new
+        {
+            call_id = 6,
+            endpoint = "api/Geometry/Data",
+            endpoint_data = JsonSerializer.Serialize(new
+            {
+                id = $"!Ref:{geoCallId}",
+                data = "",
+                type = typeIndex.ToString()
+            }),
+            group = 10
+        };
+
+        // Assert - Validate geometry creation request
+        createRequest.endpoint.Should().Be("api/Geometry/Post");
+        createRequest.group.Should().Be(5, "geometry creation should be in group 5");
+        createRequest.endpoint_data.Should().Contain("country");
+        createRequest.endpoint_data.Should().Contain(layerId);
+        createRequest.endpoint_data.Should().Contain(planIdRef);
+        createRequest.endpoint_data.Should().Contain("100");
+        createRequest.endpoint_data.Should().Contain("50");
+
+        // Assert - Validate geometry data request
+        dataRequest.endpoint.Should().Be("api/Geometry/Data");
+        dataRequest.group.Should().Be(10, "geometry data should be in group 10");
+        dataRequest.endpoint_data.Should().Contain("!Ref:5", "should reference geometry creation call");
+        dataRequest.endpoint_data.Should().Contain(typeIndex.ToString());
     }
 
     [Theory]
