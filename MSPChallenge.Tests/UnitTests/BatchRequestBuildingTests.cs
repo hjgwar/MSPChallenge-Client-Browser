@@ -209,7 +209,7 @@ public class BatchRequestBuildingTests
         var request = new
         {
             call_id = 1,
-            endpoint = "api/Plan/SetName",
+            endpoint = "api/Plan/Name",
             endpoint_data = new Dictionary<string, string>
             {
                 { "id", existingPlanId.ToString() },
