@@ -24,9 +24,12 @@ public class WebSocketMessageParsingTests
             {
                 batch_guid = batchGuid
             },
-            results = new[]
+            payload = new
             {
-                new { call_id = 1, success = true, message = expectedPlanId.ToString() }
+                results = new[]
+                {
+                    new { call_id = 1, payload = expectedPlanId.ToString() }
+                }
             }
         };
 
@@ -38,18 +41,17 @@ public class WebSocketMessageParsingTests
         var headerData = parsed.RootElement.GetProperty("header_data");
         var receivedBatchGuid = headerData.GetProperty("batch_guid").GetString();
         
-        var results = parsed.RootElement.GetProperty("results");
+        var payload = parsed.RootElement.GetProperty("payload");
+        var results = payload.GetProperty("results");
         var firstResult = results[0];
         var callId = firstResult.GetProperty("call_id").GetInt32();
-        var success = firstResult.GetProperty("success").GetBoolean();
-        var planIdStr = firstResult.GetProperty("message").GetString();
+        var planIdStr = firstResult.GetProperty("payload").GetString();
         var planId = int.Parse(planIdStr!);
 
         // Assert
         headerName.Should().Be("Batch/ExecuteBatch");
         receivedBatchGuid.Should().Be(batchGuid);
         callId.Should().Be(1, "plan creation should be call_id 1");
-        success.Should().BeTrue();
         planId.Should().Be(expectedPlanId);
     }
 
@@ -61,11 +63,14 @@ public class WebSocketMessageParsingTests
         {
             header_name = "Batch/ExecuteBatch",
             header_data = new { batch_guid = Guid.NewGuid().ToString() },
-            results = new[]
+            payload = new
             {
-                new { call_id = 1, success = true, message = "123" },
-                new { call_id = 2, success = true, message = "OK" },
-                new { call_id = 3, success = false, message = "Error" }
+                results = new[]
+                {
+                    new { call_id = 1, payload = "123" },
+                    new { call_id = 2, payload = "OK" },
+                    new { call_id = 3, payload = "Error" }
+                }
             }
         };
 
@@ -73,21 +78,17 @@ public class WebSocketMessageParsingTests
 
         // Act
         var parsed = JsonDocument.Parse(json);
-        var results = parsed.RootElement.GetProperty("results");
+        var payload = parsed.RootElement.GetProperty("payload");
+        var results = payload.GetProperty("results");
         var callIds = new List<int>();
-        var successFlags = new List<bool>();
 
         foreach (var result in results.EnumerateArray())
         {
             callIds.Add(result.GetProperty("call_id").GetInt32());
-            successFlags.Add(result.GetProperty("success").GetBoolean());
         }
 
         // Assert
         callIds.Should().Equal(1, 2, 3);
-        successFlags.Should().HaveCount(3);
-        successFlags.Take(2).Should().AllBeEquivalentTo(true);
-        successFlags.Last().Should().BeFalse();
     }
 
     [Fact]
