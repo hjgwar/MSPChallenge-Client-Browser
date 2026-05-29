@@ -275,12 +275,6 @@ public partial class Game
     /// <summary>
     /// Computes and sends the world-state projection to the map for all earlier finalised plans
     /// relative to <paramref name="planStartDate"/>.
-    /// Pass <paramref name="singleLayerId"/> to restrict processing to one layer â€” used when
-    /// the user activates a layer from the panel while a plan is already selected.
-    /// </summary>
-    /// <summary>
-    /// Computes and sends the world-state projection to the map for all earlier finalised plans
-    /// relative to <paramref name="planStartDate"/>.
     /// Pass <paramref name="singleLayerId"/> to restrict processing to one layer — used when
     /// the user activates a layer from the panel while a plan is already selected.
     /// Pass <paramref name="currentPlan"/> to also hide base geometry that the current plan modifies.

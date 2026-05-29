@@ -208,16 +208,27 @@ public partial class Game
                     _geometryToolSelectedWorldStateId,
                     _geometryToolSelectedWorldStateId is not null ? _geometryToolSelectedOriginalTypeIndex : null));
                 _drawingRedoStack.Clear();
-                
+            
                 // Update feature type in overlay
                 if (_mapModule is not null)
                     await _mapModule.InvokeVoidAsync("setFeatureType", _geometryToolSelectedFeatureId, idx);
-                
-                // Mark world-state features as modified with edit badge and hide base geometry
+            
+                // Check if world-state feature is back to original state after type change
                 if (_geometryToolSelectedWorldStateId is not null && _geometryToolLayerId is not null)
                 {
-                    await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "edit");
-                    await _mapModule.InvokeVoidAsync("hideBaseGeometry", _geometryToolLayerId, _geometryToolSelectedWorldStateId);
+                    var isOriginal = await _mapModule.InvokeAsync<bool>("isFeatureInOriginalState", _geometryToolSelectedFeatureId);
+                    if (isOriginal)
+                    {
+                        // Feature returned to original state - clear badge and unhide base
+                        await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "none");
+                        await _mapModule.InvokeVoidAsync("unhideBaseGeometry", _geometryToolLayerId, _geometryToolSelectedWorldStateId);
+                    }
+                    else
+                    {
+                        // Feature is modified - show edit badge and hide base geometry
+                        await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "edit");
+                        await _mapModule.InvokeVoidAsync("hideBaseGeometry", _geometryToolLayerId, _geometryToolSelectedWorldStateId);
+                    }
                 }
             }
             
@@ -389,9 +400,9 @@ public partial class Game
         if (_geometryToolSelectedFeatureId is null || _geometryToolLayerId is null || _mapModule is null) return;
         var layerEntry = _layerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
         var worldStateId = _geometryToolSelectedWorldStateId;
-        // Check if the feature was modified before deletion
+        // Check if the feature was modified before deletion (coords or type changed)
         var wasModified = worldStateId is not null 
-            && await _mapModule.InvokeAsync<bool>("getFeatureModifiedStatus", _geometryToolSelectedFeatureId);
+            && !await _mapModule.InvokeAsync<bool>("isFeatureInOriginalState", _geometryToolSelectedFeatureId);
         _drawingUndoStack.Add(new DeleteAction(
             _geometryToolSelectedFeatureId, _geometryToolLayerId,
             _geometryToolSelectedTypeIndex, layerEntry?.GeoType ?? "polygon",
@@ -417,7 +428,7 @@ public partial class Game
     private async Task RestoreSelectedGeometryAsync()
     {
         if (_geometryToolSelectedFeatureId is null || _geometryToolSelectedWorldStateId is null 
-            || _mapModule is null || !_geometryToolSelectedIsMarkedForDeletion) return;
+            || _geometryToolLayerId is null || _mapModule is null || !_geometryToolSelectedIsMarkedForDeletion) return;
         
         // Remove from deleted set
         _deletedWorldStateIds.Remove(_geometryToolSelectedWorldStateId);
@@ -425,8 +436,20 @@ public partial class Game
         // Restore visual styling
         await _mapModule.InvokeVoidAsync("unmarkFeatureAsDeleted", _geometryToolSelectedFeatureId);
         
-        // Remove deletion badge (feature might have edit badge if it was modified before deletion)
-        await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "none");
+        // Re-evaluate badge and base geometry visibility based on modified status
+        var isOriginal = await _mapModule.InvokeAsync<bool>("isFeatureInOriginalState", _geometryToolSelectedFeatureId);
+        if (isOriginal)
+        {
+            // Feature is in original state - no badge, unhide base geometry
+            await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "none");
+            await _mapModule.InvokeVoidAsync("unhideBaseGeometry", _geometryToolLayerId, _geometryToolSelectedWorldStateId);
+        }
+        else
+        {
+            // Feature was modified (coords or type) - show edit badge, hide base geometry
+            await UpdateGeometryBadgeAsync(_geometryToolSelectedFeatureId, "edit");
+            await _mapModule.InvokeVoidAsync("hideBaseGeometry", _geometryToolLayerId, _geometryToolSelectedWorldStateId);
+        }
         
         _geometryToolSelectedIsMarkedForDeletion = false;
         StateHasChanged();
