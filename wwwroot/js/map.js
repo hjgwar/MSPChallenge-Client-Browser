@@ -737,7 +737,7 @@ export function showPlanGeometry(layersJson) {
             // Badge placed at the bounding-box centre of the geometry
             const badge  = geo.isNew ? plusBadge : editBadge;
             const center = ol.extent.getCenter(olGeom.getExtent());
-            const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true, _badgeForFeature: planFeatId });
+            const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true, _badgeForFeature: String(planFeatId) });
             badgeFeature.setStyle(new ol.style.Style({ image: badge }));
             features.push(badgeFeature);
 
@@ -796,9 +796,14 @@ export function showPlanGeometry(layersJson) {
                     deletedGeomFeature.setId(persistentId);
                     deletedGeomFeature.set('mspId', persistentId);
                     deletedGeomFeature.set('mspOriginalLayerId', layer.originalLayerId);
-                    deletedGeomFeature.set('mspType', baseFeature.get('mspType') ?? 0);
+                    const baseType = baseFeature.get('mspType') ?? 0;
+                    deletedGeomFeature.set('mspType', baseType);
                     deletedGeomFeature.set('_worldStateId', String(persistentId));
                     deletedGeomFeature.set('_isMarkedForDeletion', true);
+                    // Set original state fields so downstream logic recognizes this as an unmodified world-state feature
+                    const origCoords = geometryToCoords(geom).map(c => [...c]);
+                    deletedGeomFeature.set('_worldStateOrigCoords', origCoords);
+                    deletedGeomFeature.set('_worldStateOrigType', baseType);
                     deletedGeomFeature.setStyle(deletionHighlightStyle);
                     features.push(deletedGeomFeature);
 
@@ -1056,10 +1061,13 @@ export function updateFeatureBadge(featureId, badgeType) {
     const feature = getPlanOverlayFeatureById(featureId);
     if (!feature) return;
     
+    // Normalize featureId for consistent comparison
+    const normalizedId = String(featureId);
+    
     // Remove existing badge for this feature
     const existingBadges = source.getFeatures().filter(f => 
         f.get('_isBadge') && 
-        f.get('_badgeForFeature') === featureId &&
+        String(f.get('_badgeForFeature')) === normalizedId &&
         !f.get('_isRestrictionBadge')
     );
     existingBadges.forEach(b => source.removeFeature(b));
@@ -1080,21 +1088,30 @@ export function updateFeatureBadge(featureId, badgeType) {
     const badgeFeature = new ol.Feature({ 
         geometry: new ol.geom.Point(center), 
         _isBadge: true,
-        _badgeForFeature: featureId
+        _badgeForFeature: normalizedId
     });
     badgeFeature.setStyle(new ol.style.Style({ image: badge }));
     source.addFeature(badgeFeature);
 }
 
 /**
- * Check if a feature has been modified from its original world-state coordinates.
+ * Check if a feature has been modified from its original world-state coordinates or type.
  * @param {string} featureId The feature ID to check
- * @returns {boolean} True if the feature has _worldStateModified flag set
+ * @returns {boolean} True if the feature has been modified (coords or type changed)
  */
 export function getFeatureModifiedStatus(featureId) {
     const feature = getPlanOverlayFeatureById(featureId);
     if (!feature) return false;
-    return feature.get('_worldStateModified') === true;
+    
+    // Check if coordinates were modified
+    if (feature.get('_worldStateModified') === true) return true;
+    
+    // Also check if type was modified
+    const origType = feature.get('_worldStateOrigType');
+    const currentType = feature.get('mspType');
+    if (origType !== undefined && currentType !== origType) return true;
+    
+    return false;
 }
 
 /**
@@ -1131,8 +1148,16 @@ export function unmarkFeatureAsDeleted(featureId) {
     // Clear deletion flag
     feature.unset('_isMarkedForDeletion');
     
-    // Restore default styling (null uses the layer's default planOverlayStyle)
-    feature.setStyle(null);
+    // Restore appropriate style based on modified status
+    // Check if feature was modified (coords or type changed) before deletion
+    const wasModified = feature.get('_worldStateModified') === true;
+    if (wasModified) {
+        // Modified features get gold overlay style
+        feature.setStyle(null); // null uses layer default planOverlayStyle
+    } else {
+        // Unmodified world-state features should be transparent
+        feature.setStyle(worldStateUnmodifiedStyle);
+    }
 }
 
 /**
@@ -1168,7 +1193,7 @@ export function loadWorldStateFeatures(featuresJson) {
 }
 
 /**
- * When the geometry tool closes, remove world-state features whose coordinates are unchanged.
+ * When the geometry tool closes, remove world-state features whose coordinates and type are unchanged.
  * Modified world-state features are kept in the overlay so they can be saved on Accept.
  * @param {string} layerId
  */
@@ -1180,9 +1205,14 @@ export function removeUnchangedWorldStateFeatures(layerId) {
         if (f.get('mspOriginalLayerId') !== layerId) continue;
         if (!f.get('_worldStateId')) continue; // not a world-state feature
         const origCoords = f.get('_worldStateOrigCoords');
+        const origType = f.get('_worldStateOrigType');
         if (!origCoords) { toRemove.push(f); continue; }
         const curCoords = geometryToCoords(f.getGeometry());
-        if (_coordsEqual(origCoords, curCoords)) toRemove.push(f); // unchanged
+        const curType = f.get('mspType');
+        // Check both coordinates and type - if either changed, keep the feature
+        const coordsChanged = !_coordsEqual(origCoords, curCoords);
+        const typeChanged = origType !== undefined && curType !== origType;
+        if (!coordsChanged && !typeChanged) toRemove.push(f); // unchanged
         // else: modified — keep in overlay until Accept
     }
     for (const f of toRemove) source.removeFeature(f);
@@ -1364,12 +1394,12 @@ export function isFeatureInOriginalState(featureId) {
         return false;
     }
     
-    // Compare coordinates
+    // Compare coordinates using same tolerance as _coordsEqual for consistency
     if (currentCoords.length !== origCoords.length) return false;
     
     for (let i = 0; i < currentCoords.length; i++) {
-        if (Math.abs(currentCoords[i][0] - origCoords[i][0]) > 1e-9 ||
-            Math.abs(currentCoords[i][1] - origCoords[i][1]) > 1e-9) {
+        if (Math.abs(currentCoords[i][0] - origCoords[i][0]) > 0.01 ||
+            Math.abs(currentCoords[i][1] - origCoords[i][1]) > 0.01) {
             return false;
         }
     }
