@@ -1373,6 +1373,18 @@ html, body {
     font-variant-numeric: tabular-nums;
 }
 
+.game-bar-state--clickable {
+    cursor: pointer;
+    transition: background 0.12s;
+    padding: 0.3rem 0.5rem;
+    margin: -0.3rem -0.5rem;
+    border-radius: 4px;
+}
+
+.game-bar-state--clickable:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
 /* ── Plan detail panel ───────────────────────────────────────────────────── */
 .plan-detail-panel {
     background: transparent; /* ::before provides background + blur */
@@ -1881,7 +1893,6 @@ html, body {
     bottom: -0.25rem;
     width: 320px;
     max-width: min(320px, calc(100vw - 5rem));
-    max-height: 38vh;
     display: flex;
     flex-direction: column;
     border-radius: 0.5rem;
@@ -1938,6 +1949,7 @@ html, body {
     gap: 0.35rem;
     max-height: 40vh;
     background: rgba(255,255,255,0.02);
+    overflow-y: auto;
 }
 
 .plan-message-empty {
@@ -2161,6 +2173,206 @@ html, body {
     flex-shrink: 0;
     color: #adb5bd;
 }
+
+/* ── Time Manager ─────────────────────────────────────────────────── */
+.time-manager-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-manager-panel {
+    width: 520px;
+    background: linear-gradient(135deg, #3e4c4f 0%, #2d3639 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+}
+
+.time-manager-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    user-select: none;
+}
+
+.time-manager-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f8f9fa;
+}
+
+.time-manager-close {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #adb5bd;
+    cursor: pointer;
+    transition: color 0.12s;
+}
+
+.time-manager-close:hover {
+    color: #f8f9fa;
+}
+
+.time-manager-close svg {
+    width: 100%;
+    height: 100%;
+}
+
+.time-manager-content {
+    padding: 1.2rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.time-manager-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.time-manager-section-title {
+    font-size: 0.8rem;
+    color: #adb5bd;
+    font-weight: 500;
+}
+
+.time-manager-time-display {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.time-manager-time-block {
+    flex: 1;
+    padding: 0.6rem;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #f8f9fa;
+    font-family: 'Courier New', monospace;
+}
+
+.time-manager-time-editable {
+    cursor: pointer;
+    display: block;
+    width: 100%;
+}
+
+.time-manager-time-editable:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+}
+
+.time-manager-time-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    color: #f8f9fa;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    padding: 0.2rem;
+}
+
+.time-manager-time-input:focus {
+    outline: none;
+    border-color: #0d6efd;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.time-manager-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.time-manager-timeline-years {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #adb5bd;
+    padding: 0 0.2rem;
+}
+
+.time-manager-timeline-track {
+    height: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+}
+
+.time-manager-timeline-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #5bc0de 0%, #46b8da 100%);
+    transition: width 0.3s ease;
+}
+
+.time-manager-controls {
+    display: flex;
+    justify-content: center;
+    gap: 0.8rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.15);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.time-manager-control-btn {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    color: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-manager-control-btn:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.time-manager-control-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.time-manager-control-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
 
 .plan-detail-panel > .plan-edit-btn {
     display: block;

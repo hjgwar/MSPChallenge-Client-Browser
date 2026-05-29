@@ -1,0 +1,85 @@
+@if (IsVisible)
+{
+    <div class="time-manager-overlay" @onclick="OnBackdropClick">
+        <div class="time-manager-panel" @onclick:stopPropagation="true">
+            <div class="time-manager-header">
+                <div class="time-manager-title">Time Manager</div>
+                <button class="time-manager-close" @onclick="OnClose" title="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="time-manager-content">
+                <div class="time-manager-section">
+                    <div class="time-manager-section-title">Remaining planning time</div>
+                    <div class="time-manager-time-display">
+                        @for (int i = 0; i < GameSessionState.ERA_COUNT; i++)
+                        {
+                            var eraIndex = i; // Capture for lambda
+                            <div class="time-manager-time-block">
+                                @if (IsEraEditable(eraIndex) && _eraTimeEditing[eraIndex])
+                                {
+                                    <input type="text" 
+                                           class="time-manager-time-input"
+                                           value="@_eraTimeInputs[eraIndex]"
+                                           @onchange="@(e => OnEraTimeInputChange(eraIndex, e))"
+                                           @onblur="@(() => OnEraTimeBlur(eraIndex))"
+                                           placeholder="H:MM:SS" />
+                                }
+                                else
+                                {
+                                    <span @onclick="@(() => OnEraTimeClick(eraIndex))" 
+                                          class="@(IsEraEditable(eraIndex) ? "time-manager-time-editable" : "")">
+                                        @GetEraTimeDisplay(eraIndex)
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="time-manager-timeline">
+                    <div class="time-manager-timeline-years">
+                        <span>@GameSessionState.GameStartYear</span>
+                        <span>@((GameSessionState.GameStartYear + GameSessionState.GameEraTotalMonths / 12))</span>
+                        <span>@((GameSessionState.GameStartYear + GameSessionState.GameEraTotalMonths / 6))</span>
+                        <span>@((GameSessionState.GameStartYear + GameSessionState.GameEraTotalMonths / 4))</span>
+                        <span>@GameSessionState.GameEndYear</span>
+                    </div>
+                    <div class="time-manager-timeline-track">
+                        <div class="time-manager-timeline-fill" style="width: @(_timelineProgress)%"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="time-manager-controls">
+                <button class="time-manager-control-btn" 
+                        disabled="@(!CanPlay)" 
+                        @onclick="OnPlay"
+                        title="Play">
+                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="8,5 19,12 8,19"/>
+                    </svg>
+                </button>
+                <button class="time-manager-control-btn" 
+                        disabled="@(!CanPause)" 
+                        @onclick="OnPause"
+                        title="Pause">
+                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="6" y="5" width="4" height="14"/>
+                        <rect x="14" y="5" width="4" height="14"/>
+                    </svg>
+                </button>
+                <button class="time-manager-control-btn" 
+                        disabled="@(!CanFastForward)" 
+                        @onclick="OnFastForward"
+                        title="Fast Forward">
+                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="4,5 13,12 4,19"/>
+                        <polygon points="13,5 22,12 13,19"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+}
