@@ -766,7 +766,7 @@
                                                     <button class="panel-close-btn" title="Close" type="button"
                                                             @onclick="CloseGeometryToolAsync">&#10005;</button>
                                                 </div>
-                                                @if (_geoToolLayer?.TypeDefs.Count > 1)
+                                                @if (_geoToolLayer?.TypeDefs.Count > 0)
                                                 {
                                                     <div class="geometry-tool-section">
                                                         <div class="geometry-tool-section-title">Layer Types</div>
@@ -826,27 +826,33 @@
                                                         </svg>
                                                         <span>Redo</span>
                                                     </button>
-                                                    <button class="geometry-tool-btn geometry-tool-btn--danger" type="button" title="Delete selected geometry"
-                                                            disabled="@(_geometryToolSelectedFeatureId is null)"
-                                                            @onclick="DeleteSelectedGeometryAsync">
-                                                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
-                                                            <polyline points="2,4 14,4"/>
-                                                            <path d="M6 4V2h4v2"/>
-                                                            <rect x="3" y="4" width="10" height="10" rx="1"/>
-                                                            <line x1="6" y1="7" x2="6" y2="11"/>
-                                                            <line x1="10" y1="7" x2="10" y2="11"/>
-                                                        </svg>
-                                                        <span>Delete</span>
-                                                    </button>
-                                                    <button class="geometry-tool-btn" type="button" title="Restore last deleted geometry"
-                                                            disabled="@(!_drawingUndoStack.OfType<DeleteAction>().Any())"
-                                                            @onclick="RestoreLastDeletedAsync">
-                                                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
-                                                            <path d="M3 8a5 5 0 1 1 2 4"/>
-                                                            <polyline points="1,6 3,8 5,6"/>
-                                                        </svg>
-                                                        <span>Restore</span>
-                                                    </button>
+                                                    @if (_geometryToolSelectedIsMarkedForDeletion)
+                                                    {
+                                                        <button class="geometry-tool-btn geometry-tool-btn--success" type="button" title="Restore selected geometry from deletion"
+                                                                disabled="@(_geometryToolSelectedFeatureId is null)"
+                                                                @onclick="RestoreSelectedGeometryAsync">
+                                                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
+                                                                <path d="M3 8a5 5 0 1 1 2 4"/>
+                                                                <polyline points="1,6 3,8 5,6"/>
+                                                            </svg>
+                                                            <span>Restore</span>
+                                                        </button>
+                                                    }
+                                                    else
+                                                    {
+                                                        <button class="geometry-tool-btn geometry-tool-btn--danger" type="button" title="Delete selected geometry"
+                                                                disabled="@(_geometryToolSelectedFeatureId is null)"
+                                                                @onclick="DeleteSelectedGeometryAsync">
+                                                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
+                                                                <polyline points="2,4 14,4"/>
+                                                                <path d="M6 4V2h4v2"/>
+                                                                <rect x="3" y="4" width="10" height="10" rx="1"/>
+                                                                <line x1="6" y1="7" x2="6" y2="11"/>
+                                                                <line x1="10" y1="7" x2="10" y2="11"/>
+                                                            </svg>
+                                                            <span>Delete</span>
+                                                        </button>
+                                                    }
                                                 </div>
                                             </div>
                                         }

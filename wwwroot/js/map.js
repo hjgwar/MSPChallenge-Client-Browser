@@ -737,7 +737,7 @@ export function showPlanGeometry(layersJson) {
             // Badge placed at the bounding-box centre of the geometry
             const badge  = geo.isNew ? plusBadge : editBadge;
             const center = ol.extent.getCenter(olGeom.getExtent());
-            const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true });
+            const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true, _badgeForFeature: String(planFeatId) });
             badgeFeature.setStyle(new ol.style.Style({ image: badge }));
             features.push(badgeFeature);
 
@@ -793,12 +793,23 @@ export function showPlanGeometry(layersJson) {
 
                     // Red dashed highlight over the geometry
                     const deletedGeomFeature = new ol.Feature({ geometry: geom.clone() });
+                    deletedGeomFeature.setId(persistentId);
+                    deletedGeomFeature.set('mspId', persistentId);
+                    deletedGeomFeature.set('mspOriginalLayerId', layer.originalLayerId);
+                    const baseType = baseFeature.get('mspType') ?? 0;
+                    deletedGeomFeature.set('mspType', baseType);
+                    deletedGeomFeature.set('_worldStateId', String(persistentId));
+                    deletedGeomFeature.set('_isMarkedForDeletion', true);
+                    // Set original state fields so downstream logic recognizes this as an unmodified world-state feature
+                    const origCoords = geometryToCoords(geom).map(c => [...c]);
+                    deletedGeomFeature.set('_worldStateOrigCoords', origCoords);
+                    deletedGeomFeature.set('_worldStateOrigType', baseType);
                     deletedGeomFeature.setStyle(deletionHighlightStyle);
                     features.push(deletedGeomFeature);
 
                     // Minus badge placed at the geometry's bounding-box centre
                     const center = ol.extent.getCenter(geom.getExtent());
-                    const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true });
+                    const badgeFeature = new ol.Feature({ geometry: new ol.geom.Point(center), _isBadge: true, _badgeForFeature: String(persistentId) });
                     badgeFeature.setStyle(new ol.style.Style({ image: minusBadge }));
                     features.push(badgeFeature);
                 }
@@ -1001,6 +1012,13 @@ export function setFeatureCoords(featureId, coords) {
     getPlanOverlaySource()?.changed();
 }
 
+export function setFeatureType(featureId, typeIndex) {
+    const f = getPlanOverlayFeatureById(featureId);
+    if (!f) return;
+    f.set('mspType', typeIndex);
+    getPlanOverlaySource()?.changed();
+}
+
 export function removeFeatureFromOverlay(featureId) {
     const source = getPlanOverlaySource();
     if (!source) return;
@@ -1031,6 +1049,118 @@ export function addFeatureToOverlay(featureJson) {
 }
 
 /**
+ * Add or update a badge for a specific feature in the overlay.
+ * Removes any existing badge for this feature first.
+ * @param {string} featureId The feature to badge
+ * @param {string} badgeType 'plus', 'edit', 'minus', or 'none' to remove badge
+ */
+export function updateFeatureBadge(featureId, badgeType) {
+    const source = getPlanOverlaySource();
+    if (!source) return;
+    
+    const feature = getPlanOverlayFeatureById(featureId);
+    if (!feature) return;
+    
+    // Normalize featureId for consistent comparison
+    const normalizedId = String(featureId);
+    
+    // Remove existing badge for this feature
+    const existingBadges = source.getFeatures().filter(f => 
+        f.get('_isBadge') && 
+        String(f.get('_badgeForFeature')) === normalizedId &&
+        !f.get('_isRestrictionBadge')
+    );
+    existingBadges.forEach(b => source.removeFeature(b));
+    
+    if (badgeType === 'none') return;
+    
+    // Create new badge
+    let badge;
+    if (badgeType === 'plus') badge = createPlusBadgeIcon();
+    else if (badgeType === 'edit') badge = createEditBadgeIcon();
+    else if (badgeType === 'minus') badge = createMinusBadgeIcon();
+    else return;
+    
+    const geom = feature.getGeometry();
+    if (!geom) return;
+    
+    const center = ol.extent.getCenter(geom.getExtent());
+    const badgeFeature = new ol.Feature({ 
+        geometry: new ol.geom.Point(center), 
+        _isBadge: true,
+        _badgeForFeature: normalizedId
+    });
+    badgeFeature.setStyle(new ol.style.Style({ image: badge }));
+    source.addFeature(badgeFeature);
+}
+
+/**
+ * Check if a feature has been modified from its original world-state coordinates or type.
+ * @param {string} featureId The feature ID to check
+ * @returns {boolean} True if the feature has been modified (coords or type changed)
+ */
+export function getFeatureModifiedStatus(featureId) {
+    const feature = getPlanOverlayFeatureById(featureId);
+    if (!feature) return false;
+    
+    // Check if coordinates were modified
+    if (feature.get('_worldStateModified') === true) return true;
+    
+    // Also check if type was modified
+    const origType = feature.get('_worldStateOrigType');
+    const currentType = feature.get('mspType');
+    if (origType !== undefined && currentType !== origType) return true;
+    
+    return false;
+}
+
+/**
+ * Mark a world-state feature as deleted: apply red deletion styling and add minus badge.
+ * Does NOT remove the feature from the overlay.
+ * @param {string} featureId The feature to mark as deleted
+ */
+export function markFeatureAsDeleted(featureId) {
+    const source = getPlanOverlaySource();
+    if (!source) return;
+    
+    const feature = getPlanOverlayFeatureById(featureId);
+    if (!feature) return;
+    
+    // Mark as deleted so it's filtered from save operations
+    feature.set('_isMarkedForDeletion', true);
+    
+    // Apply red deletion styling
+    feature.setStyle(deletionHighlightStyle);
+    
+    // Add minus badge
+    updateFeatureBadge(featureId, 'minus');
+}
+
+/**
+ * Unmark a world-state feature from deletion: restore normal styling.
+ * The badge should be updated separately via updateFeatureBadge.
+ * @param {string} featureId The feature to unmark
+ */
+export function unmarkFeatureAsDeleted(featureId) {
+    const feature = getPlanOverlayFeatureById(featureId);
+    if (!feature) return;
+    
+    // Clear deletion flag
+    feature.unset('_isMarkedForDeletion');
+    
+    // Restore appropriate style based on modified status
+    // Check if feature was modified (coords or type changed) before deletion
+    const wasModified = feature.get('_worldStateModified') === true;
+    if (wasModified) {
+        // Modified features get gold overlay style
+        feature.setStyle(null); // null uses layer default planOverlayStyle
+    } else {
+        // Unmodified world-state features should be transparent
+        feature.setStyle(worldStateUnmodifiedStyle);
+    }
+}
+
+/**
  * Load world-state (projected) features for a layer into the plan overlay as editable items.
  * Skips features already present in the overlay (plan's own geometry).
  * Each feature gets _worldStateId and _worldStateOrigCoords for change-detection on save.
@@ -1054,6 +1184,7 @@ export function loadWorldStateFeatures(featuresJson) {
         f.set('mspType',              item.typeIndex ?? 0);
         f.set('_worldStateId',        String(item.id));                    // id = worldStateId for base/prior features
         f.set('_worldStateOrigCoords', coords.map(c => [...c]));          // snapshot for change detection
+        f.set('_worldStateOrigType',  item.typeIndex ?? 0);                // original type for change detection
         f.set('_worldStateModified',  false);                              // not modified yet
         f.setStyle(worldStateUnmodifiedStyle);                             // transparent until modified
         f.setId(String(item.id));
@@ -1062,7 +1193,7 @@ export function loadWorldStateFeatures(featuresJson) {
 }
 
 /**
- * When the geometry tool closes, remove world-state features whose coordinates are unchanged.
+ * When the geometry tool closes, remove world-state features whose coordinates and type are unchanged.
  * Modified world-state features are kept in the overlay so they can be saved on Accept.
  * @param {string} layerId
  */
@@ -1074,9 +1205,14 @@ export function removeUnchangedWorldStateFeatures(layerId) {
         if (f.get('mspOriginalLayerId') !== layerId) continue;
         if (!f.get('_worldStateId')) continue; // not a world-state feature
         const origCoords = f.get('_worldStateOrigCoords');
+        const origType = f.get('_worldStateOrigType');
         if (!origCoords) { toRemove.push(f); continue; }
         const curCoords = geometryToCoords(f.getGeometry());
-        if (_coordsEqual(origCoords, curCoords)) toRemove.push(f); // unchanged
+        const curType = f.get('mspType');
+        // Check both coordinates and type - if either changed, keep the feature
+        const coordsChanged = !_coordsEqual(origCoords, curCoords);
+        const typeChanged = origType !== undefined && curType !== origType;
+        if (!coordsChanged && !typeChanged) toRemove.push(f); // unchanged
         // else: modified — keep in overlay until Accept
     }
     for (const f of toRemove) source.removeFeature(f);
@@ -1104,6 +1240,8 @@ export function getOverlayFeaturesJson(layerId) {
     for (const f of source.getFeatures()) {
         if (f.get('mspOriginalLayerId') !== layerId) continue;
         if (f.get('_isBadge')) continue;
+        // Exclude features marked for deletion - they're handled separately via _deletedWorldStateIds
+        if (f.get('_isMarkedForDeletion')) continue;
         const coords     = geometryToCoords(f.getGeometry()).map(c => [...c]);
         const origCoords = f.get('_worldStateOrigCoords');
         result.push({
@@ -1190,6 +1328,97 @@ export function clearPlanProjection() {
 export function setPlanOverlayVisible(visible) {
     const layer = vectorLayers[PLAN_OVERLAY_ID];
     if (layer) layer.setVisible(visible);
+}
+
+/** Hide a specific base geometry feature by its ID (used when editing modifies world-state geometry). */
+export function hideBaseGeometry(layerId, featureId) {
+    const layer = vectorLayers[layerId];
+    if (!layer) return;
+    const source = layer.getSource();
+    for (const feature of source.getFeatures()) {
+        if (String(feature.get('mspId')) === String(featureId)) {
+            feature.set('_projHidden', true);
+            source.changed();
+            break;
+        }
+    }
+}
+
+/** Unhide a specific base geometry feature by its ID (used when undo restores original state). */
+export function unhideBaseGeometry(layerId, featureId) {
+    const layer = vectorLayers[layerId];
+    if (!layer) return;
+    const source = layer.getSource();
+    for (const feature of source.getFeatures()) {
+        if (String(feature.get('mspId')) === String(featureId)) {
+            if (feature.get('_projHidden')) {
+                feature.unset('_projHidden');
+                source.changed();
+            }
+            break;
+        }
+    }
+}
+
+/** Check if a feature matches its original state (both coordinates and type). */
+export function isFeatureInOriginalState(featureId) {
+    if (!PLAN_OVERLAY_ID || !vectorLayers[PLAN_OVERLAY_ID]) return false;
+    const overlaySource = vectorLayers[PLAN_OVERLAY_ID].getSource();
+    const overlayFeature = overlaySource.getFeatures().find(f => String(f.getId()) === String(featureId));
+    if (!overlayFeature) return false;
+    
+    const worldStateId = overlayFeature.get('_worldStateId');
+    if (!worldStateId) return false; // Not a world-state feature
+    
+    const origCoords = overlayFeature.get('_worldStateOrigCoords');
+    const origType = overlayFeature.get('_worldStateOrigType');
+    if (!origCoords) return false;
+    
+    const currentGeom = overlayFeature.getGeometry();
+    const currentType = overlayFeature.get('mspType');
+    if (!currentGeom) return false;
+    
+    // Check if type matches original
+    if (origType !== undefined && currentType !== origType) {
+        return false;
+    }
+    
+    let currentCoords;
+    if (currentGeom.getType() === 'Polygon') {
+        currentCoords = currentGeom.getCoordinates()[0];
+    } else if (currentGeom.getType() === 'LineString') {
+        currentCoords = currentGeom.getCoordinates();
+    } else if (currentGeom.getType() === 'Point') {
+        currentCoords = [currentGeom.getCoordinates()];
+    } else {
+        return false;
+    }
+    
+    // Compare coordinates using same tolerance as _coordsEqual for consistency
+    if (currentCoords.length !== origCoords.length) return false;
+    
+    for (let i = 0; i < currentCoords.length; i++) {
+        if (Math.abs(currentCoords[i][0] - origCoords[i][0]) > 0.01 ||
+            Math.abs(currentCoords[i][1] - origCoords[i][1]) > 0.01) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+/** Check if a feature's coordinates and type match original and unhide base if so. */
+export function checkAndUnhideIfOriginal(layerId, featureId) {
+    if (isFeatureInOriginalState(featureId)) {
+        const overlaySource = vectorLayers[PLAN_OVERLAY_ID].getSource();
+        const overlayFeature = overlaySource.getFeatures().find(f => String(f.getId()) === String(featureId));
+        if (overlayFeature) {
+            const worldStateId = overlayFeature.get('_worldStateId');
+            if (worldStateId) {
+                unhideBaseGeometry(layerId, worldStateId);
+            }
+        }
+    }
 }
 
 // ── Draggable floating panels ─────────────────────────────────────────────────
