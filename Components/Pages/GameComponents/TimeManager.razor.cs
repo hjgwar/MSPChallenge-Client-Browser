@@ -3,7 +3,7 @@ using MSPChallenge_Client_Browser.Services;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents
 {
-    public partial class TimeManager
+    public partial class TimeManager : IDisposable
     {
         [Inject] private GameSessionState GameSessionState { get; set; } = null!;
         [Inject] private SessionState SessionState { get; set; } = null!;
@@ -28,10 +28,15 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents
             GameSessionState.Changed += OnGameSessionStateChanged;
         }
 
+        public void Dispose()
+        {
+            GameSessionState.Changed -= OnGameSessionStateChanged;
+        }
+
         private void OnGameSessionStateChanged()
         {
             // Marshal back to Blazor UI thread and trigger re-render
-            InvokeAsync(StateHasChanged);
+            _ = InvokeAsync(StateHasChanged);
         }
 
         protected override void OnParametersSet()
