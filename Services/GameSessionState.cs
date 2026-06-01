@@ -9,14 +9,14 @@ namespace MSPChallenge_Client_Browser.Services;
 /// </summary>
 public sealed class GameSessionState : IDisposable
 {
-    private readonly GameWebSocketService? _ws;
+    private readonly GameWebSocketService _ws;
     private readonly SemaphoreSlim _initGate = new(1, 1);
 
     public GameSessionState(GameWebSocketService ws)
     {
+        ArgumentNullException.ThrowIfNull(ws);
         _ws = ws;
-        if (_ws is not null)
-            _ws.MessageReceived += OnWsMessage;
+        _ws.MessageReceived += OnWsMessage;
     }
 
     // ── Config (written once during LoadGameDataAsync on the Game page) ─────────
