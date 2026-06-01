@@ -430,8 +430,7 @@ public sealed class GameSessionState : IDisposable
     /// </summary>
     public async Task ResetAsync()
     {
-        if (_ws is not null)
-            await _ws.StopAsync();
+        await _ws.StopAsync();
 
         LayerEntries.Clear();
         MapLayerSnapshots.Clear();
