@@ -539,16 +539,22 @@ public sealed class GameSessionState : IDisposable
 
         if (configPayload.TryGetProperty("end", out var endYearProp))
         {
-            GameEndYear = endYearProp.ValueKind == JsonValueKind.Number
+            int parsedEnd = endYearProp.ValueKind == JsonValueKind.Number
                 ? endYearProp.GetInt32()
-                : int.TryParse(endYearProp.GetString(), out var ey) ? ey : 2050;
+                : int.TryParse(endYearProp.GetString(), out var ey) ? ey : 0;
+            
+            if (parsedEnd > 0)
+                GameEndYear = parsedEnd;
         }
 
         if (configPayload.TryGetProperty("era_total_months", out var eraTotalMonthsProp))
         {
-            GameEraTotalMonths = eraTotalMonthsProp.ValueKind == JsonValueKind.Number
+            int parsedMonths = eraTotalMonthsProp.ValueKind == JsonValueKind.Number
                 ? eraTotalMonthsProp.GetInt32()
-                : int.TryParse(eraTotalMonthsProp.GetString(), out var ey) ? ey : 120;
+                : int.TryParse(eraTotalMonthsProp.GetString(), out var em) ? em : 0;
+            
+            if (parsedMonths > 0)
+                GameEraTotalMonths = parsedMonths;
         }
 
         // Parse policy_settings to know which policy types are enabled for this session

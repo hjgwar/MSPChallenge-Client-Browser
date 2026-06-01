@@ -73,7 +73,6 @@ public class MspApiClient
         var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeCommaSeparated) };
         return await PostFormAsync(url, fields);
     }
-    }
 
     // -------------------------------------------------------------------------
 
