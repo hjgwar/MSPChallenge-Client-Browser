@@ -47,9 +47,11 @@ public class MspApiClient
     }
 
     /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
+    /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
     public async Task<JsonElement> SetGameStateAsync(string baseUrl, int sessionId, string state)
     {
-        var url = $"{baseUrl}{sessionId}/api/Game/State";
+        var baseAddress = baseUrl.TrimEnd('/');
+        var url = $"{baseAddress}/{sessionId}/api/Game/State";
         var fields = new[] { new KeyValuePair<string, string>("state", state) };
         return await PostFormAsync(url, fields);
     }
@@ -57,7 +59,8 @@ public class MspApiClient
     /// <summary>Set current era real time (seconds remaining in current era).</summary>
     public async Task<JsonElement> SetRealtimeAsync(string baseUrl, int sessionId, int realtimeSeconds)
     {
-        var url = $"{baseUrl}{sessionId}/api/Game/Realtime";
+        var baseAddress = baseUrl.TrimEnd('/');
+        var url = $"{baseAddress}/{sessionId}/api/Game/Realtime";
         var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeSeconds.ToString()) };
         return await PostFormAsync(url, fields);
     }
@@ -65,9 +68,11 @@ public class MspApiClient
     /// <summary>Set future era real times (comma-separated seconds for all 4 eras).</summary>
     public async Task<JsonElement> SetFutureRealtimeAsync(string baseUrl, int sessionId, string realtimeCommaSeparated)
     {
-        var url = $"{baseUrl}{sessionId}/api/Game/FutureRealtime";
+        var baseAddress = baseUrl.TrimEnd('/');
+        var url = $"{baseAddress}/{sessionId}/api/Game/FutureRealtime";
         var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeCommaSeparated) };
         return await PostFormAsync(url, fields);
+    }
     }
 
     // -------------------------------------------------------------------------
