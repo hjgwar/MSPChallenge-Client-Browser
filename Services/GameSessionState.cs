@@ -14,6 +14,7 @@ public sealed class GameSessionState : IDisposable
 
     public GameSessionState(GameWebSocketService ws)
     {
+        ArgumentNullException.ThrowIfNull(ws);
         _ws = ws;
         _ws.MessageReceived += OnWsMessage;
     }
@@ -34,6 +35,7 @@ public sealed class GameSessionState : IDisposable
     public int    GameStartYear { get; set; } = 2000;
     public int    GameEndMonth  { get; set; } = 0;
     public int    GameEndYear   { get; set; } = 0;
+    public int    GameEraTotalMonths { get; set; } = 120;
 
     // ── UI state persisted across page navigation (same circuit) ──────────────
     public bool LayerPanelOpen { get; set; } = true;
@@ -55,9 +57,18 @@ public sealed class GameSessionState : IDisposable
     }
 
     // ── Live WebSocket state ───────────────────────────────────────────────────
+    public const int ERA_COUNT = 4;
     public int    GameCurrentMonth { get; private set; } = 0;
     public string GameState        { get; private set; } = "";
     public double EraTimeLeft      { get; private set; } = 0;
+    public int[]  EraRealTimes     { get; private set; } = new int[ERA_COUNT];
+
+    /// <summary>Get the current era index (0-3) based on current month and era total months.</summary>
+    public int GetCurrentEra()
+    {
+        if (GameEraTotalMonths <= 0) return 0;
+        return Math.Min(GameCurrentMonth / GameEraTotalMonths, ERA_COUNT - 1);
+    }
 
     public IReadOnlyList<PlanEntry> Plans => _plans;
     private readonly List<PlanEntry> _plans = new();
@@ -131,6 +142,23 @@ public sealed class GameSessionState : IDisposable
                 ? etlEl.GetDouble()
                 : double.TryParse(etlEl.GetString(), System.Globalization.NumberStyles.Any,
                     System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : EraTimeLeft;
+        }
+
+        // Parse planning_era_realtime (comma-separated future era times in seconds)
+        var pertEl = tick.TryGetProperty("planning_era_realtime", out var p1) ? p1
+                   : payload.TryGetProperty("planning_era_realtime", out var p2) ? p2
+                   : default;
+        if (pertEl.ValueKind != JsonValueKind.Undefined)
+        {
+            var pertStr = pertEl.ValueKind == JsonValueKind.String ? pertEl.GetString() : pertEl.ToString();
+            if (!string.IsNullOrWhiteSpace(pertStr))
+            {                var parts = pertStr.Split(',');
+                for (int i = 0; i < Math.Min(parts.Length, ERA_COUNT); i++)
+                {
+                    if (int.TryParse(parts[i].Trim(), out var seconds))
+                        EraRealTimes[i] = seconds;
+                }
+            }
         }
 
         // Plan messages: cache full message threads per plan_id.
@@ -424,6 +452,7 @@ public sealed class GameSessionState : IDisposable
         GameCurrentMonth = 0;
         GameState        = "";
         EraTimeLeft      = 0;
+        EraRealTimes     = new int[ERA_COUNT];
 
         _plans.Clear();
         _planMessagesByPlanId.Clear();
@@ -509,29 +538,22 @@ public sealed class GameSessionState : IDisposable
 
         if (configPayload.TryGetProperty("end", out var endYearProp))
         {
-            var raw = 0;
-            if (endYearProp.ValueKind == JsonValueKind.Number)
-                raw = endYearProp.GetInt32();
-            else if (endYearProp.ValueKind == JsonValueKind.String)
-                int.TryParse(endYearProp.GetString(), out raw);
-            if (raw > 0) GameEndYear = raw;
+            int parsedEnd = endYearProp.ValueKind == JsonValueKind.Number
+                ? endYearProp.GetInt32()
+                : int.TryParse(endYearProp.GetString(), out var ey) ? ey : 0;
+            
+            if (parsedEnd > 0)
+                GameEndYear = parsedEnd;
         }
 
-        foreach (var endKey in new[] { "end_month", "game_end_month" })
+        if (configPayload.TryGetProperty("era_total_months", out var eraTotalMonthsProp))
         {
-            if (configPayload.TryGetProperty(endKey, out var endProp))
-            {
-                var raw = 0;
-                if (endProp.ValueKind == JsonValueKind.Number)
-                    raw = endProp.GetInt32();
-                else if (endProp.ValueKind == JsonValueKind.String)
-                    int.TryParse(endProp.GetString(), out raw);
-                if (raw > 0)
-                {
-                    GameEndMonth = raw;
-                    break;
-                }
-            }
+            int parsedMonths = eraTotalMonthsProp.ValueKind == JsonValueKind.Number
+                ? eraTotalMonthsProp.GetInt32()
+                : int.TryParse(eraTotalMonthsProp.GetString(), out var em) ? em : 0;
+            
+            if (parsedMonths > 0)
+                GameEraTotalMonths = parsedMonths;
         }
 
         // Parse policy_settings to know which policy types are enabled for this session

@@ -1,5 +1,6 @@
 @page "/game"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using MSPChallenge_Client_Browser.Components.Pages.GameComponents
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
 @inject IHostEnvironment HostEnvironment
@@ -57,10 +58,20 @@
                         <span class="game-bar-year">@_barEndYear</span>
                     </div>
                 </div>
-                <div class="game-bar-state">
-                    <div class="game-bar-state-label">@GameStateLabel</div>
-                    <div class="game-bar-timeleft">@FormatTimeLeft(_eraTimeLeft)</div>
-                </div>
+                @if (IsAdmin)
+                {
+                    <div class="game-bar-state game-bar-state--clickable" @onclick="OnGameBarStateClick">
+                        <div class="game-bar-state-label">@GameStateLabel</div>
+                        <div class="game-bar-timeleft">@FormatTimeLeft(_eraTimeLeft)</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="game-bar-state">
+                        <div class="game-bar-state-label">@GameStateLabel</div>
+                        <div class="game-bar-timeleft">@FormatTimeLeft(_eraTimeLeft)</div>
+                    </div>
+                }
             </div>
             @if (_selectedPlanId != 0)
             {
@@ -1309,6 +1320,10 @@
         }
     </div>
 }
+
+<TimeManager IsVisible="_timeManagerVisible"
+             OnClose="OnCloseTimeManager"
+             OnSetGameState="OnSetGameStateAsync" />
 
 @if (HostEnvironment.IsDevelopment())
 {

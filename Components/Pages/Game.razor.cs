@@ -23,6 +23,7 @@ public partial class Game : IAsyncDisposable
     private int    _gameCurrentMonth => GameState.GameCurrentMonth;
     private int    _gameEndMonth     => GameState.GameEndMonth;
     private int    _gameEndYear      => GameState.GameEndYear;
+    private int    _gameEraTotalMonths => GameState.GameEraTotalMonths;
     private double _eraTimeLeft      => GameState.EraTimeLeft;
     private bool   IsAdmin           => SessionState.CountryId == 1 || SessionState.CountryId == 2;
 
@@ -37,6 +38,7 @@ public partial class Game : IAsyncDisposable
     private bool _layerPanelOpen  = false;
     private bool _legendPanelOpen = false;
     private bool _usersPanelOpen  = false;
+    private bool _timeManagerVisible = false;
 
     // ── Feature popup ─────────────────────────────────────────────────────────
     private bool                   _popupVisible;
@@ -629,6 +631,32 @@ public partial class Game : IAsyncDisposable
         }
 
         InvokeAsync(StateHasChanged);
+    }
+
+    // ── Time Manager ──────────────────────────────────────────────────────────
+    private void OnGameBarStateClick()
+    {
+        if (IsAdmin)
+            _timeManagerVisible = true;
+    }
+
+    private void OnCloseTimeManager()
+    {
+        _timeManagerVisible = false;
+    }
+
+    private async Task OnSetGameStateAsync(string state)
+    {
+        try
+        {
+            await ApiClient.SetGameStateAsync(SessionState.GameServerAddress, SessionState.SessionId, state);
+            // State will be updated via WebSocket, no need to manually update here
+        }
+        catch (Exception ex)
+        {
+            // Log error or show notification
+            Console.WriteLine($"Failed to set game state: {ex.Message}");
+        }
     }
 
     private async Task CopyWsMessageAsync(string raw)

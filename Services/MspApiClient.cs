@@ -46,6 +46,34 @@ public class MspApiClient
         return await ReadJsonAsync(response);
     }
 
+    /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
+    /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
+    public async Task<JsonElement> SetGameStateAsync(string baseUrl, int sessionId, string state)
+    {
+        var baseAddress = baseUrl.TrimEnd('/');
+        var url = $"{baseAddress}/{sessionId}/api/Game/State";
+        var fields = new[] { new KeyValuePair<string, string>("state", state) };
+        return await PostFormAsync(url, fields);
+    }
+
+    /// <summary>Set current era real time (seconds remaining in current era).</summary>
+    public async Task<JsonElement> SetRealtimeAsync(string baseUrl, int sessionId, int realtimeSeconds)
+    {
+        var baseAddress = baseUrl.TrimEnd('/');
+        var url = $"{baseAddress}/{sessionId}/api/Game/Realtime";
+        var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeSeconds.ToString()) };
+        return await PostFormAsync(url, fields);
+    }
+
+    /// <summary>Set future era real times (comma-separated seconds for all 4 eras).</summary>
+    public async Task<JsonElement> SetFutureRealtimeAsync(string baseUrl, int sessionId, string realtimeCommaSeparated)
+    {
+        var baseAddress = baseUrl.TrimEnd('/');
+        var url = $"{baseAddress}/{sessionId}/api/Game/FutureRealtime";
+        var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeCommaSeparated) };
+        return await PostFormAsync(url, fields);
+    }
+
     // -------------------------------------------------------------------------
 
     private HttpClient CreateClient()
