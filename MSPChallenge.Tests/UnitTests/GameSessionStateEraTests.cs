@@ -9,9 +9,9 @@ public class GameSessionStateEraTests
 {
     private GameSessionState CreateTestState()
     {
-        // Create GameSessionState with null WebSocketService for testing
-        // GameSessionState handles null gracefully for testing purposes
-        return new GameSessionState(null!);
+        // Use a real WebSocket service instance; no connection is established in unit tests.
+        var ws = new GameWebSocketService();
+        return new GameSessionState(ws);
     }
 
     [Theory]
