@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
+using MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 namespace MSPChallenge_Client_Browser.Components.Pages;
 
@@ -29,14 +30,6 @@ public partial class Game
     private bool _planIssuesOpen   = false;
     private bool _planApprovalOpen = false;
     private bool _planStateOpen    = false;
-
-    // â”€â”€ Create plan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    private string? _createPlanName;
-    private string? _createPlanDescription;
-    private int     _createPlanStartYear;
-    private int     _createPlanStartMonth;
-    private bool    _createPlanSaving;
-    private string? _createPlanError;
 
     // â”€â”€ Plan state change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private bool    _planStateSending;
@@ -93,8 +86,6 @@ public partial class Game
     {
         SetPlansPanelOpen(!_plansPanelOpen);
     }
-
-    private enum PlanViewMode { AfterChanges, Original, ChangesOnly }
 
     private string MonthToDate(int month) => GameState.MonthToDate(month);
 
@@ -659,66 +650,28 @@ public partial class Game
         ep.State.Equals("DESIGN", StringComparison.OrdinalIgnoreCase) &&
         (SessionState.CountryId <= 2 || ep.Country == SessionState.CountryId);
 
-    // â”€â”€ Create plan panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    private DateTime CreatePlanEarliestStart =>
-        _gameStartYear > 0
-            ? new DateTime(_gameStartYear, 1, 1).AddMonths(_gameCurrentMonth + 1)
-            : DateTime.Now.AddMonths(1);
-
-    private bool CreatePlanStartDateValid =>
-        _createPlanStartYear > CreatePlanEarliestStart.Year ||
-        (_createPlanStartYear == CreatePlanEarliestStart.Year && _createPlanStartMonth >= CreatePlanEarliestStart.Month);
-
-    private bool CreatePlanMonthDisabled(int m) =>
-        _createPlanStartYear == CreatePlanEarliestStart.Year && m < CreatePlanEarliestStart.Month;
-
+   
     private void OpenCreatePlanPanel()
     {
         // Close any open plan detail
         _selectedPlanId   = 0;
         _editMode         = false;
         _policyPickerOpen = false;
-
-        var earliest = CreatePlanEarliestStart;
-        _createPlanName        = string.Empty;
-        _createPlanDescription = string.Empty;
-        _createPlanStartYear   = earliest.Year;
-        _createPlanStartMonth  = earliest.Month;
-        _createPlanSaving      = false;
-        _createPlanError       = null;
-        _createPlanOpen        = true;
+        _createPlanOpen   = true;
     }
 
     private void CloseCreatePlanPanel()
     {
         _createPlanOpen  = false;
-        _createPlanError = null;
     }
 
-    private async Task CreatePlanAsync()
+    public void OpenEditMode(PlanCreation planCreation)
     {
-        if (_createPlanSaving) return;
-
-        var name = _createPlanName.Trim();
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            _createPlanError = "Plan name is required.";
-            StateHasChanged();
-            return;
-        }
-        if (!CreatePlanStartDateValid)
-        {
-            _createPlanError = $"Start date must be {CreatePlanEarliestStart:MMM yyyy} or later.";
-            StateHasChanged();
-            return;
-        }
-
         // Save to memory and open plan-detail-panel in edit mode
-        _editName = name;
-        _editDescription = _createPlanDescription.Trim();
-        _editStartYear = _createPlanStartYear;
-        _editStartMonth = _createPlanStartMonth;
+        _editName = planCreation._createPlanName;
+        _editDescription = planCreation._createPlanDescription;
+        _editStartYear = planCreation._createPlanStartYear;
+        _editStartMonth = planCreation._createPlanStartMonth;
         _editPlanLayerIds.Clear();
         _editPolicyTypes.Clear();
         _drawingUndoStack.Clear();
@@ -731,7 +684,6 @@ public partial class Game
         _selectedPlanId = 0; // New plan, not yet on server
         StateHasChanged();
     }
-
     // â”€â”€ Edit mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     // Earliest calendar date the plan may start (current sim month + min construction)
@@ -1084,26 +1036,4 @@ public partial class Game
         }
         return "line";
     }
-
-    // â”€â”€ Geometry helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    private sealed record PlanRestrictionIssue(
-        string  Severity,
-        string  Message,
-        string? SourceLayer,
-        string? TargetLayer,
-        string  ChangeKind,
-        double  MarkerX,
-        double  MarkerY);
-
-    private sealed record UserEntry(
-        string Name,
-        int    CountryId,
-        string Colour);
-
-    private sealed record ApprovalRequirement(
-        int                   CountryId,
-        string                CountryName,
-        IReadOnlyList<string> Reasons);
-
 }

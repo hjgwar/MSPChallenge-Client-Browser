@@ -1,0 +1,71 @@
+@using System.Globalization;
+@inherits GameComponentBase
+<div class="plan-detail-panel">
+    <div class="plan-detail-panel-title">
+        NEW PLAN
+        <button class="panel-close-btn" title="Close"
+                @onclick="OnClose">&#10005;</button>
+    </div>
+    <div class="plan-detail-header">
+        <div class="plan-detail-header-body">
+            <input class="plan-edit-input" type="text"
+                    placeholder="Plan name"
+                    @bind="_createPlanName"
+                    disabled="@_createPlanSaving" />
+            <input class="plan-edit-input" type="text"
+                    placeholder="Description (optional)"
+                    @bind="_createPlanDescription"
+                    disabled="@_createPlanSaving" />
+        </div>
+    </div>
+    <div class="plan-detail-scroll">
+        <details class="plan-detail-section" open>
+            <summary class="plan-detail-section-hdr">Plan Info</summary>
+            <div class="plan-detail-section-body">
+                <div class="plan-detail-info-row">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                        <circle cx="8" cy="8" r="6.5"/>
+                        <polyline points="8,4.5 8,8 10.5,9.5"/>
+                    </svg>
+                    <div class="plan-edit-date-wrapper">
+                        <div class="plan-edit-date-row">
+                            <select class="plan-edit-select @(!CreatePlanStartDateValid ? "plan-edit-select--invalid" : "")"
+                                    @bind="_createPlanStartMonth"
+                                    disabled="@_createPlanSaving">
+                                @for (int m = 1; m <= 12; m++)
+                                {
+                                    <option value="@m" disabled="@CreatePlanMonthDisabled(m)">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
+                                }
+                            </select>
+                            <select class="plan-edit-select @(!CreatePlanStartDateValid ? "plan-edit-select--invalid" : "")"
+                                    @bind="_createPlanStartYear"
+                                    disabled="@_createPlanSaving">
+                                @for (int y = CreatePlanEarliestStart.Year; y <= (GameSessionState.GameEndYear > 0 ? GameSessionState.GameEndYear : GameSessionState.GameStartYear + 30); y++)
+                                {
+                                    <option value="@y">@y</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </details>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(_createPlanError))
+    {
+        <div class="plan-edit-error">@_createPlanError</div>
+    }
+    <div class="plan-edit-footer">
+        <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel"
+                type="button" disabled="@_createPlanSaving"
+                @onclick="OnClose">
+            &#8249; Cancel
+        </button>
+        <button class="plan-edit-footer-btn plan-edit-footer-btn--accept"
+                type="button"
+                disabled="@(_createPlanSaving || string.IsNullOrWhiteSpace(_createPlanName))"
+                @onclick="CreatePlanAsync">
+            @if (_createPlanSaving) { <span>Creating&#8230;</span> } else { <span>Accept &#8250;</span> }
+        </button>
+    </div>
+</div>

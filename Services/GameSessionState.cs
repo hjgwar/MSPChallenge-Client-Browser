@@ -1334,6 +1334,8 @@ public sealed class GameSessionState : IDisposable
         return null;
     }
 
+    public int TotalMonths => GameEndMonth > 0 ? GameEndMonth : GameEndYear > 0  ? (GameEndYear - GameStartYear) * 12 : 0;
+
     // ── Disposal ───────────────────────────────────────────────────────────────
     public void Dispose()
     {
@@ -1347,3 +1349,4 @@ public sealed record EezPolygon(int CountryId, IReadOnlyList<double[]> Points);
 
 /// <summary>A plan policy type available in this game session.</summary>
 public sealed record PolicySetting(string PolicyType, string DisplayName, bool Enabled);
+

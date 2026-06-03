@@ -1,6 +1,6 @@
-@if (IsVisible)
-{
-    <div class="time-manager-overlay" @onclick="OnBackdropClick">
+@inherits GameComponentBase
+<div class="time-manager-overlay">
+    <div class="time-manager-container">
         <div class="time-manager-panel" @onclick:stopPropagation="true">
             <div class="time-manager-header">
                 <div class="time-manager-title">Time Manager</div>
@@ -22,16 +22,16 @@
                                 @if (IsEraEditable(eraIndex) && _eraTimeEditing[eraIndex])
                                 {
                                     <input type="text" 
-                                           class="time-manager-time-input"
-                                           value="@_eraTimeInputs[eraIndex]"
-                                           @onchange="@(e => OnEraTimeInputChange(eraIndex, e))"
-                                           @onblur="@(() => OnEraTimeBlur(eraIndex))"
-                                           placeholder="H:MM:SS" />
+                                            class="time-manager-time-input"
+                                            value="@_eraTimeInputs[eraIndex]"
+                                            @onchange="@(e => OnEraTimeInputChange(eraIndex, e))"
+                                            @onblur="@(() => OnEraTimeBlur(eraIndex))"
+                                            placeholder="H:MM:SS" />
                                 }
                                 else
                                 {
                                     <span @onclick="@(() => OnEraTimeClick(eraIndex))" 
-                                          class="@(IsEraEditable(eraIndex) ? "time-manager-time-editable" : "")">
+                                            class="@(IsEraEditable(eraIndex) ? "time-manager-time-editable" : "")">
                                         @GetEraTimeDisplay(eraIndex)
                                     </span>
                                 }
@@ -82,4 +82,4 @@
             </div>
         </div>
     </div>
-}
+</div>

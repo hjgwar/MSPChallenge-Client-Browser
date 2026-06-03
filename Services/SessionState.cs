@@ -10,4 +10,5 @@ public class SessionState
     public string GameWsServerAddress { get; set; } = string.Empty;
     public string ApiAccessToken { get; set; } = string.Empty;
     public string ApiRefreshToken { get; set; } = string.Empty;
+    public bool IsAdmin => CountryId == 1 || CountryId == 2;
 }

@@ -8,9 +8,11 @@ public sealed record RestrictionRule(
     string StartType,
     string EndLayer,
     string EndType,
-    string Sort);
+    string Sort
+);
 
 /// <summary>A single matched restriction for one planned geometry item.</summary>
 public sealed record RestrictionMatch(
     string Severity,
-    string Message);
+    string Message
+);

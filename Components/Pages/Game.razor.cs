@@ -50,11 +50,6 @@ public partial class Game : IAsyncDisposable
     // ── Legend order ──────────────────────────────────────────────────────────
     private List<LayerEntry> _legendOrder = [];
 
-    // ── Users ─────────────────────────────────────────────────────────────────
-    private List<UserEntry> _users        = [];
-    private bool            _usersLoading;
-    private string?         _usersError;
-
     // ── WebSocket log ─────────────────────────────────────────────────────────
     private const int WsLogMaxEntries = 100;
     private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = [];
@@ -118,49 +113,6 @@ public partial class Game : IAsyncDisposable
         _isLoading = false;
         _loadingFading = false;
         StateHasChanged();
-    }
-
-    private async Task LoadUsersAsync()
-    {
-        _usersLoading = true;
-        _usersError = null;
-        StateHasChanged();
-        try
-        {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var url = $"{baseAddress}/{SessionState.SessionId}/api/User/List";
-            bool isAdmin = SessionState.CountryId == 1 || SessionState.CountryId == 2;
-            JsonElement root = isAdmin
-                ? await ApiClient.GetAsync(url)
-                : await ApiClient.PostFormAsync(url, new[] { new KeyValuePair<string, string>("country_id", SessionState.CountryId.ToString()) });
-            var payload = root.TryGetProperty("payload", out var p) ? p : root;
-            var list = new List<UserEntry>();
-            if (payload.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var u in payload.EnumerateArray())
-                {
-                    var name = u.TryGetProperty("user_name",       out var n) ? n.GetString() ?? "" : "";
-                    var cid  = u.TryGetProperty("user_country_id", out var c)
-                        ? (c.ValueKind == JsonValueKind.Number ? c.GetInt32()
-                           : int.TryParse(c.GetString(), out var parsed) ? parsed : 0)
-                        : 0;
-                    var col  = _countryColours.GetValueOrDefault(cid, "#6c757d");
-                    list.Add(new UserEntry(name, cid, col));
-                }
-            }
-            _users = isAdmin
-                ? list.OrderBy(u => u.CountryId).ThenBy(u => u.Name).ToList()
-                : list.OrderBy(u => u.Name).ToList();
-        }
-        catch (Exception ex)
-        {
-            _usersError = ex.Message;
-        }
-        finally
-        {
-            _usersLoading = false;
-            StateHasChanged();
-        }
     }
 
     private async Task LoadGameDataAsync()
@@ -327,19 +279,6 @@ public partial class Game : IAsyncDisposable
     {
         _legendPanelOpen = open;
         GameState.LegendPanelOpen = open;
-    }
-
-    private async Task SetUsersPanelOpenAsync(bool open)
-    {
-        _usersPanelOpen = open;
-        GameState.UsersPanelOpen = open;
-        if (open)
-            await LoadUsersAsync();
-    }
-
-    private async Task ToggleUsersPanelAsync()
-    {
-        await SetUsersPanelOpenAsync(!_usersPanelOpen);
     }
 
     private void ToggleLayerPanel()
@@ -633,30 +572,15 @@ public partial class Game : IAsyncDisposable
         InvokeAsync(StateHasChanged);
     }
 
-    // ── Time Manager ──────────────────────────────────────────────────────────
-    private void OnGameBarStateClick()
+    public void ToggleTimeManager()
     {
         if (IsAdmin)
-            _timeManagerVisible = true;
+            _timeManagerVisible = _timeManagerVisible ? false : true;
     }
 
-    private void OnCloseTimeManager()
+    public void ToggleOnlineUsersPanel()
     {
-        _timeManagerVisible = false;
-    }
-
-    private async Task OnSetGameStateAsync(string state)
-    {
-        try
-        {
-            await ApiClient.SetGameStateAsync(SessionState.GameServerAddress, SessionState.SessionId, state);
-            // State will be updated via WebSocket, no need to manually update here
-        }
-        catch (Exception ex)
-        {
-            // Log error or show notification
-            Console.WriteLine($"Failed to set game state: {ex.Message}");
-        }
+        _usersPanelOpen = _usersPanelOpen ? false : true;
     }
 
     private async Task CopyWsMessageAsync(string raw)
