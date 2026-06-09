@@ -1,0 +1,329 @@
+@inherits GameComponentBase
+@using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanPanelComponents
+<div class="plan-detail-panel">
+    <div class="plan-detail-panel-title">
+        @(PlanPanelsController.EditMode ? "EDIT PLAN" : "ACTIVE PLAN")
+        <button class="panel-close-btn" title="Close" @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
+    </div>
+    <div class="plan-detail-header">
+        <span class="user-dot" style="background:@_detailDotColour;flex-shrink:0" title="@_detailCountryName"></span>
+        <div class="plan-detail-header-body">
+            @if (PlanPanelsController.EditMode)
+            {
+                <input class="plan-edit-input" type="text" placeholder="Plan name" @bind="_editName" disabled="@PlanPanelsController.EditSaving" />
+                <input class="plan-edit-input" type="text" placeholder="Description (optional)" @bind="_editDescription" disabled="@PlanPanelsController.EditSaving" />
+            }
+            else
+            {
+                <span class="plan-detail-title">@_detailPlan.Name</span>
+                @if (!string.IsNullOrWhiteSpace(_detailPlan.Description))
+                {
+                    <div class="plan-detail-desc">
+                        <span class="plan-detail-desc-text @(_detailDescExpanded ? "plan-detail-desc-text--expanded" : "")">@_detailPlan.Description</span>
+                        @if (_detailPlan.Description.Length > 40)
+                        {
+                            <button class="plan-detail-desc-btn" title="@(_detailDescExpanded ? "Show less" : "Show full description")" @onclick="@(() => _detailDescExpanded = !_detailDescExpanded)">
+                                @if (_detailDescExpanded)
+                                {
+                                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg"><polyline points="2,8 6,4 10,8"/></svg>
+                                }
+                                else
+                                {
+                                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg"><polyline points="2,4 6,8 10,4"/></svg>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+    <div class="plan-detail-scroll">
+    <details class="plan-detail-section plan-detail-section--state" open>
+        <summary class="plan-detail-section-hdr">Plan Info</summary>
+        <div class="plan-detail-section-body">
+            <div class="plan-detail-info-row">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                    <circle cx="8" cy="8" r="6.5"/>
+                    <polyline points="8,4.5 8,8 10.5,9.5"/>
+                </svg>
+                @if (_editMode)
+                {
+                    <div class="plan-edit-date-wrapper">
+                        <div class="plan-edit-date-row">
+                            <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartMonth" disabled="@_editSaving">
+                                @for (int m = 1; m <= 12; m++)
+                                {
+                                    var _m = m;
+                                    <option value="@_m" disabled="@EditMonthDisabled(_m)">@MonthName(_m)</option>
+                                }
+                            </select>
+                            <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartYear" disabled="@_editSaving">
+                                @for (int y = EditEarliestStart.Year; y <= _gameEndYear; y++)
+                                {
+                                    var _y = y;
+                                    <option value="@_y">@_y</option>
+                                }
+                            </select>
+                        </div>
+                        @if (_editMinConstructionMonths > 0)
+                        {
+                            <span class="plan-edit-date-hint @(!EditStartDateValid ? "plan-edit-date-hint--error" : "")">
+                                Min. @_editMinConstructionMonths month@(_editMinConstructionMonths == 1 ? "" : "s") construction — earliest @EditEarliestStart.ToString("MMM yyyy")
+                            </span>
+                        }
+                        else if (!EditStartDateValid)
+                        {
+                            <span class="plan-edit-date-hint plan-edit-date-hint--error">
+                                Must be @EditEarliestStart.ToString("MMM yyyy") or later
+                            </span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <span>@MonthToDate(_detailPlan.StartDate)@(_detailPlan.ConstructionTime > 0 ? $", after {_detailPlan.ConstructionTime} months construction" : "")</span>
+                }
+            </div>
+            <div class="plan-detail-state-row">
+                @if (_planStateOpen)
+                {
+                    <PlanPanelState />
+                }
+                @if (CanChangeState())
+                {
+                    <button class="plan-detail-action-row" type="button" @onclick="TogglePlanStatePanel">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                            <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
+                            <path d="M2 4l6-2 6 2"/>
+                        </svg>
+                        <span>Plan state: @PlanStateLabel(_detailPlan.State)</span>
+                    </button>
+                }
+                else
+                {
+                    <div class="plan-detail-info-row">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                            <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
+                            <path d="M2 4l6-2 6 2"/>
+                        </svg>
+                        <span>Plan state: @PlanStateLabel(_detailPlan.State)</span>
+                    </div>
+                }
+            </div>
+            }
+        </div>
+    </details>
+    <details class="plan-detail-section plan-detail-section--communication" open>
+        <summary class="plan-detail-section-hdr">Communication</summary>
+        <div class="plan-detail-section-body">
+            @if (!IsApprovalCompleteState(SelectedPlanState) && !_editMode)
+            {
+            <div class="plan-detail-approval-row">
+                @if (_planApprovalOpen)
+                {
+                    <PlanPanelApproval RequiredApprovals="@_approvalRequired" />
+                }
+                <button class="plan-detail-action-row" @onclick="ToggleApprovalPanel">
+                    @if (_approvalRequired.Count > 0)
+                    {
+                        <svg viewBox="0 0 16 16" fill="none" stroke="#74c0fc" stroke-width="1.7" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" style="color:#74c0fc">
+                            <polyline points="2.5,8 6,11.5 13.5,4.5"/>
+                        </svg>
+                        <span>Requires approval from @_approvalRequired.Count team@(_approvalRequired.Count == 1 ? "" : "s")</span>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                            <line x1="4" y1="4" x2="12" y2="12"/>
+                            <line x1="12" y1="4" x2="4" y2="12"/>
+                        </svg>
+                        <span>No approval required</span>
+                    }
+                </button>
+            </div>
+            }
+            <div class="plan-detail-chat-row">
+                @if (_planMessagesOpen)
+                {
+                    <PlanPanelMessages Messages="@_detailPlan.Messages" />
+                }
+                <button class="plan-detail-action-row" @onclick="TogglePlanMessagesPanel">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                        <path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z"/>
+                    </svg>
+                    <span>See @_detailPlan.MessageCount message@(_detailPlan.MessageCount == 1 ? "" : "s")</span>
+                </button>
+            </div>
+            <div class="plan-detail-issues-row">
+                @if (_planIssuesOpen)
+                {
+                    <PlanPanelIssues SelectedPlanIssues="@SelectedPlanIssues" OnCloseThisPanel="PlanPanelsController.TogglePlanIssuesPanel"/>
+                }
+                <button class="plan-detail-action-row" @onclick="PlanPanelsController.TogglePlanIssuesPanel">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                        <path d="M8 2L1.5 13.5h13L8 2z"/>
+                        <line x1="8" y1="6.5" x2="8" y2="9.5"/>
+                        <circle cx="8" cy="11.5" r="0.6" fill="currentColor"/>
+                    </svg>
+                    @if (SelectedPlanIssueCount == 0)
+                    {
+                        <span>No issues</span>
+                    }
+                    else
+                    {
+                        <span>@SelectedPlanIssueCount issue@(SelectedPlanIssueCount == 1 ? "" : "s")</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </details>
+    @if (_detailPlan.PolicyNames.Count > 0 || _editMode)
+    {
+        <details class="plan-detail-section @(_editMode ? "plan-detail-section--policies-picker" : "")" open>
+            <summary class="plan-detail-section-hdr">Policies</summary>
+            <div class="plan-detail-section-body">
+                @{
+                    var _displayedPolicies = _editMode
+                        ? (IEnumerable<string>)GameState.AvailablePolicies
+                                .Where(ap => _editPolicyTypes.Contains(ap.PolicyType))
+                                .Select(ap => ap.DisplayName)
+                                .ToList()
+                        : _detailPlan.PolicyNames;
+                }
+                @foreach (var pname in _displayedPolicies)
+                {
+                    <div class="plan-detail-item-row">
+                        <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                            <path d="M8 1l1.5 3.5H13l-2.8 2 1 3.5L8 8l-3.2 2 1-3.5L3 5h3.5L8 1z"/>
+                        </svg>
+                        <span>@pname</span>
+                    </div>
+                }
+                @if (_editMode)
+                {
+                    <div class="plan-detail-policy-row">
+                        @if (_policyPickerOpen)
+                        {
+                            <PlanPanelPolicyPicker SelectedPolicyTypes="@_editPolicyTypes" OnTogglePolicyType="@ToggleEditPolicyType" AvailablePolicies="@GameState.AvailablePolicies" />
+                        }
+                        <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="TogglePolicyPicker">
+                            Add or remove policies
+                        </button>
+                    </div>
+                }
+            </div>
+        </details>
+    }
+    @{
+        var _displayedLayers = _editMode
+            ? _editPlanLayerIds
+                .Select(id => _layerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName)
+                .OfType<string>()
+                .OrderBy(n => n)
+                .ToList()
+            : _detailLayers;
+        var _editableLayers = _layerEntries
+            .Where(e => e.Editable && !e.IsBaseLayer)
+            .ToList();
+    }
+    @if (_displayedLayers.Count > 0 || _editMode)
+    {
+        <details class="plan-detail-section @(_editMode ? "plan-detail-section--layers-picker" : "")" open>
+            <summary class="plan-detail-section-hdr">Data Layers</summary>
+            <div class="plan-detail-section-body">
+                <div class="plan-detail-layers-list">
+                @if (_editMode)
+                {
+                    @foreach (var _editLayerId in _editPlanLayerIds.OrderBy(id => _layerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName ?? ""))
+                    {
+                        var _editLayerName  = _layerEntries.FirstOrDefault(e => e.LayerId == _editLayerId)?.DisplayName ?? _editLayerId;
+                        var _isGeoActive    = _geometryToolLayerId == _editLayerId;
+                        <button class="plan-detail-item-row plan-detail-item-row--selectable @(_isGeoActive ? "plan-detail-item-row--active" : "")"
+                                type="button" title="Open geometry tool"
+                                @onclick="@(async () => await OpenGeometryToolAsync(_editLayerId))">
+                            <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" opacity="0.8">
+                                <path d="M8 1l7 3.5-7 3.5L1 4.5 8 1z"/>
+                                <path d="M1 8.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span>@_editLayerName</span>
+                            @if (_isGeoActive)
+                            {
+                                <svg viewBox="0 0 16 16" fill="none" stroke="#fd7e14" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px;flex-shrink:0;margin-left:auto">
+                                    <path d="M2 12.5L9 5.5l2 2-7 7H2v-2z"/>
+                                    <path d="M8 5.5L9.5 4l2 2-1.5 1.5"/>
+                                </svg>
+                            }
+                        </button>
+                    }
+                }
+                else
+                {
+                    @foreach (var lname in _displayedLayers)
+                    {
+                        <div class="plan-detail-item-row">
+                            <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" opacity="0.8">
+                                <path d="M8 1l7 3.5-7 3.5L1 4.5 8 1z"/>
+                                <path d="M1 8.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                            </svg>
+                            <span>@lname</span>
+                        </div>
+                    }
+                }
+                </div>
+                @if (_editMode)
+                {
+                    <div class="plan-detail-layers-row">
+                        @if (_geometryToolLayerId is not null)
+                        {
+                            <PlanPanelGeometryTool LayerId="@_geometryToolLayerId" OnClose="CloseGeometryToolAsync" />
+                        }
+                        @if (_layerPickerOpen)
+                        {
+                            <PlanPanelLayerPicker SelectedLayerIds="@_editPlanLayerIds" OnToggleLayer="@ToggleEditLayer" AvailableLayers="@_editableLayers" />
+                        }
+                        <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="ToggleLayerPickerAsync">
+                            Add or remove data layers
+                        </button>
+                    </div>
+                }
+            </div>
+        </details>
+    }
+    </div>@* end plan-detail-scroll *@
+    @if (PlanPanelsController.EditMode)
+    {
+        @if (!string.IsNullOrWhiteSpace(_editError))
+        {
+            <div class="plan-edit-error">@_editError</div>
+        }
+        @if (_editSaving)
+        {
+            <div class="plan-edit-status">Saving changes&#8230;</div>
+        }
+        else if (_editWsConfirmationTcs is not null)
+        {
+            <div class="plan-edit-status">Waiting for server&#8230;</div>
+        }
+        <div class="plan-edit-footer">
+            <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel"
+                    type="button" disabled="@(_editSaving || _editWsConfirmationTcs is not null)"
+                    @onclick="CancelEditAsync">
+                &#8249; Cancel
+            </button>
+            <button class="plan-edit-footer-btn plan-edit-footer-btn--accept"
+                    type="button" disabled="@(_editSaving || _editWsConfirmationTcs is not null)"
+                    @onclick="SavePlanAsync">
+                Accept &#8250;
+            </button>
+        </div>
+    }
+    else if (CanEnterEditMode)
+    {
+        @if (!string.IsNullOrWhiteSpace(_enterEditError))
+        {
+            <div class="plan-edit-error">@_enterEditError</div>
+        }
+        <button class="plan-edit-btn" @onclick="EnterEditModeAsync">Enter Edit Mode</button>
+    }
+</div>

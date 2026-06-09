@@ -1,0 +1,11 @@
+@namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents
+
+<div class="@("splash-overlay" + (IsFading ? " splash-overlay--out" : ""))">
+    <div class="splash-vignette"></div>
+    <div class="splash-content">
+        <div class="splash-logo"><em>MSP</em> Challenge</div>
+        <div class="splash-tagline">Marine Spatial Planning</div>
+        <div class="splash-bar-wrap"><div class="splash-bar"></div></div>
+        <div class="splash-status">@LoadingStatus</div>
+    </div>
+</div>

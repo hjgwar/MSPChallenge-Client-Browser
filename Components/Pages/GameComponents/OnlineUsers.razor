@@ -7,15 +7,12 @@
                 <path d="M13.65 2.35A8 8 0 1 0 15 8h-1.5a6.5 6.5 0 1 1-1.17-3.73L10 7h5V2l-1.35 0.35z"/>
             </svg>
         </button>
-        <button class="panel-close-btn" title="Close" @onclick="OnClose">&#10005;</button>
+        <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
     <div class="users-panel-content">
-    @{
-        var _myCountryColour = GameSessionState.CountryColours.GetValueOrDefault(SessionState.CountryId, "#6c757d");
-    }
     <div class="users-my-country">
-        <span class="user-dot" style="background:@_myCountryColour;"></span>
-        <span>Your country:&nbsp;<strong>@(GameSessionState.CountryNames.GetValueOrDefault(SessionState.CountryId, $"#{SessionState.CountryId}"))</strong></span>
+        <span class="user-dot" style="background:@CurrentUserCountryColour();"></span>
+        <span>Your country: <strong>@CurrentUserCountryName()</strong></span>
     </div>
     @if (_usersLoading)
     {
@@ -31,7 +28,7 @@
     }
     else
     {
-        @foreach (var u in _users)
+        @foreach (UserEntry u in _users)
         {
             <div class="user-row">
                 <span class="user-dot" style="background:@u.Colour;"></span>

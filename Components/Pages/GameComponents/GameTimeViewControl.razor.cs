@@ -1,19 +1,24 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
-public partial class GameTimeBar
+public partial class GameTimeViewControl
 {
+    [CascadingParameter] public PlanPanelsControl PlanPanelsController { get; set; } = null!;
+    public bool TimeManagerVisible { get; private set; } = false;
     private PlanEntry? _planForNeedle;
-    [Parameter] public int _selectedPlanId { get; set; }
-    [Parameter] public PlanViewMode _planViewMode { get; set; }
-    [Parameter] public EventCallback ToggleTimeManager { get; set; }
-    [Parameter] public required Func<PlanViewMode, Task> SetPlanViewModeAsync { get; set; }
-
+    
     protected override void OnParametersSet()
     {
         PlanForNeedle();
+    }
+
+    public void ToggleTimeManager()
+    {
+        if (UserSessionService.IsAdmin)
+            TimeManagerVisible = !TimeManagerVisible;
     }
     
     private double BarProgress => GameSessionState.TotalMonths > 0
@@ -21,7 +26,7 @@ public partial class GameTimeBar
         : 0;
 
     private void PlanForNeedle() {
-        _planForNeedle = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+        _planForNeedle = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
     }
 
     private string BarNeedle() {

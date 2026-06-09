@@ -10,20 +10,11 @@ namespace MSPChallenge_Client_Browser.Components.Pages;
 
 public partial class Game
 {
-    // â”€â”€ Plan selection & view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    private int                        _selectedPlanId           = 0;
-    private PlanViewMode               _planViewMode             = PlanViewMode.AfterChanges;
-    private HashSet<string>            _planActivatedLayerIds    = [];
-    private HashSet<string>            _planReferencedLayerIds   = [];
-    private List<PlanRestrictionIssue> _selectedPlanIssues       = [];
-    private Dictionary<int, string>    _planIssueSeverity        = [];
-    private bool                       _detailDescExpanded       = false;
-    private bool                       _scrollPlanMessagesPending = false;
+    
 
     // â”€â”€ Plans panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private bool   _plansPanelOpen = false;
-    private bool   _createPlanOpen = false;
-    private string _layerSearch    = string.Empty;
+    public bool   CreatePlanOpen { get; private set; } = false;
 
     // â”€â”€ Plan sub-panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private bool _planMessagesOpen = false;
@@ -263,208 +254,21 @@ public partial class Game
         StateHasChanged();
     }
 
-    /// <summary>
-    /// Computes and sends the world-state projection to the map for all earlier finalised plans
-    /// relative to <paramref name="planStartDate"/>.
-    /// Pass <paramref name="singleLayerId"/> to restrict processing to one layer — used when
-    /// the user activates a layer from the panel while a plan is already selected.
-    /// Pass <paramref name="currentPlan"/> to also hide base geometry that the current plan modifies.
-    /// </summary>
-    private async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null, PlanEntry? currentPlan = null)
-    {
-        if (_mapModule is null) return;
+    
 
-        var priorPlans = _plans
-            .Where(p => p.StartDate < planStartDate && IsFinalisedPlanState(p.State))
-            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
-            .ToList();
-
-        var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-        var addedFeatures  = new List<object>();
-
-        // Process prior finalized plans
-        foreach (var priorPlan in priorPlans)
-        {
-            foreach (var planLayer in priorPlan.Layers)
-            {
-                if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
-                if (singleLayerId is not null &&
-                    !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
-                    hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var deletedId in planLayer.DeletedPersistentIds)
-                    ids.Add(deletedId);
-
-                var geoType = _layerEntries
-                    .FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
-
-                foreach (var geo in planLayer.Geometry)
-                {
-                    if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
-                        ids.Add(geo.PersistentId);
-
-                    if (geo.Coordinates.Count > 0)
-                        addedFeatures.Add(new {
-                            layerId   = planLayer.OriginalLayerId,
-                            geoType,
-                            id        = geo.Id,
-                            typeIndex = geo.TypeIndex,
-                            coords    = geo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray()
-                        });
-                }
-            }
-        }
-
-        // Process current plan if provided - hide base geometry that it modifies
-        // Note: Don't add current plan's geometry to base layers (it's in the overlay)
-        if (currentPlan is not null)
-        {
-            foreach (var planLayer in currentPlan.Layers)
-            {
-                if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
-                if (singleLayerId is not null &&
-                    !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
-                    hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                // Hide deleted base geometry
-                foreach (var deletedId in planLayer.DeletedPersistentIds)
-                    ids.Add(deletedId);
-
-                // Hide modified base geometry (where PersistentId != Id)
-                foreach (var geo in planLayer.Geometry)
-                {
-                    if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
-                        ids.Add(geo.PersistentId);
-                }
-            }
-        }
-
-        if (hiddenFeatures.Count > 0 || addedFeatures.Count > 0)
-            await _mapModule.InvokeVoidAsync("applyPlanProjection",
-                JsonSerializer.Serialize(new {
-                    hidden = hiddenFeatures.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray()),
-                    added  = addedFeatures
-                }));
-    }
-
-    private static bool IsFinalisedPlanState(string state) =>
+    public static bool IsFinalisedPlanState(string state) =>
         state.Equals("CONSULTATION", StringComparison.OrdinalIgnoreCase) ||
         state.Equals("APPROVAL",     StringComparison.OrdinalIgnoreCase) ||
         state.Equals("APPROVED",     StringComparison.OrdinalIgnoreCase) ||
         state.Equals("IMPLEMENTED",  StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsApprovalCompleteState(string? state) =>
+    public static bool IsApprovalCompleteState(string? state) =>
         state is not null &&
         (state.Equals("APPROVED",    StringComparison.OrdinalIgnoreCase) ||
          state.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase) ||
          state.Equals("ARCHIVED",    StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// Recalculates restriction issues and approval requirements for the currently selected plan.
-    /// Should be called after saving a plan to update the issues list and approval badges.
-    /// </summary>
-    private async Task RecalculatePlanIssuesAndApprovalAsync()
-    {
-        if (_selectedPlanId == 0) return;
-        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
-        if (plan is null) return;
-
-        // Clear and recalculate issues
-        _selectedPlanIssues.Clear();
-
-        foreach (var planLayer in plan.Layers)
-        {
-            var geoType = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType
-                       ?? InferGeoType(planLayer.Geometry);
-
-            foreach (var geometry in planLayer.Geometry)
-            {
-                var isNewGeometry = string.IsNullOrEmpty(geometry.PersistentId) || geometry.Id == geometry.PersistentId;
-                var geometryIssues = EvaluateRestrictionsForGeometry(planLayer.OriginalLayerId, geoType, geometry, isNewGeometry, plan.StartDate);
-                _selectedPlanIssues.AddRange(geometryIssues);
-            }
-        }
-
-        _selectedPlanIssues.Sort((a, b) =>
-        {
-            var s = SeveritySortRank(b.Severity).CompareTo(SeveritySortRank(a.Severity));
-            if (s != 0) return s;
-            s = string.Compare(a.TargetLayer, b.TargetLayer, StringComparison.OrdinalIgnoreCase);
-            return s != 0 ? s : string.Compare(a.Message, b.Message, StringComparison.OrdinalIgnoreCase);
-        });
-
-        // Update severity badge
-        if (_selectedPlanIssues.Count > 0)
-            _planIssueSeverity[plan.PlanId] = NormaliseSeverity(_selectedPlanIssues[0].Severity);
-        else
-            _planIssueSeverity.Remove(plan.PlanId);
-
-        // Recalculate approval if not in a completed state
-        if (!IsApprovalCompleteState(plan.State))
-            CalculateApproval(plan);
-
-        // Update the plan geometry overlay with new restriction markers
-        if (_mapModule is not null)
-        {
-            var layersData = new List<object>();
-            foreach (var planLayer in plan.Layers)
-            {
-                var geoType = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType
-                           ?? InferGeoType(planLayer.Geometry);
-
-                var geometries = new List<object>();
-                foreach (var geometry in planLayer.Geometry)
-                {
-                    var isNewGeometry = string.IsNullOrEmpty(geometry.PersistentId) || geometry.Id == geometry.PersistentId;
-                    var geometryIssues = _selectedPlanIssues.Where(i =>
-                        string.Equals(i.TargetLayer, planLayer.OriginalLayerId, StringComparison.OrdinalIgnoreCase) &&
-                        geometry.Coordinates.Any(c => Math.Abs(c[0] - i.MarkerX) < 0.01 && Math.Abs(c[1] - i.MarkerY) < 0.01)
-                    ).ToList();
-
-                    geometries.Add(new {
-                        id     = geometry.Id,
-                        coords = geometry.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray(),
-                        isNew  = isNewGeometry,
-                        mspType = geometry.TypeIndex,
-                        restrictionMarkers = geometryIssues
-                            .Select(r => new
-                            {
-                                severity = NormaliseSeverity(r.Severity),
-                                message = r.Message,
-                                sourceLayer = r.SourceLayer,
-                                targetLayer = r.TargetLayer,
-                                changeKind = r.ChangeKind,
-                                coord = new[] { r.MarkerX, r.MarkerY }
-                            })
-                            .ToArray(),
-                        restrictions = geometryIssues
-                            .Select(r => NormaliseSeverity(r.Severity))
-                            .Where(r => !string.IsNullOrEmpty(r))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .ToArray()
-                    });
-                }
-
-                layersData.Add(new {
-                    geoType,
-                    geometries = geometries.ToArray(),
-                    originalLayerId = planLayer.OriginalLayerId,
-                    deletedIds      = planLayer.DeletedPersistentIds
-                });
-            }
-
-            if (layersData.Count > 0)
-                await _mapModule.InvokeVoidAsync("showPlanGeometry", JsonSerializer.Serialize(layersData));
-        }
-
-        StateHasChanged();
-    }
+    
 
     private string? SelectedPlanState => _selectedPlanId == 0
         ? null
@@ -516,30 +320,9 @@ public partial class Game
             .ToArray());
     }
 
-    private async Task SetPlanViewModeAsync(PlanViewMode mode)
-    {
-        if (_mapModule is null || _selectedPlanId == 0 || mode == _planViewMode) return;
-        _planViewMode = mode;
+    
 
-        // Overlay is hidden only in Original mode.
-        await _mapModule.InvokeVoidAsync("setPlanOverlayVisible", mode != PlanViewMode.Original);
-
-        // Referenced base layers are hidden only in ChangesOnly mode.
-        bool showBase = mode != PlanViewMode.ChangesOnly;
-        foreach (var layerId in _planReferencedLayerIds)
-            await _mapModule.InvokeVoidAsync("setLayerVisible", layerId, showBase);
-
-        StateHasChanged();
-    }
-
-    private async Task ClosePlanDetailAsync()
-    {
-        if (_editMode)
-            await CancelEditAsync();
-        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
-        if (plan is not null)
-            await SelectPlanAsync(plan);
-    }
+    
 
     private async Task TogglePlanMessagesPanel()
     {
@@ -612,36 +395,6 @@ public partial class Game
             _approvalReasonsExpanded.Add(countryId);
     }
 
-    private async Task TogglePlanStatePanel()
-    {
-        if (_selectedPlanId == 0) return;
-        var plan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
-        bool isManager = SessionState.CountryId <= 2;
-        if (plan is null
-            || plan.State.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase)
-            || (!isManager && plan.Country != SessionState.CountryId)) return;
-        _planStateOpen = !_planStateOpen;
-        if (_planStateOpen)
-        {
-            _planMessagesOpen = false;
-            _planIssuesOpen   = false;
-            _planApprovalOpen = false;
-            _policyPickerOpen = false;
-            _layerPickerOpen  = false;
-            _approvalReasonsExpanded.Clear();
-            _planStatePending = plan.State.ToUpperInvariant();
-            
-            // Close geometry tool
-            if (_geometryToolLayerId is not null && _mapModule is not null)
-                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
-            _geometryToolLayerId = null;
-        }
-        else
-        {
-            _planStateDropdownOpen = false;
-        }
-    }
-
     // â”€â”€ Edit mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private bool CanEnterEditMode =>
@@ -660,7 +413,7 @@ public partial class Game
         _createPlanOpen   = true;
     }
 
-    private void CloseCreatePlanPanel()
+    public void CloseCreatePlanPanel()
     {
         _createPlanOpen  = false;
     }

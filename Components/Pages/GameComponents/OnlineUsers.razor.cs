@@ -6,8 +6,8 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 public partial class OnlineUsers : IDisposable
 {   
     private List<UserEntry> _users        = [];
-    private bool            _usersLoading;
-    private string?         _usersError;
+    private bool            _usersLoading = true;
+    private string?         _usersError = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -16,18 +16,14 @@ public partial class OnlineUsers : IDisposable
 
     private async Task LoadUsersAsync()
     {
-        _usersLoading = true;
-        _usersError = null;
         StateHasChanged();
         try
         {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var url = $"{baseAddress}/{SessionState.SessionId}/api/User/List";
-            bool isAdmin = SessionState.CountryId == 1 || SessionState.CountryId == 2;
-            JsonElement root = isAdmin
-                ? await ApiClient.GetAsync(url)
-                : await ApiClient.PostFormAsync(url, new[] { new KeyValuePair<string, string>("country_id", SessionState.CountryId.ToString()) });
-            var payload = root.TryGetProperty("payload", out var p) ? p : root;
+            var endpoint = "User/List";
+            JsonElement apiCallResults = UserSessionService.IsAdmin
+                ? await ApiClient.GetAsync(endpoint)
+                : await ApiClient.PostFormAsync(endpoint, [new KeyValuePair<string, string>("country_id", UserSessionService.User.CountryId.ToString())]);
+            var payload = apiCallResults.TryGetProperty("payload", out var p) ? p : apiCallResults;
             var list = new List<UserEntry>();
             if (payload.ValueKind == JsonValueKind.Array)
             {
@@ -39,12 +35,12 @@ public partial class OnlineUsers : IDisposable
                         : int.TryParse(c.GetString(), out var parsed) ? parsed : 0)
                         : 0;
                     var col  = GameSessionState.CountryColours.GetValueOrDefault(cid, "#6c757d");
-                    list.Add(new UserEntry(name, cid, col));
+                    list.Add(new UserEntry(null, name, cid, col));
                 }
             }
-            _users = isAdmin
-                ? list.OrderBy(u => u.CountryId).ThenBy(u => u.Name).ToList()
-                : list.OrderBy(u => u.Name).ToList();
+            _users = UserSessionService.IsAdmin
+                ? [.. list.OrderBy(u => u.CountryId).ThenBy(u => u.Name)]
+                : [.. list.OrderBy(u => u.Name)];
         }
         catch (Exception ex)
         {
@@ -55,6 +51,16 @@ public partial class OnlineUsers : IDisposable
             _usersLoading = false;
             StateHasChanged();
         }
+    }
+    
+    private string CurrentUserCountryName()
+    {
+        return GameSessionState.CountryNames.GetValueOrDefault(UserSessionService.User.CountryId, "Unknown");
+    }
+
+    private string CurrentUserCountryColour()
+    {
+        return GameSessionState.CountryColours.GetValueOrDefault(UserSessionService.User.CountryId, "#6c757d");
     }
 
     public void Dispose()

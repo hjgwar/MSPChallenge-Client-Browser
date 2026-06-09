@@ -1,0 +1,49 @@
+<div class="plan-message-panel plan-state-panel">
+    <div class="plan-message-panel-header">
+        <span class="plan-message-panel-title">Plan State</span>
+        <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePlanStatePanel">&#10005;</button>
+    </div>
+    <div class="plan-message-panel-body plan-state-panel-body">
+        @{
+            var availableStates = GetAvailablePlanStates(_detailPlan);
+        }
+        <div class="plan-state-dropdown @(_planStateDropdownOpen ? "open" : "")">
+            <button class="plan-state-dropdown-trigger" type="button"
+                    disabled="@_planStateSending"
+                    @onclick:stopPropagation="true"
+                    @onclick="@(() => _planStateDropdownOpen = !_planStateDropdownOpen)">
+                <span>@PlanStateLabel(_planStatePending!)</span>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="plan-state-dropdown-arrow">
+                    <polyline points="4,6 8,10 12,6"/>
+                </svg>
+            </button>
+            @if (_planStateDropdownOpen)
+            {
+                <div class="plan-state-dropdown-list">
+                    @foreach (var s in availableStates)
+                    {
+                        var sLocal = s;
+                        <button class="plan-state-dropdown-item @(sLocal == _planStatePending ? "selected" : "")"
+                                type="button"
+                                @onclick:stopPropagation="true"
+                                @onclick="@(() => { _planStatePending = sLocal; _planStateDropdownOpen = false; })">
+                            @PlanStateLabel(sLocal)
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+    <div class="plan-edit-footer">
+        <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel" type="button"
+                disabled="@_planStateSending"
+                @onclick="TogglePlanStatePanel">
+            &#8249; Cancel
+        </button>
+        <button class="plan-edit-footer-btn plan-edit-footer-btn--accept" type="button"
+                disabled="@_planStateSending"
+                @onclick="SetPlanStateAsync">
+            Accept &#8250;
+        </button>
+    </div>
+</div>

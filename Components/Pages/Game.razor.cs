@@ -1,8 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
-using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
 
@@ -10,6 +11,16 @@ namespace MSPChallenge_Client_Browser.Components.Pages;
 
 public partial class Game : IAsyncDisposable
 {
+    [Inject] NavigationManager NavigationManager { get; set; } = null!;
+    [Inject] IJSRuntime JS { get; set; } = null!;
+    [Inject] IHostEnvironment HostEnvironment { get; set; } = null!;
+    [Inject] SessionState SessionState { get; set; } = null!;
+    [Inject] MspApiClient ApiClient { get; set; } = null!;
+    [Inject] GameWebSocketService WsService { get; set; } = null!;
+    [Inject] GameSessionState GameSessionState { get; set; } = null!;
+
+    public SideBarPanelControl SideBarPanelController { get; set; } = null!;
+    public MapViewPort Map { get; set; } = null!;
     // Returns the selected plan or a new unsaved plan for edit mode
     private IJSObjectReference? _mapModule;
     private DotNetObjectReference<Game>? _dotNetRef;
@@ -35,9 +46,6 @@ public partial class Game : IAsyncDisposable
     private string? errorDetail;
 
     // ── Panel open/close state ────────────────────────────────────────────────
-    private bool _layerPanelOpen  = false;
-    private bool _legendPanelOpen = false;
-    private bool _usersPanelOpen  = false;
     private bool _timeManagerVisible = false;
 
     // ── Feature popup ─────────────────────────────────────────────────────────
@@ -247,9 +255,9 @@ public partial class Game : IAsyncDisposable
 
             // If a plan is currently selected, immediately project prior-plan changes onto
             // this layer so the user sees the correct world state without re-selecting the plan.
-            if (_selectedPlanId != 0)
+            if (GameSessionState.SelectedPlanId != 0)
             {
-                var viewedPlan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
+                var viewedPlan = _plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
                 if (viewedPlan is not null)
                     await ApplyPlanProjectionAsync(viewedPlan.StartDate, entry.LayerId, currentPlan: viewedPlan);
             }
@@ -269,27 +277,7 @@ public partial class Game : IAsyncDisposable
         await SyncZIndicesAsync();
     }
 
-    private void SetLayerPanelOpen(bool open)
-    {
-        _layerPanelOpen = open;
-        GameState.LayerPanelOpen = open;
-    }
-
-    private void SetLegendPanelOpen(bool open)
-    {
-        _legendPanelOpen = open;
-        GameState.LegendPanelOpen = open;
-    }
-
-    private void ToggleLayerPanel()
-    {
-        SetLayerPanelOpen(!_layerPanelOpen);
-    }
-
-    private void ToggleLegendPanel()
-    {
-        SetLegendPanelOpen(!_legendPanelOpen);
-    }
+    
 
     [JSInvokable]
     public async Task ReorderLegend(int from, int to)
@@ -316,19 +304,6 @@ public partial class Game : IAsyncDisposable
             await _mapModule.InvokeVoidAsync("setLayerZIndex", _legendOrder[i].LayerId, i + 1);
     }
 
-    /// <summary>Inline style for the users sidebar button: tinted with the country colour.</summary>
-    private static string CountryBtnStyle(string hex, bool active)
-    {
-        if (string.IsNullOrEmpty(hex) || !hex.StartsWith('#')) return "";
-        var h = hex.TrimStart('#');
-        if (h.Length < 6) return "";
-        int r = Convert.ToInt32(h[..2], 16);
-        int g = Convert.ToInt32(h[2..4], 16);
-        int b = Convert.ToInt32(h[4..6], 16);
-        double a = active ? 0.40 : 0.20;
-        return $"background:rgba({r},{g},{b},{a:F2});color:#fff;";
-    }
-
     private static string HexToCss(string hex)
     {
         if (string.IsNullOrEmpty(hex) || !hex.StartsWith('#')) return hex;
@@ -345,28 +320,7 @@ public partial class Game : IAsyncDisposable
         return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant());
     }
 
-    private async Task FocusPlanIssueAsync(PlanRestrictionIssue issue)
-    {
-        if (_mapModule is null) return;
-        await EnsureRestrictionLayersVisibleAsync(issue.SourceLayer, issue.TargetLayer);
-        await _mapModule.InvokeVoidAsync("focusOnCoordinate", issue.MarkerX, issue.MarkerY);
-    }
-
-    private async Task EnsureRestrictionLayersVisibleAsync(string? sourceDisplayName, string? targetDisplayName)
-    {
-        var changed = false;
-        foreach (var name in new[] { sourceDisplayName, targetDisplayName })
-        {
-            if (string.IsNullOrWhiteSpace(name)) continue;
-            var le = _layerEntries.FirstOrDefault(e =>
-                string.Equals(e.DisplayName, name, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(e.LayerName,   name, StringComparison.OrdinalIgnoreCase));
-            if (le is null || le.Visible) continue;
-            await ToggleLayerAsync(le, true);
-            changed = true;
-        }
-        if (changed) StateHasChanged();
-    }
+    
 
     // ── Map Click Handler ──────────────────────────────────────────────────────
 
@@ -501,7 +455,7 @@ public partial class Game : IAsyncDisposable
         }
 
         // Data parsing is handled by GameSessionState which also subscribes to MessageReceived.
-        if (msg.HeaderName == "Game/Latest" && _planMessagesOpen && _selectedPlanId != 0)
+        if (msg.HeaderName == "Game/Latest" && _planMessagesOpen && GameSessionState.SelectedPlanId != 0)
             _scrollPlanMessagesPending = true;
 
         if (msg.HeaderName == "Game/Latest" && _editWsConfirmationTcs is { } confirmTcs)
@@ -578,10 +532,7 @@ public partial class Game : IAsyncDisposable
             _timeManagerVisible = _timeManagerVisible ? false : true;
     }
 
-    public void ToggleOnlineUsersPanel()
-    {
-        _usersPanelOpen = _usersPanelOpen ? false : true;
-    }
+    
 
     private async Task CopyWsMessageAsync(string raw)
     {

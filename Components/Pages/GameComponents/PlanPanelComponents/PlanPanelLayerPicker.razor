@@ -1,0 +1,38 @@
+<div class="plan-message-panel plan-layer-picker-panel">
+                                            <div class="plan-message-panel-header">
+                                                <span class="plan-message-panel-title">Layer Picker</span>
+                                                <button class="panel-close-btn" type="button" title="Close" @onclick="ToggleLayerPickerAsync">&#10005;</button>
+                                            </div>
+                                            <div class="plan-message-panel-body plan-layer-picker-body">
+                                                @if (_editableLayers.Count == 0)
+                                                {
+                                                    <div class="plan-message-empty">No editable layers available.</div>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var lcat in _editableLayers
+                                                        .GroupBy(e => e.Category)
+                                                        .OrderBy(g => g.Key))
+                                                    {
+                                                        <details class="layer-cat" open>
+                                                            <summary class="layer-cat-header">@TitleCase(lcat.Key)</summary>
+                                                            @foreach (var lsub in lcat.GroupBy(e => e.Subcategory).OrderBy(g => g.Key))
+                                                            {
+                                                                <details class="layer-sub" open>
+                                                                    <summary class="layer-sub-header">@TitleCase(lsub.Key)</summary>
+                                                                    @foreach (var le in lsub)
+                                                                    {
+                                                                        var _leSelected = _editPlanLayerIds.Contains(le.LayerId);
+                                                                        <div class="plan-policy-item"
+                                                                                @onclick="@(() => ToggleEditPlanLayerAsync(le.LayerId))">
+                                                                            <input type="checkbox" class="plan-policy-toggle" checked="@_leSelected" tabindex="-1" />
+                                                                            <span class="plan-policy-name">@le.DisplayName</span>
+                                                                        </div>
+                                                                    }
+                                                                </details>
+                                                            }
+                                                        </details>
+                                                    }
+                                                }
+                                            </div>
+                                        </div>

@@ -15,7 +15,7 @@
                 <div class="game-bar-track">
                     <div class="game-bar-fill" style="width:@(BarProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
                     <div class="game-bar-needle" style="left:@(BarProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
-                    @if (_selectedPlanId != 0 && _planForNeedle is not null)
+                    @if (GameSessionState.SelectedPlanId != 0 && _planForNeedle is not null)
                     {
                         <div class="game-bar-plan-needle" style="left:@(BarNeedle())%"
                             title="Plan time: @GameSessionState.MonthToDate(_planForNeedle.StartDate)"></div>
@@ -24,7 +24,7 @@
                 <span class="game-bar-year">@GameSessionState.GameEndYear</span>
             </div>
         </div>
-        @if (SessionState.IsAdmin)
+        @if (UserSessionService.IsAdmin)
         {
             <div class="game-bar-state game-bar-state--clickable" @onclick="ToggleTimeManager">
                 <div class="game-bar-state-label">@GameSessionState.GameStateLabel(GameSessionState.GameState)</div>
@@ -39,7 +39,7 @@
             </div>
         }
     </div>
-    @if (_selectedPlanId != 0 && _planForNeedle is not null)
+    @if (GameSessionState.SelectedPlanId != 0 && _planForNeedle is not null)
     {
         <div class="game-bar-plan-view">
             <div class="game-bar-plan-time">
@@ -51,9 +51,9 @@
                 <span class="game-bar-plan-time-date">@GameSessionState.MonthToDate(_planForNeedle.StartDate)</span>
             </div>
             <div class="game-bar-plan-modes">
-                <button class="plan-mode-btn @(_planViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"
+                <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"
                         title="Show original data only"
-                        @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.Original))">
+                        @onclick="@(async () => await PlanPanelsController.SetPlanViewModeAsync(PlanViewMode.Original))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 2h8l4 4v12H4V2z"/>
                         <path d="M12 2v4h4"/>
@@ -63,9 +63,9 @@
                     </svg>
                     <span>Original</span>
                 </button>
-                <button class="plan-mode-btn @(_planViewMode == PlanViewMode.AfterChanges ? "plan-mode-btn--active" : "")"
+                <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.AfterChanges ? "plan-mode-btn--active" : "")"
                         title="Show base data with plan changes applied"
-                        @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.AfterChanges))">
+                        @onclick="@(async () => await PlanPanelsController.SetPlanViewModeAsync(PlanViewMode.AfterChanges))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 2h8l4 4v12H4V2z" opacity="0.65"/>
                         <path d="M12 2v4h4" opacity="0.65"/>
@@ -75,9 +75,9 @@
                     </svg>
                     <span>After changes</span>
                 </button>
-                <button class="plan-mode-btn @(_planViewMode == PlanViewMode.ChangesOnly ? "plan-mode-btn--active" : "")"
+                <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.ChangesOnly ? "plan-mode-btn--active" : "")"
                         title="Show plan changes only, without base data"
-                        @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.ChangesOnly))">
+                        @onclick="@(async () => await PlanPanelsController.SetPlanViewModeAsync(PlanViewMode.ChangesOnly))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 2h8l4 4v12H4V2z" opacity="0.22" stroke-dasharray="3,2"/>
                         <path d="M12 2v4h4" opacity="0.22"/>

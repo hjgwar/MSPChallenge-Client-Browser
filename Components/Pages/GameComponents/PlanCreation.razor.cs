@@ -4,14 +4,14 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public partial class PlanCreation : IDisposable
 {
+    [CascadingParameter] public PlanPanelsControl PlanPanelsController { get; set; } = null!;
+    [Parameter] public Action<PlanCreation> OpenEditMode { get; set; } = null!;
     public string? _createPlanName { get; set; }
     public string? _createPlanDescription { get; set; }
     public int     _createPlanStartYear { get; set; }
     public int     _createPlanStartMonth { get; set; }
     private bool    _createPlanSaving;
     private string? _createPlanError;
-
-    [CascadingParameter] private Game? GamePage { get; set; }
 
     protected override void OnInitialized()
     {
@@ -52,7 +52,7 @@ public partial class PlanCreation : IDisposable
             StateHasChanged();
             return;
         }
-        GamePage?.OpenEditMode(this);
+        OpenEditMode(this);
     }
 
     public void Dispose()

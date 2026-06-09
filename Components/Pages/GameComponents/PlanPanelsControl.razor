@@ -1,0 +1,18 @@
+@inherits GameComponentBase
+<CascadingValue value="this">
+    <GameTimeViewControl />
+    <div class="map-plan-panels">
+        @* Plan detail panel — shown when a plan is selected or in edit mode for new plan *@
+        @if (GameSessionState.SelectedPlanId != 0 || GameSessionState.EditPlanMode)
+        {
+            <PlanDetails  />
+        }
+
+        @* Create plan panel — shown instead of plan-detail when creating a new plan *@
+        @if (GameSessionState.CreatePlanOpen)
+        {
+            <PlanCreation />
+        }
+
+    </div>
+</CascadingValue>

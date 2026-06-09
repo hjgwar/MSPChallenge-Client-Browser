@@ -3,19 +3,12 @@
 <div class="plan-detail-panel">
     <div class="plan-detail-panel-title">
         NEW PLAN
-        <button class="panel-close-btn" title="Close"
-                @onclick="OnClose">&#10005;</button>
+        <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
     <div class="plan-detail-header">
         <div class="plan-detail-header-body">
-            <input class="plan-edit-input" type="text"
-                    placeholder="Plan name"
-                    @bind="_createPlanName"
-                    disabled="@_createPlanSaving" />
-            <input class="plan-edit-input" type="text"
-                    placeholder="Description (optional)"
-                    @bind="_createPlanDescription"
-                    disabled="@_createPlanSaving" />
+            <input class="plan-edit-input" type="text" placeholder="Plan name" @bind="_createPlanName" disabled="@_createPlanSaving" />
+            <input class="plan-edit-input" type="text" placeholder="Description (optional)" @bind="_createPlanDescription" disabled="@_createPlanSaving" />
         </div>
     </div>
     <div class="plan-detail-scroll">
@@ -29,17 +22,13 @@
                     </svg>
                     <div class="plan-edit-date-wrapper">
                         <div class="plan-edit-date-row">
-                            <select class="plan-edit-select @(!CreatePlanStartDateValid ? "plan-edit-select--invalid" : "")"
-                                    @bind="_createPlanStartMonth"
-                                    disabled="@_createPlanSaving">
+                            <select class="plan-edit-select @(!CreatePlanStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_createPlanStartMonth" disabled="@_createPlanSaving">
                                 @for (int m = 1; m <= 12; m++)
                                 {
                                     <option value="@m" disabled="@CreatePlanMonthDisabled(m)">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(m)</option>
                                 }
                             </select>
-                            <select class="plan-edit-select @(!CreatePlanStartDateValid ? "plan-edit-select--invalid" : "")"
-                                    @bind="_createPlanStartYear"
-                                    disabled="@_createPlanSaving">
+                            <select class="plan-edit-select @(!CreatePlanStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_createPlanStartYear" disabled="@_createPlanSaving">
                                 @for (int y = CreatePlanEarliestStart.Year; y <= (GameSessionState.GameEndYear > 0 ? GameSessionState.GameEndYear : GameSessionState.GameStartYear + 30); y++)
                                 {
                                     <option value="@y">@y</option>
@@ -56,15 +45,10 @@
         <div class="plan-edit-error">@_createPlanError</div>
     }
     <div class="plan-edit-footer">
-        <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel"
-                type="button" disabled="@_createPlanSaving"
-                @onclick="OnClose">
+        <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel" type="button" disabled="@_createPlanSaving" @onclick="OnCloseThisPanel">
             &#8249; Cancel
         </button>
-        <button class="plan-edit-footer-btn plan-edit-footer-btn--accept"
-                type="button"
-                disabled="@(_createPlanSaving || string.IsNullOrWhiteSpace(_createPlanName))"
-                @onclick="CreatePlanAsync">
+        <button class="plan-edit-footer-btn plan-edit-footer-btn--accept" type="button" disabled="@(_createPlanSaving || string.IsNullOrWhiteSpace(_createPlanName))" @onclick="CreatePlanAsync">
             @if (_createPlanSaving) { <span>Creating&#8230;</span> } else { <span>Accept &#8250;</span> }
         </button>
     </div>

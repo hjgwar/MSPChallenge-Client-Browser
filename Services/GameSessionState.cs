@@ -40,8 +40,12 @@ public sealed class GameSessionState : IDisposable
     // ── UI state persisted across page navigation (same circuit) ──────────────
     public bool LayerPanelOpen { get; set; } = true;
     public bool LegendPanelOpen { get; set; } = true;
-    public bool UsersPanelOpen { get; set; } = false;
+    public bool OnlineUsersPanelOpen { get; set; } = false;
     public bool PlansPanelOpen { get; set; } = false;
+    public bool CreatePlanOpen { get; set; } = false;
+    public int? SelectedPlanId { get; set; } = null;
+    public PlanViewMode PlanViewMode { get; set; } = PlanViewMode.AfterChanges;
+    public bool EditPlanMode { get; set; } = false;
 
     // Persisted map camera for smooth return navigation.
     public double? MapLat { get; private set; }
@@ -443,10 +447,10 @@ public sealed class GameSessionState : IDisposable
         GameEndMonth       = 0;
         GameEndYear        = 0;
 
-        LayerPanelOpen    = true;
-        LegendPanelOpen   = true;
-        UsersPanelOpen    = false;
-        PlansPanelOpen    = false;
+        LayerPanelOpen = true;
+        LegendPanelOpen = true;
+        OnlineUsersPanelOpen = false;
+        PlansPanelOpen = false;
         MapLat = MapLng = MapZoom = null;
 
         GameCurrentMonth = 0;

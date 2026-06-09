@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
 
 namespace MSPChallenge_Client_Browser.Components.Pages;
@@ -237,14 +238,12 @@ public partial class Home
 
             SessionState.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
             SessionState.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
-            SessionState.CountryId       = countryId;
-            SessionState.UserName        = username;
-
-            if (payload.TryGetProperty("user_id", out var userIdEl) &&
-                userIdEl.ValueKind == JsonValueKind.Number)
-                SessionState.UserId = userIdEl.GetInt32();
-            else
-                SessionState.UserId = countryId; // fallback
+            SessionState.User = new UserEntry
+            {
+                Id = payload.TryGetProperty("user_id", out var userIdEl) ? userIdEl.GetInt32() : null,
+                Name = username,
+                CountryId = countryId
+            };
 
             NavigationManager.NavigateTo("/game");
         }
