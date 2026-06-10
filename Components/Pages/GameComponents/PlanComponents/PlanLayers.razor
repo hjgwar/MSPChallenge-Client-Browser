@@ -1,0 +1,79 @@
+@inherits PlanComponentBase
+@using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
+<div class="plan-detail-layers-list">
+    @{
+        var _displayedLayers = PlanController.EditMode
+            ? _editPlanLayerIds
+                .Select(id => _layerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName)
+                .OfType<string>()
+                .OrderBy(n => n)
+                .ToList()
+            : _detailLayers;
+        var _editableLayers = _layerEntries
+            .Where(e => e.Editable && !e.IsBaseLayer)
+            .ToList();
+    }
+    @if (_editMode)
+    {
+        @foreach (var _editLayerId in _editPlanLayerIds.OrderBy(id => _layerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName ?? ""))
+        {
+            var _editLayerName  = _layerEntries.FirstOrDefault(e => e.LayerId == _editLayerId)?.DisplayName ?? _editLayerId;
+            bool _isGeoActive    = _geometryToolLayerId == _editLayerId;
+            <button class="plan-detail-item-row plan-detail-item-row--selectable @(_isGeoActive ? "plan-detail-item-row--active" : "")"
+                    type="button" title="Open geometry tool"
+                    @onclick="@(async () => await OpenGeometryToolAsync(_editLayerId))">
+                <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" opacity="0.8">
+                    <path d="M8 1l7 3.5-7 3.5L1 4.5 8 1z"/>
+                    <path d="M1 8.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                </svg>
+                <span>@_editLayerName</span>
+                @if (_isGeoActive)
+                {
+                    <svg viewBox="0 0 16 16" fill="none" stroke="#fd7e14" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px;flex-shrink:0;margin-left:auto">
+                        <path d="M2 12.5L9 5.5l2 2-7 7H2v-2z"/>
+                        <path d="M8 5.5L9.5 4l2 2-1.5 1.5"/>
+                    </svg>
+                }
+            </button>
+        }
+    }
+    else
+    {
+        if (_displayedLayers.Count == 0)
+        {
+            <div class="plan-detail-info-row">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" opacity="0.5">
+                    <path d="M8 1l7 3.5-7 3.5L1 4.5 8 1z"/>
+                    <path d="M1 8.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                </svg>
+                <span>No data layers</span>
+            </div>
+        }
+        @foreach (var lname in _displayedLayers)
+        {
+            <div class="plan-detail-item-row">
+                <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon" opacity="0.8">
+                    <path d="M8 1l7 3.5-7 3.5L1 4.5 8 1z"/>
+                    <path d="M1 8.5l7 3.5 7-3.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+                </svg>
+                <span>@lname</span>
+            </div>
+        }
+    }
+    </div>
+    @if (_editMode)
+    {
+        <div class="plan-detail-layers-row">
+            @if (_geometryToolLayerId is not null)
+            {
+                <PlanPanelGeometryTool LayerId="@_geometryToolLayerId" OnClose="CloseGeometryToolAsync" />
+            }
+            @if (_layerPickerOpen)
+            {
+                <PlanPanelLayerPicker SelectedLayerIds="@_editPlanLayerIds" OnToggleLayer="@ToggleEditLayer" AvailableLayers="@_editableLayers" />
+            }
+            <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="ToggleLayerPickerAsync">
+                Add or remove data layers
+            </button>
+        </div>
+    }

@@ -1,0 +1,30 @@
+@inherits PlanComponentBase
+
+@if (PlanController.EditMode)
+{
+    <input class="plan-edit-input" type="text" placeholder="Plan name" @bind="_editName" disabled="@PlanController.EditSaving" />
+    <input class="plan-edit-input" type="text" placeholder="Description (optional)" @bind="_editDescription" disabled="@PlanController.EditSaving" />
+}
+else
+{
+    <span class="plan-detail-title">@_editName</span>
+    @if (!string.IsNullOrWhiteSpace(_editDescription))
+    {
+        <div class="plan-detail-desc">
+            <span class="plan-detail-desc-text @(_detailDescExpanded ? "plan-detail-desc-text--expanded" : "")">@_editDescription</span>
+            @if (_editDescription.Length > 40)
+            {
+                <button class="plan-detail-desc-btn" title="@(_detailDescExpanded ? "Show less" : "Show full description")" @onclick="@(() => _detailDescExpanded = !_detailDescExpanded)">
+                    @if (_detailDescExpanded)
+                    {
+                        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg"><polyline points="2,8 6,4 10,8"/></svg>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg"><polyline points="2,4 6,8 10,4"/></svg>
+                    }
+                </button>
+            }
+        </div>
+    }
+}

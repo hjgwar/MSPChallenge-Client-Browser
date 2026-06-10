@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Utils;
 
@@ -8,14 +9,26 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public partial class PlanDetails
 {
-    [CascadingParameter] public PlanPanelsControl PlanPanelsController { get; set; } = null!;
+    [CascadingParameter] public PlanControl PlanController { get; set; } = null!;
+    public PlanNameDesc PlanNameDescInstance { get; set; } = null!;
+    public PlanStartDate PlanStartDateInstance { get; set; } = null!;
+    public PlanPolicies PlanPoliciesInstance { get; set; } = null!;
+    public PlanLayers PlanLayersInstance { get; set; } = null!;
+    public PlanMessages PlanMessagesInstance { get; set; } = null!;
+    public PlanIssues PlanIssuesInstance { get; set; } = null!;
+
+
     public List<PlanRestrictionIssue> SelectedPlanIssues       = [];
     private PlanEntry _detailPlan = null!;
     private List<string> _detailLayers = [];
     private string _detailDotColour = "#6c757d";
     private string _detailCountryName = "Unknown Country";
     
+    
     private string? _editError;
+
+    private bool    _pendingEnterEditMode;
+
     private string? _editName;
     private string? _editDescription;
     private int     _editStartYear;
@@ -25,7 +38,7 @@ public partial class PlanDetails
     private HashSet<string> _editPolicyTypes  = [];
     private string? _enterEditError;
     private TaskCompletionSource<bool>? _editWsConfirmationTcs;
-    private bool    _pendingEnterEditMode;
+
     private int     _pendingSelectPlanId;
     private string? _pendingBatchGuid;
     private int     _pendingCreatePlanCallId;
@@ -46,7 +59,59 @@ public partial class PlanDetails
         _detailCountryName = GameSessionState.CountryNames.GetValueOrDefault(_detailPlan.Country, $"Country {_detailPlan.Country}");
     }
 
-    
+    private async Task ClosePlanDetailAsync()
+    {
+        if (GameSessionState.EditPlanMode)
+            await CancelEditAsync();
+        var plan = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
+        if (plan is not null)
+            await SelectPlanAsync(plan);
+    }
+
+    private bool CanEnterEditMode =>
+        GameSessionState.SelectedPlanId != 0 &&
+        PlanController.SelectedPlan != null &&
+        PlanController.SelectedPlan.State.Equals("DESIGN", StringComparison.OrdinalIgnoreCase) &&
+        (UserSessionService.User.CountryId <= 2 || PlanController.SelectedPlan.Country == UserSessionService.User.CountryId);
+
+    private async Task EnterEditModeAsync()
+    {
+        // Always fetch the latest plan from _plans
+        PlanController.FetchSelectedPlan();
+        if (PlanController.SelectedPlan is null)
+        {
+            _enterEditError = "Selected plan not found. It may have been deleted or modified by another user. Please select the plan again.";
+            _pendingEnterEditMode = true;
+            StateHasChanged();
+            return;
+        }
+        // Proactively check if plan is locked by another user
+        if (PlanController.SelectedPlan.LockedByUserId != 0 && PlanController.SelectedPlan.LockedByUserId != UserSessionService.User.Id)
+        {
+            _enterEditError = "This plan is currently being edited by another user.";
+            StateHasChanged();
+            return;
+        }
+        _enterEditError = null;
+
+        try
+        {
+            await ApiClient.PostFormAsync("Plan/Lock",
+                new[]
+                {
+                    new KeyValuePair<string, string>("id",   PlanController.SelectedPlan.Id.ToString()),
+                    new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
+                });
+        }
+        catch
+        {
+            // Lock failed (plan locked by someone else)
+            _enterEditError = "This plan is currently being edited by another user.";
+            StateHasChanged();
+            return;
+        }
+        PlanController.EditMode = true;
+    }
 
     private PlanEntry GetDetailPlan()
     {
@@ -81,33 +146,24 @@ public partial class PlanDetails
 
     private async Task CancelEditAsync()
     {
+        PlanController.EditMode = false;
         _editSaving = true;
         StateHasChanged();
         try
         {
-            if (_geometryToolLayerId is not null && _mapModule is not null)
-                await _mapModule.InvokeVoidAsync("stopGeometryEditing");
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var sessionPath = SessionState.SessionId.ToString();
-            await ApiClient.PostFormAsync(
-                $"{baseAddress}/{sessionPath}/api/Plan/Unlock",
+            await PlanController.Map.MapJSModule.InvokeVoidAsync("stopGeometryEditing");
+            await ApiClient.PostFormAsync("Plan/Unlock",
                 new[]
                 {
-                    new KeyValuePair<string, string>("id",           _selectedPlanId.ToString()),
+                    new KeyValuePair<string, string>("id", GameSessionState.SelectedPlanId.ToString()),
                     new KeyValuePair<string, string>("force_unlock", "0"),
-                    new KeyValuePair<string, string>("user",         SessionState.UserId.ToString()),
+                    new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
                 });
         }
         catch { }
         finally
         {
-            _editMode         = false;
-            _policyPickerOpen = false;
-            _layerPickerOpen  = false;
-            _geometryToolLayerId           = null;
-            _geometryToolSelectedFeatureId = null;
-            _drawingUndoStack.Clear();
-            _drawingRedoStack.Clear();
+            PlanController.EditMode = false;
             _pendingBatchGuid = null;
             _pendingCreatePlanCallId = 0;
             _editSaving = false;
@@ -762,7 +818,7 @@ public partial class PlanDetails
             var layerEntry = _layerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
             var layerDisplayName = layerEntry?.DisplayName ?? planLayer.OriginalLayerId;
 
-            // â”€â”€ Deleted geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // Deleted geometry 
             if (planLayer.DeletedPersistentIds.Count > 0)
             {
                 var baseGeoms = GetParsedLayerGeometries(planLayer.OriginalLayerId);
@@ -794,7 +850,7 @@ public partial class PlanDetails
                 }
             }
 
-            // â”€â”€ New / modified geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // New / modified geometry 
             foreach (var geomItem in planLayer.Geometry)
             {
                 var typeApproval = GetApprovalForGeom(layerEntry, geomItem.TypeIndex);

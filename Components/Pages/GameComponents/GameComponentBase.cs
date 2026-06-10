@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Services;
-using MSPChallenge_Client_Browser.Utils;
+
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public class GameComponentBase : ComponentBase

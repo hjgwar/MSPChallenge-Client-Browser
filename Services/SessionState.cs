@@ -10,7 +10,7 @@ public class SessionState
     public string ApiAccessToken { get; set; } = string.Empty;
     public string ApiRefreshToken { get; set; } = string.Empty;
 
-    public UserEntry? User { get; set; } = null;
+    public UserEntry User { get; set; } = null!;
 
-    public bool IsAdmin => User?.CountryId == 1 || User?.CountryId == 2;
+    public bool IsAdmin => User.CountryId == 1 || User.CountryId == 2;
 }

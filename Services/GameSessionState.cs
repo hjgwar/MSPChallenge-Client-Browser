@@ -404,10 +404,10 @@ public sealed class GameSessionState : IDisposable
         return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
-    public static string PlanStateLabel(string state) => state.ToUpperInvariant() switch
+    public static string PlanStateLabel(string? state) => state?.ToUpperInvariant() switch
     {
         "APPROVAL" => "AWAITING APPROVAL",
-        _          => state.ToUpperInvariant(),
+        _          => state?.ToUpperInvariant() ?? string.Empty,
     };
 
     public static int PlanStatePriority(string state) => state.ToUpperInvariant() switch

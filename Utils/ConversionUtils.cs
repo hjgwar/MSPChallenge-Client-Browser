@@ -5,6 +5,51 @@ namespace MSPChallenge_Client_Browser.Utils;
 
 public static partial class ConversionUtils
 {
+    public static string GameStateLabel(string state) => state.ToLowerInvariant() switch
+    {
+        "pause"       => "Paused",
+        "play"        => "Running",
+        "fastforward" => "Fast Forward",
+        "setup"       => "Setup",
+        "end"         => "Ended",
+        _             => state,
+    };
+
+    public static string FormatTimeLeft(double totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
+    }
+
+    public static string PlanStateLabel(string? state) => state?.ToUpperInvariant() switch
+    {
+        "APPROVAL" => "AWAITING APPROVAL",
+        _          => state?.ToUpperInvariant() ?? string.Empty,
+    };
+
+    public static int PlanStatePriority(string state) => state.ToUpperInvariant() switch
+    {
+        "DESIGN"        => 0,
+        "CONSULTATION"  => 1,
+        "APPROVAL"      => 2,
+        "APPROVED"      => 3,
+        "IMPLEMENTED"   => 4,
+        "ARCHIVED"      => 5,
+        _               => 6,
+    };
+
+    public static readonly string[] OrderedPlanStates =
+    [
+        "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "IMPLEMENTED", "ARCHIVED"
+    ];
+    
+    public static string MonthName(int m) => m switch {
+        1 => "January", 2 => "February", 3 => "March",    4 => "April",
+        5 => "May",     6 => "June",     7 => "July",     8 => "August",
+        9 => "September", 10 => "October", 11 => "November", 12 => "December",
+        _ => m.ToString()
+    };
+
     public static string HexToRGB(string hex, double alpha = 1.0)
     {
         if (string.IsNullOrEmpty(hex) || !hex.StartsWith('#')) return "";

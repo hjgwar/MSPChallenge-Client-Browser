@@ -116,10 +116,7 @@ public partial class TimeManager : IDisposable
                     if (eraIndex == currentEra)
                     {
                         // Current era: set current era time via api/Game/Realtime
-                        await ApiClient.SetRealtimeAsync(
-                            SessionState.GameServerAddress,
-                            SessionState.SessionId,
-                            totalSeconds);
+                        await ApiClient.SetRealtimeAsync(totalSeconds);
                     }
                     else
                     {
@@ -128,10 +125,7 @@ public partial class TimeManager : IDisposable
                         Array.Copy(GameSessionState.EraRealTimes, newEraTimes, GameSessionState.ERA_COUNT);
                         newEraTimes[eraIndex] = totalSeconds;
                         var realtimeString = string.Join(",", newEraTimes);
-                        await ApiClient.SetFutureRealtimeAsync(
-                            SessionState.GameServerAddress,
-                            SessionState.SessionId,
-                            realtimeString);
+                        await ApiClient.SetFutureRealtimeAsync(realtimeString);
                     }
                 }
                 catch (Exception ex)
@@ -176,7 +170,7 @@ public partial class TimeManager : IDisposable
     {
         try
         {
-            await ApiClient.SetGameStateAsync(SessionState.GameServerAddress, SessionState.SessionId, state);
+            await ApiClient.SetGameStateAsync(state);
             // State will be updated via WebSocket, no need to manually update here
         }
         catch (Exception ex)

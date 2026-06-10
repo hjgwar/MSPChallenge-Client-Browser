@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 
-namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanPanelComponents;
+namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents;
 
 public partial class PlanPanelIssues
 {
-    [CascadingParameter] public PlanPanelsControl PlanPanelsController { get; set; } = null!;
+    [CascadingParameter] public PlanControl PlanPanelsController { get; set; } = null!;
     public List<PlanRestrictionIssue> SelectedPlanIssues { get; set; } = [];
 
     private async Task FocusPlanIssueAsync(PlanRestrictionIssue issue)

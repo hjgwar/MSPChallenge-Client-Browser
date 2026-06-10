@@ -31,7 +31,7 @@
 
 <div class="map-right-panels">
     
-    <PlanPanelsControl Map="Map" />
+    <PlanControl $ref="PlanController" Map="Map" />
 
 </div>
 
@@ -45,8 +45,8 @@
     <MapProperties PopupInfo="_popupInfo" OnClose="ClosePopup" />
 }
 
-@if (GameTimeViewController.TimeManagerVisible) {
-    <TimeManager OnCloseThisPanel="GameTimeViewController.ToggleTimeManager" />
+@if (PlanController.GameTimeViewer.TimeManagerVisible) {
+    <TimeManager OnCloseThisPanel="PlanController.GameTimeViewer.ToggleTimeManager" />
 }
 
 @if (HostEnvironment.IsDevelopment())

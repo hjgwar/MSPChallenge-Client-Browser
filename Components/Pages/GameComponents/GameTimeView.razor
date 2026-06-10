@@ -53,7 +53,7 @@
             <div class="game-bar-plan-modes">
                 <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"
                         title="Show original data only"
-                        @onclick="@(async () => await PlanPanelsController.SetPlanViewModeAsync(PlanViewMode.Original))">
+                        @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.Original))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 2h8l4 4v12H4V2z"/>
                         <path d="M12 2v4h4"/>
@@ -65,7 +65,7 @@
                 </button>
                 <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.AfterChanges ? "plan-mode-btn--active" : "")"
                         title="Show base data with plan changes applied"
-                        @onclick="@(async () => await PlanPanelsController.SetPlanViewModeAsync(PlanViewMode.AfterChanges))">
+                        @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.AfterChanges))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 2h8l4 4v12H4V2z" opacity="0.65"/>
                         <path d="M12 2v4h4" opacity="0.65"/>
@@ -77,7 +77,7 @@
                 </button>
                 <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.ChangesOnly ? "plan-mode-btn--active" : "")"
                         title="Show plan changes only, without base data"
-                        @onclick="@(async () => await PlanPanelsController.SetPlanViewModeAsync(PlanViewMode.ChangesOnly))">
+                        @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.ChangesOnly))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 2h8l4 4v12H4V2z" opacity="0.22" stroke-dasharray="3,2"/>
                         <path d="M12 2v4h4" opacity="0.22"/>

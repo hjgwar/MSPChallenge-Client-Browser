@@ -4,7 +4,7 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public partial class PlanCreation : IDisposable
 {
-    [CascadingParameter] public PlanPanelsControl PlanPanelsController { get; set; } = null!;
+    [CascadingParameter] public PlanControl PlanPanelsController { get; set; } = null!;
     [Parameter] public Action<PlanCreation> OpenEditMode { get; set; } = null!;
     public string? _createPlanName { get; set; }
     public string? _createPlanDescription { get; set; }

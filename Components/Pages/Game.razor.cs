@@ -20,6 +20,7 @@ public partial class Game : IAsyncDisposable
     [Inject] GameSessionState GameSessionState { get; set; } = null!;
 
     public SideBarPanelControl SideBarPanelController { get; set; } = null!;
+    public PlanControl PlanController { get; set; } = null!;
     public MapViewPort Map { get; set; } = null!;
     // Returns the selected plan or a new unsaved plan for edit mode
     private IJSObjectReference? _mapModule;
