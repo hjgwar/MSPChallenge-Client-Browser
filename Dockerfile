@@ -1,7 +1,7 @@
 # To build and run this Dockerfile, use the following commands:
-#   git clean -d -x -f; docker build -t mspchallenge-client-browser .
+#   docker build -t mspchallenge-client-browser .
 # Or, for MSP hub:
-#   git clean -d -x -f; docker build -t docker-hub.mspchallenge.info/cradlewebmaster/mspchallenge-client-browser:dev .
+#   docker build -t docker-hub.mspchallenge.info/cradlewebmaster/mspchallenge-client-browser:dev .
 # To run the container, use:
 #   docker run --rm -d -p 5261:5261 mspchallenge-client-browser
 # Or, from MSP hub:
