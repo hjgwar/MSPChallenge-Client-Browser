@@ -28,10 +28,10 @@
     }
     else
     {
-        @foreach (UserEntry u in _users)
+        @foreach (User u in _users)
         {
             <div class="user-row">
-                <span class="user-dot" style="background:@u.Colour;"></span>
+                <span class="user-dot" style="background:@u.Country.Color;"></span>
                 <span class="user-name">@u.Name</span>
             </div>
         }

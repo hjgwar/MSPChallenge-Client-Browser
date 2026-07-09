@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
+using MSPChallenge_Client_Browser.Utils.PlanCalculations;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
@@ -8,7 +9,7 @@ public partial class MapViewPort
 {
     public required IJSObjectReference MapJSModule;
     
-    public async Task ToggleLayerAsync(LayerEntry entry, bool visible)
+    public async Task ToggleLayerAsync(Layer entry, bool visible)
     {
         entry.Visible = visible;
 
@@ -31,12 +32,10 @@ public partial class MapViewPort
             await MapJSModule.InvokeVoidAsync("setLayerVisible", entry.LayerId, false);
         }
 
-        if (visible && !entry.IsBaseLayer && !GameSessionState.LegendOrder.Contains(entry))
-            GameSessionState.LegendOrder.Add(entry);
+        if (visible && !entry.IsBaseLayer && !GameSessionState.LegendOrderLayerIds.Contains(entry.LayerId))
+            GameSessionState.LegendOrderLayerIds.Add(entry.LayerId);
         else if (!visible)
-            GameSessionState.LegendOrder.Remove(entry);
-
-        PersistLegendOrderToState();
+            GameSessionState.LegendOrderLayerIds.Remove(entry.LayerId);
 
         await SyncZIndicesAsync();
     }
@@ -87,12 +86,12 @@ public partial class MapViewPort
     /// the user activates a layer from the panel while a plan is already selected.
     /// Pass <paramref name="currentPlan"/> to also hide base geometry that the current plan modifies.
     /// </summary>
-    private async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null, PlanEntry? currentPlan = null)
+    private async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null, Plan? currentPlan = null)
     {
         if (MapJSModule is null) return;
 
         var priorPlans = GameSessionState.Plans
-            .Where(p => p.StartDate < planStartDate && Game.IsFinalisedPlanState(p.State))
+            .Where(p => p.StartDate < planStartDate && PlanStates.IsFinalisedPlanState(p.State))
             .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
             .ToList();
 
@@ -170,16 +169,16 @@ public partial class MapViewPort
                 }));
     }
 
-    private void PersistLegendOrderToState()
-    {
-        GameSessionState.SetLegendOrder(GameSessionState.LegendOrder.Select(e => e.LayerId));
-    }
-
     /// <summary>Assigns z-indices so that GameSessionState.LegendOrder[0] = bottom, last = top.</summary>
-    private async Task SyncZIndicesAsync()
+    public async Task SyncZIndicesAsync()
     {
         if (MapJSModule is null) return;
-        for (int i = 0; i < GameSessionState.LegendOrder.Count; i++)
-            await MapJSModule.InvokeVoidAsync("setLayerZIndex", GameSessionState.LegendOrder[i].LayerId, i + 1);
+
+        int i = 0;
+        foreach (string LayerId in GameSessionState.LegendOrderLayerIds)
+        {
+            await MapJSModule.InvokeVoidAsync("setLayerZIndex", LayerId, i + 1);
+            i++;
+        }
     }
 }

@@ -4,18 +4,6 @@ namespace MSPChallenge_Client_Browser.Utils;
 
 public static partial class GenericUtils
 {
-    public static bool IsFinalisedPlanState(string state) =>
-        state.Equals("CONSULTATION", StringComparison.OrdinalIgnoreCase) ||
-        state.Equals("APPROVAL",     StringComparison.OrdinalIgnoreCase) ||
-        state.Equals("APPROVED",     StringComparison.OrdinalIgnoreCase) ||
-        state.Equals("IMPLEMENTED",  StringComparison.OrdinalIgnoreCase);
-
-    public static bool IsApprovalCompleteState(string? state) =>
-        state is not null &&
-        (state.Equals("APPROVED",    StringComparison.OrdinalIgnoreCase) ||
-         state.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase) ||
-         state.Equals("ARCHIVED",    StringComparison.OrdinalIgnoreCase));
-         
     public static int SeveritySortRank(string? severity)
     {
         return NormaliseSeverity(severity) switch
@@ -66,6 +54,48 @@ public static partial class GenericUtils
             .ToArray());
     }
 
-    
+    private static bool PointInPolygon(double[] point, IReadOnlyList<double[]> polygon)
+    {
+        if (polygon.Count < 3) return false;
+
+        var x = point[0];
+        var y = point[1];
+        var inside = false;
+
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            var xi = polygon[i][0];
+            var yi = polygon[i][1];
+            var xj = polygon[j][0];
+            var yj = polygon[j][1];
+
+            var intersect = ((yi > y) != (yj > y))
+                            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+
+        return inside;
+    }
+
+    private static string GetTypeLabel(Layer? layerEntry, int typeIndex)
+    {
+        if (layerEntry is null) return "";
+        if (typeIndex >= 0 && typeIndex < layerEntry.TypeDefs.Count)
+            return layerEntry.TypeDefs[typeIndex].Label;
+        return "";
+    }
+
+    private static string GetCountryName(int countryId, IReadOnlyDictionary<int, string> countryNames) =>
+        countryNames.TryGetValue(countryId, out var n) ? n : $"Country {countryId}";
+
+    private static int GetCountryForCoordinate(double[] pt, IReadOnlyList<EezPolygon> eezPolygons)
+    {
+        foreach (var eez in eezPolygons)
+        {
+            if (PointInPolygon(pt, eez.Points))
+                return eez.CountryId;
+        }
+        return 0;
+    } 
 
 }

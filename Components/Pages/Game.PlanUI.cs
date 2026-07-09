@@ -256,17 +256,7 @@ public partial class Game
 
     
 
-    public static bool IsFinalisedPlanState(string state) =>
-        state.Equals("CONSULTATION", StringComparison.OrdinalIgnoreCase) ||
-        state.Equals("APPROVAL",     StringComparison.OrdinalIgnoreCase) ||
-        state.Equals("APPROVED",     StringComparison.OrdinalIgnoreCase) ||
-        state.Equals("IMPLEMENTED",  StringComparison.OrdinalIgnoreCase);
-
-    public static bool IsApprovalCompleteState(string? state) =>
-        state is not null &&
-        (state.Equals("APPROVED",    StringComparison.OrdinalIgnoreCase) ||
-         state.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase) ||
-         state.Equals("ARCHIVED",    StringComparison.OrdinalIgnoreCase));
+    
 
     
 

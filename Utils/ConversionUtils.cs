@@ -20,28 +20,6 @@ public static partial class ConversionUtils
         var ts = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
         return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
-
-    public static string PlanStateLabel(string? state) => state?.ToUpperInvariant() switch
-    {
-        "APPROVAL" => "AWAITING APPROVAL",
-        _          => state?.ToUpperInvariant() ?? string.Empty,
-    };
-
-    public static int PlanStatePriority(string state) => state.ToUpperInvariant() switch
-    {
-        "DESIGN"        => 0,
-        "CONSULTATION"  => 1,
-        "APPROVAL"      => 2,
-        "APPROVED"      => 3,
-        "IMPLEMENTED"   => 4,
-        "ARCHIVED"      => 5,
-        _               => 6,
-    };
-
-    public static readonly string[] OrderedPlanStates =
-    [
-        "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "IMPLEMENTED", "ARCHIVED"
-    ];
     
     public static string MonthName(int m) => m switch {
         1 => "January", 2 => "February", 3 => "March",    4 => "April",

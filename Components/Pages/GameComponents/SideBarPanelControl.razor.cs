@@ -7,7 +7,7 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 public partial class SideBarPanelControl
 {
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
-    [Inject] private SessionState UserSessionService { get; set; } = null!;
+    [Inject] private UserSessionService UserSessionService { get; set; } = null!;
     [Inject] private GameSessionState GameSessionState { get; set; } = null!;
     
     public void ToggleOnlineUsersPanel()
@@ -49,7 +49,7 @@ public partial class SideBarPanelControl
     /// <summary>Inline style for the users sidebar button: tinted with the country colour.</summary>
     private string CountryBtnStyle()
     {
-        string hex = GameSessionState.CountryColours.GetValueOrDefault(UserSessionService.User.CountryId, "");
+        string hex = GameSessionState.CountryColours.GetValueOrDefault(UserSessionService.User.Country.Id, "");
         string rgba = ConversionUtils.HexToRGB(hex, GameSessionState.OnlineUsersPanelOpen ? 0.40 : 0.20);
         return $"background:{rgba};color:#fff;";
     }

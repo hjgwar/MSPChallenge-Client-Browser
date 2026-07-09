@@ -19,8 +19,8 @@ public partial class PlanPanelApproval
         {
             await ApiClient.PostFormAsync("Plan/Vote", new[]
             {
-                new KeyValuePair<string, string>("plan",    planId.ToString()),
-                new KeyValuePair<string, string>("country", UserSessionService.User?.CountryId.ToString()),
+                new KeyValuePair<string, string>("plan",    planId.ToString() ?? string.Empty),
+                new KeyValuePair<string, string>("country", UserSessionService.User?.CountryId.ToString() ?? string.Empty),
                 new KeyValuePair<string, string>("vote",    vote.ToString()),
             });
         }

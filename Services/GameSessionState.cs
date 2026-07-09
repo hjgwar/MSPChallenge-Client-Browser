@@ -9,10 +9,10 @@ namespace MSPChallenge_Client_Browser.Services;
 /// </summary>
 public sealed class GameSessionState : IDisposable
 {
-    private readonly GameWebSocketService _ws;
+    private readonly WebSocketService _ws;
     private readonly SemaphoreSlim _initGate = new(1, 1);
 
-    public GameSessionState(GameWebSocketService ws)
+    public GameSessionState(WebSocketService ws)
     {
         ArgumentNullException.ThrowIfNull(ws);
         _ws = ws;
@@ -20,15 +20,14 @@ public sealed class GameSessionState : IDisposable
     }
 
     // ── Config (written once during LoadGameDataAsync on the Game page) ─────────
-    public List<LayerEntry>        LayerEntries   { get; } = new();
+    public List<Layer>        LayerEntries   { get; } = new();
     public List<MapLayerSnapshot>  MapLayerSnapshots { get; } = new();
     /// <summary>
     /// Visible non-base layers in legend order: index 0 = bottom, last = top.
     /// Stored in shared session state so Game page navigation preserves user ordering.
     /// </summary>
     public List<string> LegendOrderLayerIds { get; } = new();
-    public Dictionary<int, string> CountryColours { get; } = new();
-    public Dictionary<int, string> CountryNames   { get; } = new();
+    public IReadOnlyList<Country> Countries = []; 
     /// <summary>EEZ polygon geometries keyed by country ID. Used for approval calculation.</summary>
     public IReadOnlyList<EezPolygon> EezPolygons   { get; private set; } = [];
     public string WikiBaseUrl   { get; set; } = "";
@@ -74,15 +73,15 @@ public sealed class GameSessionState : IDisposable
         return Math.Min(GameCurrentMonth / GameEraTotalMonths, ERA_COUNT - 1);
     }
 
-    public IReadOnlyList<PlanEntry> Plans => _plans;
-    private readonly List<PlanEntry> _plans = new();
-    private readonly Dictionary<int, List<PlanMessageEntry>> _planMessagesByPlanId = new();
+    public IReadOnlyList<Plan> Plans => _plans;
+    private readonly List<Plan> _plans = new();
+    private readonly Dictionary<int, List<PlanMessage>> _planMessagesByPlanId = new();
     private int _nextPlanMessageSequence = 1;
 
-    public IReadOnlyList<PlanMessageEntry> GetPlanMessages(int planId) =>
+    public IReadOnlyList<PlanMessage> GetPlanMessages(int planId) =>
         _planMessagesByPlanId.TryGetValue(planId, out var messages)
             ? messages
-            : Array.Empty<PlanMessageEntry>();
+            : Array.Empty<PlanMessage>();
 
     // ── Dependency graph data (from Game/Config) ───────────────────────────────
     public IReadOnlyList<DependencyGroup> DependencyGroups { get; private set; } = [];
@@ -166,7 +165,7 @@ public sealed class GameSessionState : IDisposable
         }
 
         // Plan messages: cache full message threads per plan_id.
-        var parsedPlanMessages = new Dictionary<int, List<PlanMessageEntry>>();
+        var parsedPlanMessages = new Dictionary<int, List<PlanMessage>>();
         if (payload.TryGetProperty("planmessages", out var pmEl) && pmEl.ValueKind == JsonValueKind.Array)
         {
             foreach (var pm in pmEl.EnumerateArray())
@@ -179,7 +178,7 @@ public sealed class GameSessionState : IDisposable
 
                 if (!parsedPlanMessages.TryGetValue(pmPlanId, out var messages))
                 {
-                    messages = new List<PlanMessageEntry>();
+                    messages = new List<PlanMessage>();
                     parsedPlanMessages[pmPlanId] = messages;
                 }
 
@@ -307,7 +306,7 @@ public sealed class GameSessionState : IDisposable
 
             if (p.TryGetProperty("planmessages", out var planPmEl) && planPmEl.ValueKind == JsonValueKind.Array)
             {
-                var nestedMessages = new List<PlanMessageEntry>();
+                var nestedMessages = new List<PlanMessage>();
                 foreach (var pm in planPmEl.EnumerateArray())
                 {
                     var message = ParsePlanMessage(pm, id, _nextPlanMessageSequence++);
@@ -327,7 +326,7 @@ public sealed class GameSessionState : IDisposable
                 : 0;
             var payloadCount = GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
             var msgCount = Math.Max(storedCount, payloadCount);
-            var entry = new PlanEntry(id, name, description, state, country, startdate, constructionTime, policyNames, policyTypes, planLayers,
+            var entry = new Plan(id, name, description, Enum.Parse<PlanState>(state), country, startdate, constructionTime, policyNames, policyTypes, planLayers,
                 requiresApproval, msgCount, IssueCount: 0, Votes: votes, LockedByUserId: lockedByUserId);
             var idx = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)
@@ -338,18 +337,18 @@ public sealed class GameSessionState : IDisposable
 
         _plans.Sort((a, b) =>
         {
-            var sp = PlanStatePriority(a.State).CompareTo(PlanStatePriority(b.State));
+            var sp = a.State.CompareTo(b.State);
             if (sp != 0) return sp;
             var dp = a.StartDate.CompareTo(b.StartDate);
             return dp != 0 ? dp : a.PlanId.CompareTo(b.PlanId);
         });
     }
 
-    private void MergePlanMessages(int planId, IEnumerable<PlanMessageEntry> incoming)
+    private void MergePlanMessages(int planId, IEnumerable<PlanMessage> incoming)
     {
         if (!_planMessagesByPlanId.TryGetValue(planId, out var existing))
         {
-            existing = new List<PlanMessageEntry>();
+            existing = new List<PlanMessage>();
             _planMessagesByPlanId[planId] = existing;
         }
 
@@ -370,7 +369,7 @@ public sealed class GameSessionState : IDisposable
         });
     }
 
-    private static bool IsSameMessage(PlanMessageEntry a, PlanMessageEntry b)
+    private static bool IsSameMessage(PlanMessage a, PlanMessage b)
     {
         if (!string.IsNullOrWhiteSpace(a.MessageId) && !string.IsNullOrWhiteSpace(b.MessageId))
             return string.Equals(a.MessageId, b.MessageId, StringComparison.OrdinalIgnoreCase);
@@ -439,8 +438,6 @@ public sealed class GameSessionState : IDisposable
         LayerEntries.Clear();
         MapLayerSnapshots.Clear();
         LegendOrderLayerIds.Clear();
-        CountryColours.Clear();
-        CountryNames.Clear();
         EezPolygons        = [];
         WikiBaseUrl        = "";
         GameStartYear      = 2000;
@@ -480,7 +477,7 @@ public sealed class GameSessionState : IDisposable
     /// </summary>
     public async Task EnsureInitializedAsync(
         MspApiClient apiClient,
-        SessionState sessionState,
+        UserSessionService userSessionService,
         Func<string, Task>? reportStatus = null)
     {
         if (IsGameDataLoaded) return;
@@ -490,7 +487,7 @@ public sealed class GameSessionState : IDisposable
         {
             if (IsGameDataLoaded) return;
 
-            await LoadInitialStateAsync(apiClient, sessionState, reportStatus);
+            await LoadInitialStateAsync(apiClient, userSessionService, reportStatus);
             IsGameDataLoaded = true;
         }
         finally
@@ -501,22 +498,20 @@ public sealed class GameSessionState : IDisposable
 
     private async Task LoadInitialStateAsync(
         MspApiClient apiClient,
-        SessionState sessionState,
+        UserSessionService userSessionService,
         Func<string, Task>? reportStatus)
     {
         LayerEntries.Clear();
         MapLayerSnapshots.Clear();
         LegendOrderLayerIds.Clear();
-        CountryColours.Clear();
-        CountryNames.Clear();
         _plans.Clear();
         _planMessagesByPlanId.Clear();
         DependencyGroups = [];
         DependencyLinks = [];
         _restrictions.Clear();
 
-        var baseAddress = sessionState.GameServerAddress.TrimEnd('/');
-        var sessionId = sessionState.SessionId;
+        var baseAddress = userSessionService.GameServerAddress.TrimEnd('/');
+        var sessionId = userSessionService.SessionId;
 
         if (reportStatus is not null)
             await reportStatus("Loading game settings…");
@@ -690,17 +685,11 @@ public sealed class GameSessionState : IDisposable
                         {
                             var cid = ltVal.GetInt32();
                             typeIndexToCountry[ltIndex] = cid;
-                            if (lt.TryGetProperty("polygonColor", out var ltCol))
+                            if (lt.TryGetProperty("polygonColor", out var ltCol) && lt.TryGetProperty("displayName", out var ltDn))
                             {
                                 var col = ltCol.GetString();
-                                if (!string.IsNullOrWhiteSpace(col))
-                                    CountryColours[cid] = col;
-                            }
-                            if (lt.TryGetProperty("displayName", out var ltDn))
-                            {
                                 var dn = ltDn.GetString();
-                                if (!string.IsNullOrWhiteSpace(dn))
-                                    CountryNames[cid] = dn;
+                                Countries = Countries.Append(new Country(cid, dn ?? "", col ?? "")).ToList();
                             }
                         }
                         ltIndex++;
@@ -756,7 +745,7 @@ public sealed class GameSessionState : IDisposable
 
         var metaRoot = await apiClient.PostFormAsync(
             $"{baseAddress}/{sessionId}/api/Game/Meta",
-            new[] { new KeyValuePair<string, string>("user", sessionState.CountryId.ToString()) });
+            new[] { new KeyValuePair<string, string>("user", userSessionService.User.Country.Id.ToString()) });
         var metaPayload = GetPayload(metaRoot);
         if (metaPayload.ValueKind != JsonValueKind.Array) return;
 
@@ -782,7 +771,7 @@ public sealed class GameSessionState : IDisposable
         // Initial legend order follows server depth (bottom -> top).
         ResetLegendOrderFromVisibleDepth();
 
-        if (!string.IsNullOrEmpty(sessionState.GameWsServerAddress) &&
+        if (!string.IsNullOrEmpty(userSessionService.GameWsServerAddress) &&
             _ws.State != System.Net.WebSockets.WebSocketState.Open &&
             _ws.State != System.Net.WebSockets.WebSocketState.Connecting)
         {
@@ -790,11 +779,11 @@ public sealed class GameSessionState : IDisposable
                 await reportStatus("Connecting to game server…");
 
             await _ws.ConnectAndSubscribeAsync(
-                sessionState.GameWsServerAddress,
-                sessionState.ApiAccessToken,
-                sessionState.SessionId,
-                teamId: sessionState.CountryId,
-                userId: sessionState.UserId);
+                userSessionService.GameWsServerAddress,
+                userSessionService.ApiAccessToken,
+                userSessionService.SessionId,
+                teamId: userSessionService.User.Country.Id,
+                userId: userSessionService.User.Id);
         }
     }
 
@@ -1032,7 +1021,7 @@ public sealed class GameSessionState : IDisposable
                 vectorGeometriesJson = geoPayload.ToString();
         }
 
-        LayerEntries.Add(new LayerEntry
+        LayerEntries.Add(new Layer
         {
             LayerId = layerId,
             LayerName = layerName,
@@ -1208,7 +1197,7 @@ public sealed class GameSessionState : IDisposable
         return [r, g, b, a];
     }
 
-    private static PlanMessageEntry? ParsePlanMessage(JsonElement pm, int planId, int sequence)
+    private static PlanMessage? ParsePlanMessage(JsonElement pm, int planId, int sequence)
     {
         var messageId = GetStringProp(pm, "message_id")
                      ?? GetStringProp(pm, "id")
@@ -1245,7 +1234,7 @@ public sealed class GameSessionState : IDisposable
 
         if (string.IsNullOrWhiteSpace(message)) return null;
 
-        return new PlanMessageEntry(messageId, planId, countryId, countryName, userName, message, sentAt, sequence);
+        return new PlanMessage(messageId, planId, countryId, countryName, userName, message, sentAt, sequence);
     }
 
     // ── JSON helpers (private) ─────────────────────────────────────────────────
@@ -1347,10 +1336,3 @@ public sealed class GameSessionState : IDisposable
         _initGate.Dispose();
     }
 }
-
-/// <summary>One EEZ polygon with its owning country ID. Points are [lon, lat] pairs.</summary>
-public sealed record EezPolygon(int CountryId, IReadOnlyList<double[]> Points);
-
-/// <summary>A plan policy type available in this game session.</summary>
-public sealed record PolicySetting(string PolicyType, string DisplayName, bool Enabled);
-

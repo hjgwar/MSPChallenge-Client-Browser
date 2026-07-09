@@ -1,13 +1,13 @@
 using MSPChallenge_Client_Browser.Models;
 
-namespace MSPChallenge_Client_Browser.Services;
+namespace MSPChallenge_Client_Browser.Utils.PlanCalculations;
 
 /// <summary>
 /// Service that calculates which country teams need to approve a plan based on the approval type
 /// defined per layer_type (AllCountries / EEZ / NotDependent) and ownership of removed geometry
 /// derived from EEZ polygon intersection.
 /// </summary>
-public class PlanApprovalService
+public class PlanApproval
 {
     /// <summary>
     /// Computes which country teams need to approve the plan and for what reasons.
@@ -144,59 +144,11 @@ public class PlanApprovalService
         return "NotDependent";
     }
 
-    private static string GetTypeLabel(LayerEntry? layerEntry, int typeIndex)
-    {
-        if (layerEntry is null) return "";
-        if (typeIndex >= 0 && typeIndex < layerEntry.TypeDefs.Count)
-            return layerEntry.TypeDefs[typeIndex].Label;
-        return "";
-    }
+    public static bool IsApprovalCompleteState(PlanState state) =>
+        state.Equals(PlanState.APPROVED) ||
+        state.Equals(PlanState.IMPLEMENTED) ||
+        state.Equals(PlanState.ARCHIVED);
 
-    private static string GetCountryName(int countryId, IReadOnlyDictionary<int, string> countryNames) =>
-        countryNames.TryGetValue(countryId, out var n) ? n : $"Country {countryId}";
 
-    private static int GetCountryForCoordinate(double[] pt, IReadOnlyList<EezPolygon> eezPolygons)
-    {
-        foreach (var eez in eezPolygons)
-        {
-            if (PointInPolygon(pt, eez.Points))
-                return eez.CountryId;
-        }
-        return 0;
-    }
-
-    private static bool PointInPolygon(double[] point, IReadOnlyList<double[]> polygon)
-    {
-        if (polygon.Count < 3) return false;
-
-        var x = point[0];
-        var y = point[1];
-        var inside = false;
-
-        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
-        {
-            var xi = polygon[i][0];
-            var yi = polygon[i][1];
-            var xj = polygon[j][0];
-            var yj = polygon[j][1];
-
-            var intersect = ((yi > y) != (yj > y))
-                            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-
-        return inside;
-    }
 }
 
-/// <summary>Represents an approval requirement for a single country.</summary>
-public sealed record PlanApprovalRequirement(
-    int                   CountryId,
-    string                CountryName,
-    IReadOnlyList<string> Reasons);
-
-/// <summary>Parsed geometry from base layer data.</summary>
-public sealed record ParsedGeometry(
-    string                  FeatureId,
-    int                     TypeIndex,
-    IReadOnlyList<double[]> Coordinates);

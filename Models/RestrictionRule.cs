@@ -10,9 +10,3 @@ public sealed record RestrictionRule(
     string EndType,
     string Sort
 );
-
-/// <summary>A single matched restriction for one planned geometry item.</summary>
-public sealed record RestrictionMatch(
-    string Severity,
-    string Message
-);

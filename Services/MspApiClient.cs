@@ -11,9 +11,9 @@ public class MspApiClient
 {
     private readonly IHttpClientFactory _factory;
     private readonly IConfiguration _configuration;
-    private readonly SessionState _userSessionService;
+    private readonly UserSessionService _userSessionService;
 
-    public MspApiClient(IHttpClientFactory factory, IConfiguration configuration, SessionState userSessionService)
+    public MspApiClient(IHttpClientFactory factory, IConfiguration configuration, UserSessionService userSessionService)
     {
         _factory = factory;
         _configuration = configuration;

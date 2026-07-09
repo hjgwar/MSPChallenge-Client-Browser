@@ -1,6 +1,6 @@
 namespace MSPChallenge_Client_Browser.Models;
 
-public sealed class LayerEntry
+public sealed class Layer
 {
     public string LayerId     { get; init; } = "";
     public string LayerName   { get; init; } = "";
@@ -35,3 +35,6 @@ public sealed class LayerEntry
 
     public bool IsMultiType => EditingType.Equals("multitype", StringComparison.OrdinalIgnoreCase);
 }
+
+public sealed record TypeDef(string Label, string Color, string? MediaUrl = null, string Approval = "NotDependent");
+

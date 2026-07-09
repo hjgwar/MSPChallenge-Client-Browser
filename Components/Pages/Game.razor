@@ -2,7 +2,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents
 
-<PageTitle>MSP Challenge – Game</PageTitle>
+<PageTitle>MSP Challenge</PageTitle>
 
 @if (_isLoading || _loadingFading)
 {
@@ -23,9 +23,9 @@
         <LayerSelector ToggleLayerAsync="Map.ToggleLayerAsync" OnCloseThisPanel="SideBarPanelController.ToggleLayerPanel" />
     }
 
-    @if (GameSessionState.LegendPanelOpen && GameSessionState.LegendOrder.Count > 0)
+    @if (GameSessionState.LegendPanelOpen && GameSessionState.LegendOrderLayerIds.Count > 0)
     {
-        <MapLegend ToggleLayerAsync="Map.ToggleLayerAsync" OnCloseThisPanel="SideBarPanelController.ToggleLegendPanel" />
+        <MapLegend ToggleLayerAsync="Map.ToggleLayerAsync" SyncZIndicesAsync="Map.SyncZIndicesAsync" OnCloseThisPanel="SideBarPanelController.ToggleLegendPanel" />
     }
 </div>
 

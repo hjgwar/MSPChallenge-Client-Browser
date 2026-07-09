@@ -5,11 +5,11 @@
         <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
     <div class="legend-panel-content">
-    @for (int i = _legendOrder.Count - 1; i >= 0; i--)
+    @foreach (string layerId in GameSessionState.LegendOrderLayerIds)
     {
-        var entry = _legendOrder[i];
-        var idx = i; // capture for lambdas
-        <div class="legend-layer" draggable="true" data-legend-idx="@idx">
+        Layer? entry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+        if (entry is null) continue;
+        <div class="legend-layer" draggable="true" data-legend-idx="@layerId">
             <div class="legend-layer-header">
                 <span class="legend-drag-handle" title="Drag to reorder">
                     <svg viewBox="0 0 8 12" width="10" height="14" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -30,7 +30,7 @@
                 </span>
                 <button class="legend-hide-btn" title="Hide layer" @onclick="@(async () => await ToggleLayerAsync(entry, false))">&#10005;</button>
             </div>
-            @foreach (var td in entry.TypeDefs)
+            @foreach (TypeDef td in entry.TypeDefs)
             {
                 <div class="legend-row">
                     <span class="legend-swatch" style="background:@Utils.ConversionUtils.HexToRGB(td.Color);"></span>

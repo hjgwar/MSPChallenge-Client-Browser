@@ -280,30 +280,8 @@ public partial class Game : IAsyncDisposable
 
     
 
-    [JSInvokable]
-    public async Task ReorderLegend(int from, int to)
-    {
-        if (from == to || from < 0 || to < 0 || from >= _legendOrder.Count || to >= _legendOrder.Count) return;
-        var item = _legendOrder[from];
-        _legendOrder.RemoveAt(from);
-        _legendOrder.Insert(to, item);
-        PersistLegendOrderToState();
-        await SyncZIndicesAsync();
-        StateHasChanged();
-    }
+    
 
-    private void PersistLegendOrderToState()
-    {
-        GameState.SetLegendOrder(_legendOrder.Select(e => e.LayerId));
-    }
-
-    /// <summary>Assigns z-indices so that _legendOrder[0] = bottom, last = top.</summary>
-    private async Task SyncZIndicesAsync()
-    {
-        if (_mapModule is null) return;
-        for (int i = 0; i < _legendOrder.Count; i++)
-            await _mapModule.InvokeVoidAsync("setLayerZIndex", _legendOrder[i].LayerId, i + 1);
-    }
 
     private static string HexToCss(string hex)
     {
