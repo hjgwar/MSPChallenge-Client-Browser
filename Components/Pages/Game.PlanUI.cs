@@ -301,14 +301,7 @@ public partial class Game
         };
     }
 
-    private static string NormaliseToken(string value)
-    {
-        return new string(value
-            .Trim()
-            .ToLowerInvariant()
-            .Where(char.IsLetterOrDigit)
-            .ToArray());
-    }
+    
 
     
 

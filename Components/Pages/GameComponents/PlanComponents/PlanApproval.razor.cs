@@ -1,14 +1,22 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
+using MSPChallenge_Client_Browser.Utils;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 
-public partial class PlanApproval : PlanComponentBase
+public partial class PlanApproval : GameComponentBase
 {
-    [Parameter] public PlanEntry SelectedPlan { get; set; } = null!;
+    private List<PlanApprovalRequirement> _approvalRequired = [];
+    private readonly Dictionary<string, List<ParsedGeometry>> _parsedLayerGeometryCache = [];
+    private bool _planApprovalOpen = false;
 
-    private List<ApprovalRequirement> _approvalRequired = [];
-    private Dictionary<int, List<string>> _reasons = new();
+    /// <summary>Toggle the approval panel open/closed.</summary>
+    public void ToggleApprovalPanel()
+    {
+        _planApprovalOpen = !_planApprovalOpen;
+        StateHasChanged();
+    }
 
     protected override void OnInitialized()
     {
@@ -22,21 +30,29 @@ public partial class PlanApproval : PlanComponentBase
     /// </summary>
     private void CalculateApproval()
     {
+        if (GameSessionState.SelectedPlan is null) return;
+
         _approvalRequired.Clear();
-        _reasons.Clear();
-
-        var eezPolygons = GameSessionState.EezPolygons;
-        var planCountry = SelectedPlan.Country;
-
-        // countryId â†’ list of reason strings
+        var reasons = new Dictionary<int, List<string>>(); // countryId → list of reason strings
         var allCountriesReasons = new List<string>(); // reasons that apply to every country
 
-        foreach (var planLayer in SelectedPlan.Layers)
+        void AddReason(int countryId, string reason)
+        {
+            if (countryId <= 0 || countryId == GameSessionState.SelectedPlan.Country) return;
+            if (!reasons.TryGetValue(countryId, out var list))
+            {
+                list = new List<string>();
+                reasons[countryId] = list;
+            }
+            if (!list.Contains(reason)) list.Add(reason);
+        }
+
+        foreach (var planLayer in GameSessionState.SelectedPlan.Layers)
         {
             var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
             var layerDisplayName = layerEntry?.DisplayName ?? planLayer.OriginalLayerId;
 
-            // Deleted geometry 
+            // ── Deleted geometry ────────────────────────────────────────── 
             if (planLayer.DeletedPersistentIds.Count > 0)
             {
                 var baseGeoms = GetParsedLayerGeometries(planLayer.OriginalLayerId);
@@ -46,7 +62,9 @@ public partial class PlanApproval : PlanComponentBase
                     if (geom is null) continue;
 
                     var typeApproval = GetApprovalForGeom(layerEntry, geom.TypeIndex);
-                    var typeLabel    = GetTypeLabel(layerEntry, geom.TypeIndex);
+                    var typeLabel = (layerEntry is not null && geom.TypeIndex >= 0 && geom.TypeIndex < layerEntry.TypeDefs.Count)
+                        ? layerEntry.TypeDefs[geom.TypeIndex].Label
+                        : "";
 
                     if (string.Equals(typeApproval, "AllCountries", StringComparison.OrdinalIgnoreCase))
                     {
@@ -60,19 +78,25 @@ public partial class PlanApproval : PlanComponentBase
                         // Derive ownership from EEZ intersection of the representative coordinate
                         if (geom.Coordinates.Count > 0)
                         {
-                            var owner = GetCountryForCoordinate(geom.Coordinates[0], eezPolygons);
-                            if (owner > 0 && owner != planCountry)
-                                AddReason(owner, $"Geometry belonging to {GameSessionState.Countries.FirstOrDefault(c => c.Id == owner)?.Name ?? "Unknown"} was removed on the {layerDisplayName} layer.");
+                            var owner = GeometryUtils.GetCountryForCoordinate(geom.Coordinates[0], GameSessionState.EezPolygons);
+                            if (owner > 0 && owner != GameSessionState.SelectedPlan.Country)
+                            {
+                                var ownerCountry = GameSessionState.Countries.FirstOrDefault(c => c.Id == owner);
+                                var countryName = ownerCountry?.Name ?? $"Country {owner}";
+                                AddReason(owner, $"Geometry belonging to {countryName} was removed on the {layerDisplayName} layer.");
+                            }
                         }
                     }
                 }
             }
 
-            // New / modified geometry 
+            // ── New / modified geometry ─────────────────────────────────── 
             foreach (var geomItem in planLayer.Geometry)
             {
                 var typeApproval = GetApprovalForGeom(layerEntry, geomItem.TypeIndex);
-                var typeLabel    = GetTypeLabel(layerEntry, geomItem.TypeIndex);
+                var typeLabel = (layerEntry is not null && geomItem.TypeIndex >= 0 && geomItem.TypeIndex < layerEntry.TypeDefs.Count)
+                    ? layerEntry.TypeDefs[geomItem.TypeIndex].Label
+                    : "";
 
                 if (string.Equals(typeApproval, "AllCountries", StringComparison.OrdinalIgnoreCase))
                 {
@@ -85,11 +109,12 @@ public partial class PlanApproval : PlanComponentBase
                          && geomItem.Coordinates.Count > 0)
                 {
                     var pt = geomItem.Coordinates[0];
-                    foreach (var eez in eezPolygons)
+                    foreach (var eez in GameSessionState.EezPolygons)
                     {
-                        if (eez.CountryId != planCountry && PointInPolygon(pt, eez.Points))
+                        if (eez.CountryId != GameSessionState.SelectedPlan.Country && GeometryUtils.PointInPolygon(pt, eez.Points))
                         {
-                            var countryName = GameSessionState.Countries.FirstOrDefault(c => c.Id == eez.CountryId)?.Name ?? "Unknown";
+                            var eezCountry = GameSessionState.Countries.FirstOrDefault(c => c.Id == eez.CountryId);
+                            var countryName = eezCountry?.Name ?? $"Country {eez.CountryId}";
                             AddReason(eez.CountryId, $"Geometry on the {layerDisplayName} layer was added or altered in {countryName}'s EEZ.");
                         }
                     }
@@ -100,30 +125,102 @@ public partial class PlanApproval : PlanComponentBase
         // AllCountries: add those reasons to every non-owner country team
         if (allCountriesReasons.Count > 0)
         {
-            foreach (var kvp in GameSessionState.CountryNames)
+            foreach (var country in GameSessionState.Countries)
             {
-                if (kvp.Key <= 2 || kvp.Key == planCountry) continue; // skip admin/GM slots
+                if (country.Id <= 2 || country.Id == GameSessionState.SelectedPlan.Country) continue; // skip admin/GM slots
                 foreach (var r in allCountriesReasons)
-                    AddReason(kvp.Key, r);
+                    AddReason(country.Id, r);
             }
         }
 
         // Build sorted result
-        foreach (var kvp in _reasons.OrderBy(k => k.Key))
+        foreach (var kvp in reasons.OrderBy(k => k.Key))
         {
-            var name = GameSessionState.Countries.FirstOrDefault(c => c.Id == kvp.Key)?.Name ?? "Unknown";
-            _approvalRequired.Add(new ApprovalRequirement(kvp.Key, name, kvp.Value));
+            var country = GameSessionState.Countries.FirstOrDefault(c => c.Id == kvp.Key);
+            var name = country?.Name ?? $"Country {kvp.Key}";
+            _approvalRequired.Add(new PlanApprovalRequirement(kvp.Key, name, kvp.Value));
         }
     }
 
-    private void AddReason(int countryId, string reason)
+    // ── Geometry parsing ──────────────────────────────────────────────────────
+
+    private List<ParsedGeometry> GetParsedLayerGeometries(string layerId)
     {
-        if (countryId <= 0 || countryId == planCountry) return;
-        if (!reasons.TryGetValue(countryId, out var list))
+        if (_parsedLayerGeometryCache.TryGetValue(layerId, out var cached))
+            return cached;
+
+        var parsed = new List<ParsedGeometry>();
+        _parsedLayerGeometryCache[layerId] = parsed;
+
+        var snapshot = GameSessionState.MapLayerSnapshots.FirstOrDefault(s =>
+            string.Equals(s.LayerId, layerId, StringComparison.OrdinalIgnoreCase));
+        if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.VectorGeometriesJson))
+            return parsed;
+
+        try
         {
-            list = new List<string>();
-            reasons[countryId] = list;
+            using var document = JsonDocument.Parse(snapshot.VectorGeometriesJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                return parsed;
+
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                if (!element.TryGetProperty("geometry", out var geometryElement) ||
+                    geometryElement.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var coordinates = new List<double[]>();
+                foreach (var pointElement in geometryElement.EnumerateArray())
+                {
+                    if (pointElement.ValueKind != JsonValueKind.Array || pointElement.GetArrayLength() < 2)
+                        continue;
+
+                    if (pointElement[0].ValueKind != JsonValueKind.Number ||
+                        pointElement[1].ValueKind != JsonValueKind.Number)
+                        continue;
+
+                    coordinates.Add([pointElement[0].GetDouble(), pointElement[1].GetDouble()]);
+                }
+
+                if (coordinates.Count == 0)
+                    continue;
+
+                var featureId = "";
+                if (element.TryGetProperty("id", out var idElement))
+                    featureId = idElement.ValueKind == JsonValueKind.String
+                        ? idElement.GetString() ?? ""
+                        : idElement.ToString();
+
+                var typeIndex = 0;
+                if (element.TryGetProperty("type", out var typeElement))
+                {
+                    if (typeElement.ValueKind == JsonValueKind.Number)
+                        typeIndex = typeElement.GetInt32();
+                    else if (typeElement.ValueKind == JsonValueKind.String)
+                        int.TryParse(typeElement.GetString(), out typeIndex);
+                }
+
+                parsed.Add(new ParsedGeometry(featureId, typeIndex, coordinates));
+            }
         }
-        if (!list.Contains(reason)) list.Add(reason);
+        catch
+        {
+            // Ignore malformed cached geometry and return empty list
+        }
+
+        return parsed;
+    }
+
+    // ── Helper methods ────────────────────────────────────────────────────────
+
+    private static string GetApprovalForGeom(Layer? layerEntry, int typeIndex)
+    {
+        if (layerEntry is null) return "NotDependent";
+        if (typeIndex >= 0 && typeIndex < layerEntry.TypeDefs.Count)
+            return layerEntry.TypeDefs[typeIndex].Approval;
+        // Fallback: if there is exactly one type, use that regardless of index
+        if (layerEntry.TypeDefs.Count == 1)
+            return layerEntry.TypeDefs[0].Approval;
+        return "NotDependent";
     }
 }

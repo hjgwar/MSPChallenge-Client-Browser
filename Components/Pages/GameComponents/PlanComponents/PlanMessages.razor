@@ -3,7 +3,8 @@
 <div class="plan-detail-chat-row">
     @if (_planMessagesOpen)
     {
-        <PlanPanelMessages Messages="@_detailPlan.Messages" />
+        <PlanPanelMessages Messages="@GameSessionState.GetPlanMessages(_detailPlan.PlanId)" 
+                          OnTogglePanel="@TogglePlanMessagesPanel" />
     }
     <button class="plan-detail-action-row" @onclick="TogglePlanMessagesPanel">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">

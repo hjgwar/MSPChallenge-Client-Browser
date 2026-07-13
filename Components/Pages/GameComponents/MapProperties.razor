@@ -1,17 +1,19 @@
-<div class="map-popup" style="left:@(_popupX)px;top:@(_popupY)px">
+@if (IsVisible)
+{
+    <div class="map-popup" style="left:@(X)px;top:@(Y)px">
         <div class="map-popup-header">
-            <span class="map-popup-title">@_popupLayerName</span>
-            <button class="map-popup-close" @onclick="@(() => _popupVisible = false)">&#10005;</button>
+            <span class="map-popup-title">@LayerName</span>
+            <button class="map-popup-close" @onclick="ClosePopupAsync">&#10005;</button>
         </div>
         <div class="map-popup-body">
-            @if (_popupProps.Count == 0)
+            @if (Properties.Count == 0)
             {
                 <div class="map-popup-empty">No properties available</div>
             }
             else
             {
                 <table class="map-popup-table">
-                    @foreach (var (label, value) in _popupProps)
+                    @foreach (var (label, value) in Properties)
                     {
                         <tr>
                             <th>@label</th>
@@ -22,3 +24,4 @@
             }
         </div>
     </div>
+}

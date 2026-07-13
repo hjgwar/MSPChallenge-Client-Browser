@@ -1,3 +1,5 @@
+@using MSPChallenge_Client_Browser.Components.Pages.GameComponents
+@inherits GameComponentBase
 <div class="plan-message-panel">
     <div class="plan-message-panel-header">
         <span class="plan-message-panel-title">Communication</span>
@@ -12,7 +14,7 @@
         {
             @foreach (var message in SelectedPlanMessages)
             {
-                var isOwnTeam = message.CountryId.HasValue && message.CountryId.Value == SessionState.CountryId;
+                var isOwnTeam = message.CountryId.HasValue && message.CountryId.Value == UserSessionService.User.Country.Id;
                 var messageDotColour = PlanMessageDotColour(message.CountryId);
                 <div class="plan-message-row @(isOwnTeam ? "plan-message-row--own" : "plan-message-row--other")">
                     <div class="plan-message-bubble">

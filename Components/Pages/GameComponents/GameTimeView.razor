@@ -15,10 +15,10 @@
                 <div class="game-bar-track">
                     <div class="game-bar-fill" style="width:@(BarProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
                     <div class="game-bar-needle" style="left:@(BarProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
-                    @if (GameSessionState.SelectedPlanId != 0 && _planForNeedle is not null)
+                    @if (GameSessionState.SelectedPlan is not null)
                     {
                         <div class="game-bar-plan-needle" style="left:@(BarNeedle())%"
-                            title="Plan time: @GameSessionState.MonthToDate(_planForNeedle.StartDate)"></div>
+                            title="Plan time: @GameSessionState.MonthToDate(GameSessionState.SelectedPlan.StartDate)"></div>
                     }
                 </div>
                 <span class="game-bar-year">@GameSessionState.GameEndYear</span>
@@ -39,7 +39,7 @@
             </div>
         }
     </div>
-    @if (GameSessionState.SelectedPlanId != 0 && _planForNeedle is not null)
+    @if (GameSessionState.SelectedPlan is not null)
     {
         <div class="game-bar-plan-view">
             <div class="game-bar-plan-time">
@@ -48,7 +48,7 @@
                     <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none"/>
                 </svg>
                 <span class="game-bar-plan-time-label">Viewing plan</span>
-                <span class="game-bar-plan-time-date">@GameSessionState.MonthToDate(_planForNeedle.StartDate)</span>
+                <span class="game-bar-plan-time-date">@GameSessionState.MonthToDate(GameSessionState.SelectedPlan.StartDate)</span>
             </div>
             <div class="game-bar-plan-modes">
                 <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"

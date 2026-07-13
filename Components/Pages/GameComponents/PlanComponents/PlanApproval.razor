@@ -1,11 +1,15 @@
-@inherits PlanComponentBase
+@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
-@if (!IsApprovalCompleteState(SelectedPlanState) && !_editMode)
+@using MSPChallenge_Client_Browser.Utils.PlanCalculations
+
+@if (GameSessionState.SelectedPlan is not null 
+     && !PlanStates.IsApprovalCompleteState(GameSessionState.SelectedPlan.State) 
+     && !GameSessionState.EditMode)
 {
 <div class="plan-detail-approval-row">
     @if (_planApprovalOpen)
     {
-        <PlanPanelApproval RequiredApprovals="@_approvalRequired" />
+        <PlanPanelApproval RequiredApprovals="@_approvalRequired" OnClose="@ToggleApprovalPanel" />
     }
     <button class="plan-detail-action-row" @onclick="ToggleApprovalPanel">
         @if (_approvalRequired.Count > 0)

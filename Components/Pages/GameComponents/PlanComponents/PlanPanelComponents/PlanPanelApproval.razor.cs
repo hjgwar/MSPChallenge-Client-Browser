@@ -5,14 +5,15 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanCompon
 
 public partial class PlanPanelApproval
 {
-    [CascadingParameter] public PlanControl PlanPanelsController { get; set; } = null!;
-    private List<ApprovalRequirement> _approvalRequired = [];
-    private bool                       _sendingVote      = false;
-    private HashSet<int>              _approvalReasonsExpanded = [];
+    [Parameter] public IReadOnlyList<PlanApprovalRequirement> RequiredApprovals { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _sendingVote = false;
+    private HashSet<int> _approvalReasonsExpanded = [];
 
     private async Task VoteOnPlanAsync(int? planId, int vote)
     {
-        if (_sendingVote || planId == null || UserSessionService.User?.CountryId == null) return;
+        if (_sendingVote || planId == null || UserSessionService.User?.Country.Id == null) return;
         _sendingVote = true;
         StateHasChanged();
         try
@@ -20,7 +21,7 @@ public partial class PlanPanelApproval
             await ApiClient.PostFormAsync("Plan/Vote", new[]
             {
                 new KeyValuePair<string, string>("plan",    planId.ToString() ?? string.Empty),
-                new KeyValuePair<string, string>("country", UserSessionService.User?.CountryId.ToString() ?? string.Empty),
+                new KeyValuePair<string, string>("country", UserSessionService.User?.Country.Id.ToString() ?? string.Empty),
                 new KeyValuePair<string, string>("vote",    vote.ToString()),
             });
         }

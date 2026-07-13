@@ -1,9 +1,9 @@
-@inherits PlanComponentBase
+@inherits GameComponentBase
 
-@if (PlanController.EditMode)
+@if (GameSessionState.EditMode)
 {
-    <input class="plan-edit-input" type="text" placeholder="Plan name" @bind="_editName" disabled="@PlanController.EditSaving" />
-    <input class="plan-edit-input" type="text" placeholder="Description (optional)" @bind="_editDescription" disabled="@PlanController.EditSaving" />
+    <input class="plan-edit-input" type="text" placeholder="Plan name" value="@_editName" @onchange="OnNameChanged" disabled="@EditSaving" />
+    <input class="plan-edit-input" type="text" placeholder="Description (optional)" value="@_editDescription" @onchange="OnDescriptionChanged" disabled="@EditSaving" />
 }
 else
 {

@@ -1,21 +1,21 @@
 using Microsoft.AspNetCore.Components;
-using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents;
 using MSPChallenge_Client_Browser.Models;
-using MSPChallenge_Client_Browser.Utils;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 
-public partial class PlanState : PlanComponentBase
+public partial class PlanState : GameComponentBase
 {
+    [Parameter] public Plan? Plan { get; set; }
     [Parameter] public IReadOnlyList<PlanRestrictionIssue> SelectedPlanIssues { get; set; } = [];
-    public PlanPanelState PlanPanelStateInstance { get; set; } = null!;
     private bool _planStateOpen = false;
+    private Models.PlanState? _planStatePending;
+    private bool _planStateSending = false;
 
     private bool CanChangeState()
     {
-        if (PlanController.SelectedPlan is null) return false;
-        return !PlanController.SelectedPlan.State.Equals("IMPLEMENTED", StringComparison.OrdinalIgnoreCase)
-            && (UserSessionService.IsAdmin || PlanController.SelectedPlan.Country == UserSessionService.User.CountryId);
+        if (Plan is null) return false;
+        return !Plan.State.Equals(Models.PlanState.APPROVED)
+            && (UserSessionService.IsAdmin || Plan.Country == UserSessionService.User.Country.Id);
     }
 
     private void TogglePlanStatePanel()
@@ -25,14 +25,14 @@ public partial class PlanState : PlanComponentBase
     
     private async Task SetPlanStateAsync()
     {
-        if (PlanPanelStateInstance.PlanStateSending || PlanPanelStateInstance.PlanStatePending is null || GameSessionState.SelectedPlanId == 0 || GameSessionState.SelectedPlanId is null)
+        if (_planStateSending || _planStatePending is null || GameSessionState.SelectedPlanId == 0 || GameSessionState.SelectedPlanId is null)
             return;
-        if (PlanPanelStateInstance.PlanStatePending.Equals(PlanController.SelectedPlan?.State, StringComparison.OrdinalIgnoreCase))
+        if (_planStatePending.Equals(Plan?.State))
         {
             _planStateOpen = false;
             return;
         }
-        PlanPanelStateInstance.PlanStateSending = true;
+        _planStateSending = true;
         StateHasChanged();
         try
         {
@@ -67,9 +67,9 @@ public partial class PlanState : PlanComponentBase
                     endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
                     {
                         plan      = GameSessionState.SelectedPlanId,
-                        team_id   = UserSessionService.User.CountryId,
+                        team_id   = UserSessionService.User.Country.Id,
                         user_name = UserSessionService.User.Name,
-                        text      = $"Changed the plans status to: {ConversionUtils.PlanStateLabel(PlanPanelStateInstance.PlanStatePending)}",
+                        text      = $"Changed the plans status to: {Utils.PlanCalculations.PlanStates.PlanStateLabel(_planStatePending)}",
                     }),
                     group = 5,     // BATCH_GROUP_PLAN_CHANGE
                 },
@@ -80,7 +80,7 @@ public partial class PlanState : PlanComponentBase
                     endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
                     {
                         id    = GameSessionState.SelectedPlanId,
-                        state = PlanPanelStateInstance.PlanStatePending,
+                        state = _planStatePending,
                         user  = UserSessionService.User.Id,
                     }),
                     group = 5,     // BATCH_GROUP_PLAN_CHANGE
@@ -90,7 +90,7 @@ public partial class PlanState : PlanComponentBase
             await ApiClient.PostFormAsync("Batch/ExecuteBatch",
                 new[]
                 {
-                    new KeyValuePair<string, string>("country_id", UserSessionService.User.CountryId.ToString()),
+                    new KeyValuePair<string, string>("country_id", UserSessionService.User.Country.Id.ToString()),
                     new KeyValuePair<string, string>("user_id",    UserSessionService.User.Id.ToString() ?? "0"),
                     new KeyValuePair<string, string>("batch_guid", Guid.NewGuid().ToString()),
                     new KeyValuePair<string, string>("requests",   batchRequests),
@@ -101,8 +101,13 @@ public partial class PlanState : PlanComponentBase
         catch { /* Server state will correct on next WS update */ }
         finally
         {
-            PlanPanelStateInstance.PlanStateSending = false;
+            _planStateSending = false;
             StateHasChanged();
         }
+    }
+
+    private void OnPlanStatePendingChanged(Models.PlanState newState)
+    {
+        _planStatePending = newState;
     }
 }

@@ -30,9 +30,21 @@
 </div>
 
 <div class="map-right-panels">
-    
-    <PlanControl $ref="PlanController" Map="Map" />
+    <GameTimeView @ref="GameTimeViewer" MapJSModule="Map.MapJSModule"/>
+    <div class="map-plan-panels">
+        @* Plan detail panel — shown when a plan is selected or in edit mode for new plan *@
+        @if (GameSessionState.SelectedPlanId != 0 || GameSessionState.EditMode)
+        {
+            <PlanDetails Map="@Map" />
+        }
 
+        @* Create plan panel — shown instead of plan-detail when creating a new plan *@
+        @if (GameSessionState.CreatePlanOpen)
+        {
+            <PlanCreation />
+        }
+
+    </div>
 </div>
 
 @if (_plansPanelOpen)
@@ -40,13 +52,15 @@
     <PlansList />
 }
 
-@if (_popupVisible)
-{
-    <MapProperties PopupInfo="_popupInfo" OnClose="ClosePopup" />
-}
+<MapProperties IsVisible="_popupVisible" 
+               X="_popupX" 
+               Y="_popupY" 
+               LayerName="_popupLayerName" 
+               Properties="_popupProps" 
+               OnClose="ClosePopup" />
 
-@if (PlanController.GameTimeViewer.TimeManagerVisible) {
-    <TimeManager OnCloseThisPanel="PlanController.GameTimeViewer.ToggleTimeManager" />
+@if (GameTimeViewer.TimeManagerVisible) {
+    <TimeManager OnCloseThisPanel="GameTimeViewer.ToggleTimeManager" />
 }
 
 @if (HostEnvironment.IsDevelopment())
@@ -63,7 +77,7 @@
     }
     @if (_wsLogVisible)
     {
-        <WebSocketLog />
+        <WebSocketLog LogEntries="_wsLog" OnClose="CloseWsLog" OnClear="ClearWsLog" />
     }
     else
     {

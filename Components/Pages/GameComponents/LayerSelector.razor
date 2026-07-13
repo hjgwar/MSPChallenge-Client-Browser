@@ -7,7 +7,7 @@
     </div>
     <div class="layer-panel-content">
     <input class="layer-search" type="search" placeholder="Search layers…" @bind="_layerSearch" @bind:event="oninput" />
-    @foreach (IGrouping<string, LayerEntry> cat in GameSessionState.LayerEntries
+    @foreach (IGrouping<string, Layer> cat in GameSessionState.LayerEntries
         .Where(e => !e.IsBaseLayer && e.IsToggleable &&
             (string.IsNullOrWhiteSpace(_layerSearch) ||
                 e.DisplayName.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase) ||

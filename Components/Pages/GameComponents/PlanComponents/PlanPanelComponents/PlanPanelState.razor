@@ -1,4 +1,4 @@
-@using MSPChallenge_Client_Browser.Utils
+@using MSPChallenge_Client_Browser.Utils.PlanCalculations
 @inherits PlanComponentBase
 <div class="plan-message-panel plan-state-panel">
     <div class="plan-message-panel-header">
@@ -11,7 +11,7 @@
                     disabled="@PlanStateSending"
                     @onclick:stopPropagation="true"
                     @onclick="@(() => _planStateDropdownOpen = !_planStateDropdownOpen)">
-                <span>@ConversionUtils.PlanStateLabel(PlanStatePending!)</span>
+                <span>@PlanStates.PlanStateLabel(PlanStatePending!)</span>
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="plan-state-dropdown-arrow">
                     <polyline points="4,6 8,10 12,6"/>
                 </svg>
@@ -19,13 +19,13 @@
             @if (_planStateDropdownOpen)
             {
                 <div class="plan-state-dropdown-list">
-                    @foreach (string availableState in GetAvailablePlanStates(PlanController.SelectedPlan))
+                    @foreach (Models.PlanState availableState in GetAvailablePlanStates(GameSessionState.SelectedPlan))
                     {
                         <button class="plan-state-dropdown-item @(availableState == PlanStatePending ? "selected" : "")"
                                 type="button"
                                 @onclick:stopPropagation="true"
-                                @onclick="@(() => { PlanStatePending = availableState; _planStateDropdownOpen = false; })">
-                            @ConversionUtils.PlanStateLabel(availableState)
+                                @onclick="@(async () => { await PlanStatePendingChanged.InvokeAsync(availableState); _planStateDropdownOpen = false; })">
+                            @PlanStates.PlanStateLabel(availableState)
                         </button>
                     }
                 </div>

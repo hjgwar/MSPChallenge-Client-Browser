@@ -1,15 +1,22 @@
-using MSPChallenge_Client_Browser.Services;
+using Microsoft.AspNetCore.Components;
+using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 
-public partial class PlanStartDate : PlanComponentBase
+public partial class PlanStartDate : GameComponentBase
 {
+    [Parameter] public Plan? Plan { get; set; }
+    [Parameter] public bool EditSaving { get; set; }
+    [Parameter] public int ConstructionTime { get; set; }
+    [Parameter] public EventCallback<int> StartMonthChanged { get; set; }
+    [Parameter] public EventCallback<int> StartYearChanged { get; set; }
+
     private int _editStartMonth = 1;
     private int _editStartYear = 2020;
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
-        var startDate    = new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(PlanController.SelectedPlan?.StartDate ?? 0);
+        var startDate = new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(Plan?.StartDate ?? 0);
         _editStartMonth = startDate.Month;
         _editStartYear = startDate.Year;        
     }
@@ -20,7 +27,7 @@ public partial class PlanStartDate : PlanComponentBase
     }
 
     private DateTime EditEarliestStart =>
-        new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(GameSessionState.GameCurrentMonth + PlanController.GetConstructionTime());
+        new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(GameSessionState.GameCurrentMonth + ConstructionTime);
 
     private bool EditStartDateValid =>
         _editStartYear > EditEarliestStart.Year ||

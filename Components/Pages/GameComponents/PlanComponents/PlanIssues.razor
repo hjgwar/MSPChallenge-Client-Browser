@@ -1,11 +1,11 @@
-@inherits PlanComponentBase
+@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
 <div class="plan-detail-issues-row">
     @if (_planIssuesOpen)
     {
-        <PlanPanelIssues SelectedPlanIssues="@SelectedPlanIssues" OnCloseThisPanel="PlanPanelsController.TogglePlanIssuesPanel"/>
+        <PlanPanelIssues Map="@Map" SelectedPlanIssues="@SelectedPlanIssues" OnClose="@TogglePlanIssuesPanel"/>
     }
-    <button class="plan-detail-action-row" @onclick="PlanPanelsController.TogglePlanIssuesPanel">
+    <button class="plan-detail-action-row" @onclick="TogglePlanIssuesPanel">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
             <path d="M8 2L1.5 13.5h13L8 2z"/>
             <line x1="8" y1="6.5" x2="8" y2="9.5"/>

@@ -14,13 +14,13 @@ public partial class Game : IAsyncDisposable
     [Inject] NavigationManager NavigationManager { get; set; } = null!;
     [Inject] IJSRuntime JS { get; set; } = null!;
     [Inject] IHostEnvironment HostEnvironment { get; set; } = null!;
-    [Inject] SessionState SessionState { get; set; } = null!;
+    [Inject] UserSessionService SessionState { get; set; } = null!;
     [Inject] MspApiClient ApiClient { get; set; } = null!;
-    [Inject] GameWebSocketService WsService { get; set; } = null!;
+    [Inject] WebSocketService WsService { get; set; } = null!;
     [Inject] GameSessionState GameSessionState { get; set; } = null!;
 
     public SideBarPanelControl SideBarPanelController { get; set; } = null!;
-    public PlanControl PlanController { get; set; } = null!;
+    public GameTimeView GameTimeViewer { get; set; } = null!;
     public MapViewPort Map { get; set; } = null!;
     // Returns the selected plan or a new unsaved plan for edit mode
     private IJSObjectReference? _mapModule;
@@ -56,6 +56,28 @@ public partial class Game : IAsyncDisposable
     private string?                _popupLayerName;
     private List<(string, string)> _popupProps = [];
 
+    private void ClosePopup()
+    {
+        _popupVisible = false;
+        StateHasChanged();
+    }
+
+    private async Task EnsureRestrictionLayersVisibleAsync(string? sourceDisplayName, string? targetDisplayName)
+    {
+        bool changed = false;
+        foreach (string? name in new[] { sourceDisplayName, targetDisplayName })
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var le = _layerEntries.FirstOrDefault(e =>
+                string.Equals(e.DisplayName, name, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(e.LayerName, name, StringComparison.OrdinalIgnoreCase));
+            if (le is null || le.Visible) continue;
+            await Map.ToggleLayerAsync(le, true);
+            changed = true;
+        }
+        if (changed) StateHasChanged();
+    }
+
     // ── Legend order ──────────────────────────────────────────────────────────
     private List<LayerEntry> _legendOrder = [];
 
@@ -63,7 +85,21 @@ public partial class Game : IAsyncDisposable
     private const int WsLogMaxEntries = 100;
     private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = [];
     private bool _wsLogVisible;
-    private bool _wsCopied;
+
+    private void CloseWsLog()
+    {
+        _wsLogVisible = false;
+        StateHasChanged();
+    }
+
+    private void ClearWsLog()
+    {
+        lock (_wsLog)
+        {
+            _wsLog.Clear();
+        }
+        StateHasChanged();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -80,7 +116,7 @@ public partial class Game : IAsyncDisposable
         // Capture cold-start status before async work so warm returns can skip map refit.
         var isColdStart = _isLoading;
 
-        _mapModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
+        Map.MapJSModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
 
         // Default view centred on North Sea – will be replaced once _PLAYAREA bounds are known
         await _mapModule.InvokeVoidAsync("initMap", "map", 54.5, 3.5, 6);
@@ -513,15 +549,7 @@ public partial class Game : IAsyncDisposable
 
     
 
-    private async Task CopyWsMessageAsync(string raw)
-    {
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", raw);
-        _wsCopied = true;
-        StateHasChanged();
-        await Task.Delay(1500);
-        _wsCopied = false;
-        StateHasChanged();
-    }
+
 
     public async ValueTask DisposeAsync()
     {

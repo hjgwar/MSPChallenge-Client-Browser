@@ -11,8 +11,8 @@
     </div>
     <div class="users-panel-content">
     <div class="users-my-country">
-        <span class="user-dot" style="background:@CurrentUserCountryColour();"></span>
-        <span>Your country: <strong>@CurrentUserCountryName()</strong></span>
+        <span class="user-dot" style="background:@UserSessionService.User.Country.Color;"></span>
+        <span>Your country: <strong>@UserSessionService.User.Country.Name</strong></span>
     </div>
     @if (_usersLoading)
     {

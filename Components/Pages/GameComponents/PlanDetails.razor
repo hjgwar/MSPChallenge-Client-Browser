@@ -3,21 +3,30 @@
 
 <div class="plan-detail-panel">
     <div class="plan-detail-panel-title">
-        @(PlanController.EditMode ? "EDIT PLAN" : "ACTIVE PLAN")
+        @(GameSessionState.EditMode ? "EDIT PLAN" : "ACTIVE PLAN")
         <button class="panel-close-btn" title="Close" @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
     </div>
     <div class="plan-detail-header">
         <span class="user-dot" style="background:@_detailDotColour;flex-shrink:0" title="@_detailCountryName"></span>
         <div class="plan-detail-header-body">
-            <PlanNameDesc @ref="PlanNameDescInstance" />
+            <PlanNameDesc @ref="PlanNameDescInstance" 
+                          Plan="@_detailPlan" 
+                          EditSaving="@_editSaving"
+                          NameChanged="@OnPlanNameChanged"
+                          DescriptionChanged="@OnPlanDescriptionChanged" />
         </div>
     </div>
     <div class="plan-detail-scroll">
     <details class="plan-detail-section plan-detail-section--state" open>
         <summary class="plan-detail-section-hdr">Plan Info</summary>
         <div class="plan-detail-section-body">
-            <PlanStartDate $ref="PlanStartDateInstance" />
-            <PlanState SelectedPlanIssues="PlanIssuesInstance.SelectedPlanIssues" />
+            <PlanStartDate @ref="PlanStartDateInstance" 
+                           Plan="@_detailPlan" 
+                           EditSaving="@_editSaving"
+                           ConstructionTime="@GetConstructionTime()"
+                           StartMonthChanged="@OnStartMonthChanged"
+                           StartYearChanged="@OnStartYearChanged" />
+            <PlanState Plan="@_detailPlan" SelectedPlanIssues="@_selectedPlanIssues" />
         </div>
     </details>
     <details class="plan-detail-section plan-detail-section--communication" open>
@@ -25,23 +34,23 @@
         <div class="plan-detail-section-body">
             <PlanApproval />
             <PlanMessages @ref="PlanMessagesInstance" />
-            <PlanIssues @ref="PlanIssuesInstance" />
+            <PlanIssues @ref="PlanIssuesInstance" Map="@Map" @bind-SelectedPlanIssues="_selectedPlanIssues" />
         </div>
     </details>
-    <details class="plan-detail-section @(PlanController.EditMode ? "plan-detail-section--policies-picker" : "")" open>
+    <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--policies-picker" : "")" open>
         <summary class="plan-detail-section-hdr">Policies</summary>
         <div class="plan-detail-section-body">
-            <PlanPolicies $ref="PlanPoliciesInstance" />
+            <PlanPolicies @ref="PlanPoliciesInstance" />
         </div>
     </details>
-    <details class="plan-detail-section @(PlanController.EditMode ? "plan-detail-section--layers-picker" : "")" open>
+    <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--layers-picker" : "")" open>
         <summary class="plan-detail-section-hdr">Data Layers</summary>
         <div class="plan-detail-section-body">
-            <PlanLayers $ref="PlanLayersInstance" />
+            <PlanLayers @ref="PlanLayersInstance" />
         </div>
     </details>
     </div>
-    @if (PlanController.EditMode)
+    @if (GameSessionState.EditMode)
     {
         @if (!string.IsNullOrWhiteSpace(_editError))
         {
@@ -51,18 +60,14 @@
         {
             <div class="plan-edit-status">Saving changes&#8230;</div>
         }
-        else if (_editWsConfirmationTcs is not null)
-        {
-            <div class="plan-edit-status">Waiting for server&#8230;</div>
-        }
         <div class="plan-edit-footer">
             <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel"
-                    type="button" disabled="@(_editSaving || _editWsConfirmationTcs is not null)"
+                    type="button" disabled="@_editSaving"
                     @onclick="CancelEditAsync">
                 &#8249; Cancel
             </button>
             <button class="plan-edit-footer-btn plan-edit-footer-btn--accept"
-                    type="button" disabled="@(_editSaving || _editWsConfirmationTcs is not null)"
+                    type="button" disabled="@_editSaving"
                     @onclick="SavePlanAsync">
                 Accept &#8250;
             </button>
@@ -77,3 +82,13 @@
         <button class="plan-edit-btn" @onclick="EnterEditModeAsync">Enter Edit Mode</button>
     }
 </div>
+
+<PlanDetailsSave @ref="PlanDetailsSaveInstance"
+                 EditName="@_editName"
+                 EditDescription="@_editDescription"
+                 EditStartYear="@_editStartYear"
+                 EditStartMonth="@_editStartMonth"
+                 EditPlanLayerIds="@_editPlanLayerIds"
+                 EditPolicyTypes="@_editPolicyTypes"
+                 OnSaveError="@OnSaveError"
+                 OnSavingChanged="@OnSavingChanged" />

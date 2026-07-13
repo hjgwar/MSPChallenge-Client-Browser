@@ -5,7 +5,7 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public partial class OnlineUsers : IDisposable
 {   
-    private List<User> _users        = [];
+    private List<User> _users = [];
     private bool _usersLoading = true;
     private string? _usersError = null;
 
@@ -53,16 +53,6 @@ public partial class OnlineUsers : IDisposable
             _usersLoading = false;
             StateHasChanged();
         }
-    }
-    
-    private string CurrentUserCountryName()
-    {
-        return GameSessionState.Countries.FirstOrDefault(c => c.Id == UserSessionService.User.Country.Id, new Country(UserSessionService.User.Country.Id, "Unknown", "#6c757d")).Name;
-    }
-
-    private string CurrentUserCountryColour()
-    {
-        return GameSessionState.Countries.FirstOrDefault(c => c.Id == UserSessionService.User.Country.Id, new Country(UserSessionService.User.Country.Id, "Unknown", "#6c757d")).Color;
     }
 
     public void Dispose()

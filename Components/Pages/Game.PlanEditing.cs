@@ -723,60 +723,9 @@ public partial class Game
         return _layerEntries.FirstOrDefault(layer => RuleLayerMatches(ruleLayer, layer));
     }
 
-    private static bool RuleLayerMatches(string? ruleLayer, LayerEntry layer)
-    {
-        if (string.IsNullOrWhiteSpace(ruleLayer))
-            return false;
+    
 
-        if (string.Equals(ruleLayer, "*", StringComparison.Ordinal))
-            return true;
-
-        var normalizedRuleLayer = NormaliseToken(ruleLayer);
-        var layerId = NormaliseToken(layer.LayerId);
-        var layerName = NormaliseToken(layer.LayerName);
-        var displayName = NormaliseToken(layer.DisplayName);
-
-        if (normalizedRuleLayer == layerId
-            || normalizedRuleLayer == layerName
-            || normalizedRuleLayer == displayName)
-            return true;
-
-        // Restriction endpoints commonly use numeric layer IDs. Keep those strict to avoid
-        // accidental matches like rule layer "2" matching actual layer id "12".
-        if (normalizedRuleLayer.All(char.IsDigit))
-            return false;
-
-        // For textual rules, allow partial matching only for reasonably descriptive tokens.
-        if (normalizedRuleLayer.Length < 4)
-            return false;
-
-        return layerName.Contains(normalizedRuleLayer, StringComparison.Ordinal)
-            || displayName.Contains(normalizedRuleLayer, StringComparison.Ordinal)
-            || normalizedRuleLayer.Contains(layerName, StringComparison.Ordinal)
-            || normalizedRuleLayer.Contains(displayName, StringComparison.Ordinal);
-    }
-
-    private static bool RestrictionTypeMatches(string? ruleType, int actualTypeIndex, LayerEntry? layer)
-    {
-        if (string.IsNullOrWhiteSpace(ruleType))
-            return true;
-
-        var normalizedRuleType = NormaliseToken(ruleType);
-        if (normalizedRuleType is "*" or "any" or "all")
-            return true;
-
-        if (int.TryParse(ruleType, out var index))
-            return index == actualTypeIndex;
-
-        if (normalizedRuleType == actualTypeIndex.ToString(CultureInfo.InvariantCulture))
-            return true;
-
-        if (layer is null || actualTypeIndex < 0 || actualTypeIndex >= layer.TypeDefs.Count)
-            return false;
-
-        var label = layer.TypeDefs[actualTypeIndex].Label;
-        return normalizedRuleType == NormaliseToken(label);
-    }
+    
 
     private List<ParsedLayerGeometry> GetParsedLayerGeometries(string layerId)
     {

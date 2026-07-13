@@ -45,7 +45,7 @@ public static partial class GenericUtils
         };
     }
 
-    private static string NormaliseToken(string value)
+    public static string NormaliseToken(string value)
     {
         return new string(value
             .Trim()

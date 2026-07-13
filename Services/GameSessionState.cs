@@ -44,7 +44,10 @@ public sealed class GameSessionState : IDisposable
     public bool CreatePlanOpen { get; set; } = false;
     public int? SelectedPlanId { get; set; } = null;
     public PlanViewMode PlanViewMode { get; set; } = PlanViewMode.AfterChanges;
-    public bool EditPlanMode { get; set; } = false;
+    public bool EditMode { get; set; } = false;
+
+    /// <summary>Toggle edit mode on/off.</summary>
+    public void ToggleEditMode() => EditMode = !EditMode;
 
     // Persisted map camera for smooth return navigation.
     public double? MapLat { get; private set; }
@@ -52,6 +55,9 @@ public sealed class GameSessionState : IDisposable
     public double? MapZoom { get; private set; }
     public bool HasSavedMapView => MapLat.HasValue && MapLng.HasValue && MapZoom.HasValue;
 
+    public Plan? SelectedPlan => SelectedPlanId.HasValue
+            ? Plans.FirstOrDefault(p => p.PlanId == SelectedPlanId.Value)
+            : null;
     public void SaveMapView(double lat, double lng, double zoom)
     {
         MapLat = lat;
@@ -1328,6 +1334,149 @@ public sealed class GameSessionState : IDisposable
     }
 
     public int TotalMonths => GameEndMonth > 0 ? GameEndMonth : GameEndYear > 0  ? (GameEndYear - GameStartYear) * 12 : 0;
+
+    // ── Geometry caches for plan calculations ─────────────────────────────────
+    private readonly Dictionary<string, List<ParsedLayerGeometry>> _parsedLayerGeometryCache = [];
+    private readonly Dictionary<string, List<ParsedLayerGeometry>> _projectedGeometryCache = [];
+
+    /// <summary>
+    /// Parses and caches layer geometry from MapLayerSnapshots.
+    /// Returns cached data if available.
+    /// </summary>
+    public List<ParsedLayerGeometry> GetParsedLayerGeometries(string layerId)
+    {
+        if (_parsedLayerGeometryCache.TryGetValue(layerId, out var cached))
+            return cached;
+
+        var parsed = new List<ParsedLayerGeometry>();
+        _parsedLayerGeometryCache[layerId] = parsed;
+
+        var snapshot = MapLayerSnapshots.FirstOrDefault(s => string.Equals(s.LayerId, layerId, StringComparison.OrdinalIgnoreCase));
+        if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.VectorGeometriesJson))
+            return parsed;
+
+        try
+        {
+            using var document = JsonDocument.Parse(snapshot.VectorGeometriesJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                return parsed;
+
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                if (!element.TryGetProperty("geometry", out var geometryElement) || geometryElement.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var coordinates = new List<double[]>();
+                foreach (var pointElement in geometryElement.EnumerateArray())
+                {
+                    if (pointElement.ValueKind != JsonValueKind.Array || pointElement.GetArrayLength() < 2)
+                        continue;
+
+                    if (pointElement[0].ValueKind != JsonValueKind.Number || pointElement[1].ValueKind != JsonValueKind.Number)
+                        continue;
+
+                    coordinates.Add([pointElement[0].GetDouble(), pointElement[1].GetDouble()]);
+                }
+
+                if (coordinates.Count == 0)
+                    continue;
+
+                var featureId = "";
+                if (element.TryGetProperty("id", out var idElement))
+                    featureId = idElement.ValueKind == JsonValueKind.String ? idElement.GetString() ?? "" : idElement.ToString();
+
+                var typeIndex = 0;
+                if (element.TryGetProperty("type", out var typeElement))
+                {
+                    if (typeElement.ValueKind == JsonValueKind.Number)
+                        typeIndex = typeElement.GetInt32();
+                    else if (typeElement.ValueKind == JsonValueKind.String)
+                        int.TryParse(typeElement.GetString(), out typeIndex);
+                }
+
+                parsed.Add(new ParsedLayerGeometry(featureId, typeIndex, coordinates));
+            }
+        }
+        catch
+        {
+            // Ignore malformed cached geometry
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    /// Returns projected geometry for a layer at a given point in time (before a plan's start date).
+    /// Projects baseline geometry with all finalized plan modifications that occurred before the specified date.
+    /// Results are cached per layer-date combination.
+    /// </summary>
+    public List<ParsedLayerGeometry> GetProjectedLayerGeometries(string layerId, int beforeStartDate)
+    {
+        var cacheKey = $"{layerId}\x01{beforeStartDate}";
+        if (_projectedGeometryCache.TryGetValue(cacheKey, out var cached))
+            return cached;
+
+        var baseline = GetParsedLayerGeometries(layerId);
+
+        // Collect finalised plans that are already in effect before this plan's start date.
+        var priorPlans = Plans
+            .Where(p => p.StartDate < beforeStartDate && Utils.PlanCalculations.PlanStates.IsFinalisedPlanState(p.State))
+            .OrderBy(p => p.StartDate)
+            .ThenBy(p => p.PlanId)
+            .ToList();
+
+        if (priorPlans.Count == 0)
+        {
+            _projectedGeometryCache[cacheKey] = baseline;
+            return baseline;
+        }
+
+        // Build the set of original feature IDs that have been removed or replaced,
+        // and collect all plan-introduced geometries as additions.
+        var deletedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var additions = new List<ParsedLayerGeometry>();
+
+        foreach (var priorPlan in priorPlans)
+        {
+            var planLayer = priorPlan.Layers.FirstOrDefault(l =>
+                string.Equals(l.OriginalLayerId, layerId, StringComparison.OrdinalIgnoreCase));
+            if (planLayer is null) continue;
+
+            // Explicit deletions.
+            foreach (var deletedId in planLayer.DeletedPersistentIds)
+                deletedIds.Add(deletedId);
+
+            foreach (var geo in planLayer.Geometry)
+            {
+                bool isModification = !string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id;
+                if (isModification)
+                    deletedIds.Add(geo.PersistentId); // original is superseded by the plan version
+
+                // Whether new or modified, the plan geometry is part of the projected world.
+                additions.Add(new ParsedLayerGeometry(geo.Id, geo.TypeIndex, geo.Coordinates));
+            }
+        }
+
+        var projected = new List<ParsedLayerGeometry>(baseline.Count + additions.Count);
+        foreach (var geo in baseline)
+        {
+            if (!deletedIds.Contains(geo.FeatureId))
+                projected.Add(geo);
+        }
+        projected.AddRange(additions);
+
+        _projectedGeometryCache[cacheKey] = projected;
+        return projected;
+    }
+
+    /// <summary>
+    /// Clears geometry caches. Call when layer data is updated to force re-parsing.
+    /// </summary>
+    public void ClearGeometryCaches()
+    {
+        _parsedLayerGeometryCache.Clear();
+        _projectedGeometryCache.Clear();
+    }
 
     // ── Disposal ───────────────────────────────────────────────────────────────
     public void Dispose()

@@ -2,18 +2,18 @@
 <div class="plan-message-panel plan-approval-panel">
     <div class="plan-message-panel-header">
         <span class="plan-message-panel-title">Approval</span>
-        <button class="panel-close-btn" type="button" title="Close" @onclick="PlanPanelsController.ToggleApprovalPanel">&#10005;</button>
+        <button class="panel-close-btn" type="button" title="Close" @onclick="OnClose">&#10005;</button>
     </div>
     <div class="plan-message-panel-body">
-        @if (_approvalRequired.Count == 0)
+        @if (RequiredApprovals.Count == 0)
         {
             <div class="plan-message-empty">No approval required for this plan.</div>
         }
         else
         {
-            PlanEntry? approvalPlan = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
-            bool isVotingState = approvalPlan?.State.Equals("APPROVAL", StringComparison.OrdinalIgnoreCase) == true;
-            int? myCountryId   = UserSessionService.User?.CountryId;
+            Plan? approvalPlan = GameSessionState.SelectedPlan;
+            bool isVotingState = approvalPlan?.State == PlanState.APPROVAL;
+            int? myCountryId   = UserSessionService.User?.Country.Id;
             <table class="plan-approval-table">
                 <thead>
                     <tr>
@@ -25,9 +25,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (ApprovalRequirement req in _approvalRequired)
+                    @foreach (PlanApprovalRequirement req in RequiredApprovals)
                     {
-                        string dotCol     = GameSessionState.CountryColours.GetValueOrDefault(req.CountryId, "#6c757d");
+                        string dotCol     = GameSessionState.Countries.FirstOrDefault(c => c.Id == req.CountryId)?.Color ?? "#6c757d";
                         int currentVote = approvalPlan?.Votes?.TryGetValue(req.CountryId, out int v) == true ? v : -1;
                         bool isMyRow    = isVotingState && req.CountryId == myCountryId;
                         <tr class="plan-approval-row">
