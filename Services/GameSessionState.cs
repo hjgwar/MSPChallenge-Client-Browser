@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MSPChallenge_Client_Browser.Models;
+using MSPChallenge_Client_Browser.Utils;
 
 namespace MSPChallenge_Client_Browser.Services;
 
@@ -47,7 +48,11 @@ public sealed class GameSessionState : IDisposable
     public bool EditMode { get; set; } = false;
 
     /// <summary>Toggle edit mode on/off.</summary>
-    public void ToggleEditMode() => EditMode = !EditMode;
+    public void ToggleEditMode()
+    {
+        EditMode = !EditMode;
+        NotifyChanged();
+    }
 
     // Persisted map camera for smooth return navigation.
     public double? MapLat { get; private set; }
@@ -113,6 +118,15 @@ public sealed class GameSessionState : IDisposable
     /// </summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Manually triggers the Changed event. Use when UI state properties are modified
+    /// outside of WebSocket message handling.
+    /// </summary>
+    public void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
+
     // ── WS message routing ─────────────────────────────────────────────────────
     private void OnWsMessage(WsMessage msg)
     {
@@ -127,18 +141,18 @@ public sealed class GameSessionState : IDisposable
         var tick = payload.TryGetProperty("tick", out var t) && t.ValueKind == JsonValueKind.Object
             ? t : payload;
 
-        var currentMonth = GetIntProp(tick, "month");
-        if (currentMonth == 0) currentMonth = GetIntProp(payload, "game_current_month");
+        var currentMonth = ConversionUtils.GetIntProp(tick, "month");
+        if (currentMonth == 0) currentMonth = ConversionUtils.GetIntProp(payload, "game_current_month");
         if (currentMonth > 0 || tick.TryGetProperty("month", out _) || payload.TryGetProperty("game_current_month", out _))
             GameCurrentMonth = currentMonth;
 
-        var gameState = GetStringProp(tick, "state") ?? GetStringProp(payload, "game_state");
+        var gameState = ConversionUtils.GetStringProp(tick, "state") ?? ConversionUtils.GetStringProp(payload, "game_state");
         if (gameState is not null)
             GameState = gameState;
 
         if (GameEndMonth == 0)
         {
-            var endMonth = GetIntProp(payload, "game_end_month");
+            var endMonth = ConversionUtils.GetIntProp(payload, "game_end_month");
             if (endMonth > 0) GameEndMonth = endMonth;
         }
 
@@ -176,10 +190,10 @@ public sealed class GameSessionState : IDisposable
         {
             foreach (var pm in pmEl.EnumerateArray())
             {
-                var pmPlanId = GetIntProp(pm, "plan_id");
+                var pmPlanId = ConversionUtils.GetIntProp(pm, "plan_id");
                 if (pmPlanId <= 0) continue;
 
-                var message = ParsePlanMessage(pm, pmPlanId, _nextPlanMessageSequence++);
+                var message = ConversionUtils.ParsePlanMessage(pm, pmPlanId, _nextPlanMessageSequence++);
                 if (message is null) continue;
 
                 if (!parsedPlanMessages.TryGetValue(pmPlanId, out var messages))
@@ -203,28 +217,28 @@ public sealed class GameSessionState : IDisposable
 
         foreach (var p in plansEl.EnumerateArray())
         {
-            var id          = GetIntProp(p, "id");
-            var name        = GetStringProp(p, "name")        ?? $"Plan {id}";
-            var description = GetStringProp(p, "description") ?? "";
-            var state       = GetStringProp(p, "state")       ?? "";
-            var country     = GetIntProp(p, "country");
-            var startdate   = GetIntProp(p, "startdate");
+            var id          = ConversionUtils.GetIntProp(p, "id");
+            var name        = ConversionUtils.GetStringProp(p, "name")        ?? $"Plan {id}";
+            var description = ConversionUtils.GetStringProp(p, "description") ?? "";
+            var state       = ConversionUtils.GetStringProp(p, "state")       ?? "";
+            var country     = ConversionUtils.GetIntProp(p, "country");
+            var startdate   = ConversionUtils.GetIntProp(p, "startdate");
 
             var planLayers = new List<PlanLayerData>();
             if (p.TryGetProperty("layers", out var layersEl) && layersEl.ValueKind == JsonValueKind.Array)
             {
                 foreach (var l in layersEl.EnumerateArray())
                 {
-                    var planLayerId = GetStringProp(l, "layerid") ?? "";
-                    var originalId  = GetStringProp(l, "original") ?? "";
-                    var layerState  = GetStringProp(l, "state") ?? "";
+                    var planLayerId = ConversionUtils.GetStringProp(l, "layerid") ?? "";
+                    var originalId  = ConversionUtils.GetStringProp(l, "original") ?? "";
+                    var layerState  = ConversionUtils.GetStringProp(l, "state") ?? "";
                     var geometries  = new List<PlanGeometryItem>();
 
                     if (l.TryGetProperty("geometry", out var geoArr) && geoArr.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var g in geoArr.EnumerateArray())
                         {
-                            var activeStr = GetStringProp(g, "active") ?? "1";
+                            var activeStr = ConversionUtils.GetStringProp(g, "active") ?? "1";
                             if (activeStr == "0") continue;
 
                             if (g.TryGetProperty("geometry", out var coords) && coords.ValueKind == JsonValueKind.Array)
@@ -237,9 +251,9 @@ public sealed class GameSessionState : IDisposable
                                 }
                                 if (pts.Count > 0)
                                 {
-                                    var geoId   = GetStringProp(g, "id")         ?? "";
-                                    var persId  = GetStringProp(g, "persistent") ?? "";
-                                    var typeStr = GetStringProp(g, "type")       ?? "0";
+                                    var geoId   = ConversionUtils.GetStringProp(g, "id")         ?? "";
+                                    var persId  = ConversionUtils.GetStringProp(g, "persistent") ?? "";
+                                    var typeStr = ConversionUtils.GetStringProp(g, "type")       ?? "0";
                                     var typeIdx = int.TryParse(typeStr, out var ti) ? ti : 0;
                                     geometries.Add(new PlanGeometryItem(pts, geoId, persId, typeIdx));
                                 }
@@ -272,7 +286,7 @@ public sealed class GameSessionState : IDisposable
             {
                 foreach (var pol in polEl.EnumerateArray())
                 {
-                    var ptype = GetStringProp(pol, "policy_type")?.ToLowerInvariant();
+                    var ptype = ConversionUtils.GetStringProp(pol, "policy_type")?.ToLowerInvariant();
                     var display = ptype switch
                     {
                         "fishing"  => "Fishing Effort",
@@ -315,7 +329,7 @@ public sealed class GameSessionState : IDisposable
                 var nestedMessages = new List<PlanMessage>();
                 foreach (var pm in planPmEl.EnumerateArray())
                 {
-                    var message = ParsePlanMessage(pm, id, _nextPlanMessageSequence++);
+                    var message = ConversionUtils.ParsePlanMessage(pm, id, _nextPlanMessageSequence++);
                     if (message is not null)
                         nestedMessages.Add(message);
                 }
@@ -326,11 +340,11 @@ public sealed class GameSessionState : IDisposable
                 }
             }
 
-            var lockedByUserId = GetIntProp(p, "locked");
+            var lockedByUserId = ConversionUtils.GetIntProp(p, "locked");
             var storedCount = _planMessagesByPlanId.TryGetValue(id, out var storedMessages)
                 ? storedMessages.Count
                 : 0;
-            var payloadCount = GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
+            var payloadCount = ConversionUtils.GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
             var msgCount = Math.Max(storedCount, payloadCount);
             var entry = new Plan(id, name, description, Enum.Parse<PlanState>(state), country, startdate, constructionTime, policyNames, policyTypes, planLayers,
                 requiresApproval, msgCount, IssueCount: 0, Votes: votes, LockedByUserId: lockedByUserId);
@@ -360,7 +374,7 @@ public sealed class GameSessionState : IDisposable
 
         foreach (var message in incoming)
         {
-            var duplicate = existing.Any(e => IsSameMessage(e, message));
+            var duplicate = existing.Any(e => GenericUtils.IsSameMessage(e, message));
             if (!duplicate)
                 existing.Add(message);
         }
@@ -375,62 +389,24 @@ public sealed class GameSessionState : IDisposable
         });
     }
 
-    private static bool IsSameMessage(PlanMessage a, PlanMessage b)
-    {
-        if (!string.IsNullOrWhiteSpace(a.MessageId) && !string.IsNullOrWhiteSpace(b.MessageId))
-            return string.Equals(a.MessageId, b.MessageId, StringComparison.OrdinalIgnoreCase);
-
-        return a.PlanId == b.PlanId
-            && string.Equals(a.UserName, b.UserName, StringComparison.Ordinal)
-            && string.Equals(a.Message, b.Message, StringComparison.Ordinal)
-            && Nullable.Equals(a.SentAt, b.SentAt);
-    }
-
     // ── Display helpers ────────────────────────────────────────────────────────
     public string MonthToDate(int month)
     {
-        var d = new DateTime(GameStartYear, 1, 1).AddMonths(month);
-        return d.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        // Clamp months to prevent DateTime overflow (valid range: years 1-9999)
+        // Limit to +/- 10000 years worth of months (120000 months)
+        var clampedMonth = Math.Clamp(month, -120000, 120000);
+        
+        try
+        {
+            var d = new DateTime(GameStartYear, 1, 1).AddMonths(clampedMonth);
+            return d.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // If still out of range, return a fallback
+            return $"Month {month}";
+        }
     }
-
-    public static string GameStateLabel(string state) => state.ToLowerInvariant() switch
-    {
-        "pause"       => "Paused",
-        "play"        => "Running",
-        "fastforward" => "Fast Forward",
-        "setup"       => "Setup",
-        "end"         => "Ended",
-        _             => state,
-    };
-
-    public static string FormatTimeLeft(double totalSeconds)
-    {
-        var ts = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
-        return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
-    }
-
-    public static string PlanStateLabel(string? state) => state?.ToUpperInvariant() switch
-    {
-        "APPROVAL" => "AWAITING APPROVAL",
-        _          => state?.ToUpperInvariant() ?? string.Empty,
-    };
-
-    public static int PlanStatePriority(string state) => state.ToUpperInvariant() switch
-    {
-        "DESIGN"        => 0,
-        "CONSULTATION"  => 1,
-        "APPROVAL"      => 2,
-        "APPROVED"      => 3,
-        "IMPLEMENTED"   => 4,
-        "ARCHIVED"      => 5,
-        _               => 6,
-    };
-
-    public static readonly string[] OrderedPlanStates =
-    [
-        "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "IMPLEMENTED", "ARCHIVED"
-    ];
-
     // ── Reset (navigate home) ──────────────────────────────────────────────────
 
     /// <summary>
@@ -527,7 +503,7 @@ public sealed class GameSessionState : IDisposable
 
         // 2) Global game config
         var configRoot = await apiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/Config");
-        var configPayload = GetPayload(configRoot);
+        var configPayload = ConversionUtils.GetPayload(configRoot);
 
         if (configPayload.TryGetProperty("wiki_base_url", out var wbuProp))
         {
@@ -592,7 +568,7 @@ public sealed class GameSessionState : IDisposable
                 // Array format: [ { "type": "fishing", "enabled": true }, ... ]
                 foreach (var el in policySettingsEl.EnumerateArray())
                 {
-                    var ptype = GetStringProp(el, "type") ?? GetStringProp(el, "policy_type") ?? "";
+                    var ptype = ConversionUtils.GetStringProp(el, "type") ?? ConversionUtils.GetStringProp(el, "policy_type") ?? "";
                     if (string.IsNullOrWhiteSpace(ptype)) continue;
                     var enabled = true;
                     if (el.TryGetProperty("enabled", out var enEl))
@@ -632,15 +608,15 @@ public sealed class GameSessionState : IDisposable
             {
                 foreach (var dg in groupsEl.EnumerateArray())
                 {
-                    var dgName = GetStringProp(dg, "name") ?? "";
+                    var dgName = ConversionUtils.GetStringProp(dg, "name") ?? "";
                     var dgEntries = new List<DependencyEntry>();
                     if (dg.TryGetProperty("entries", out var entriesEl) && entriesEl.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var de in entriesEl.EnumerateArray())
                         {
-                            var deId = GetStringProp(de, "id") ?? "";
-                            var deName = GetStringProp(de, "name") ?? "";
-                            var deLink = GetStringProp(de, "link");
+                            var deId = ConversionUtils.GetStringProp(de, "id") ?? "";
+                            var deName = ConversionUtils.GetStringProp(de, "name") ?? "";
+                            var deLink = ConversionUtils.GetStringProp(de, "link");
                             if (!string.IsNullOrEmpty(deId))
                                 dgEntries.Add(new DependencyEntry(deId, deName, deLink));
                         }
@@ -655,10 +631,10 @@ public sealed class GameSessionState : IDisposable
             {
                 foreach (var dl in linksEl.EnumerateArray())
                 {
-                    var fromId = GetStringProp(dl, "fromId") ?? "";
-                    var toId = GetStringProp(dl, "toId") ?? "";
-                    var sev = GetIntProp(dl, "severity");
-                    var desc = GetStringProp(dl, "description") ?? "";
+                    var fromId = ConversionUtils.GetStringProp(dl, "fromId") ?? "";
+                    var toId = ConversionUtils.GetStringProp(dl, "toId") ?? "";
+                    var sev = ConversionUtils.GetIntProp(dl, "severity");
+                    var desc = ConversionUtils.GetStringProp(dl, "description") ?? "";
                     if (!string.IsNullOrEmpty(fromId) && !string.IsNullOrEmpty(toId))
                         depLinks.Add(new DependencyLink(fromId, toId, sev, desc));
                 }
@@ -678,7 +654,7 @@ public sealed class GameSessionState : IDisposable
                 var metaRoot2 = await apiClient.PostFormAsync(
                     $"{baseAddress}/{sessionId}/api/Layer/MetaByName",
                     new[] { new KeyValuePair<string, string>("name", countriesLayerName) });
-                var metaPayload2 = GetPayload(metaRoot2);
+                var metaPayload2 = ConversionUtils.GetPayload(metaRoot2);
 
                 // Build typeIndex → countryId mapping from layer_type
                 var typeIndexToCountry = new Dictionary<int, int>();
@@ -713,7 +689,7 @@ public sealed class GameSessionState : IDisposable
                         var geoRoot = await apiClient.PostFormAsync(
                             $"{baseAddress}/{sessionId}/api/Layer/Get",
                             new[] { new KeyValuePair<string, string>("layer_id", eezLayerId) });
-                        var geoPayload = GetPayload(geoRoot);
+                        var geoPayload = ConversionUtils.GetPayload(geoRoot);
                         if (geoPayload.ValueKind == JsonValueKind.Array)
                         {
                             var eezList = new List<EezPolygon>();
@@ -752,7 +728,7 @@ public sealed class GameSessionState : IDisposable
         var metaRoot = await apiClient.PostFormAsync(
             $"{baseAddress}/{sessionId}/api/Game/Meta",
             new[] { new KeyValuePair<string, string>("user", userSessionService.User.Country.Id.ToString()) });
-        var metaPayload = GetPayload(metaRoot);
+        var metaPayload = ConversionUtils.GetPayload(metaRoot);
         if (metaPayload.ValueKind != JsonValueKind.Array) return;
 
         var layerArray = metaPayload.EnumerateArray().ToList();
@@ -909,7 +885,7 @@ public sealed class GameSessionState : IDisposable
         var category = layer.TryGetProperty("layer_category", out var lc) ? lc.GetString() ?? "" : "";
         var subcategory = layer.TryGetProperty("layer_subcategory", out var lsc) ? lsc.GetString() ?? "" : "";
         var tooltip = layer.TryGetProperty("layer_tooltip", out var ltt) ? ltt.GetString() ?? "" : "";
-        var displayName = !string.IsNullOrWhiteSpace(layerShort) ? layerShort : FallbackDisplayName(layerName);
+        var displayName = !string.IsNullOrWhiteSpace(layerShort) ? layerShort : ConversionUtils.FallbackDisplayName(layerName);
         var layerMedia = layer.TryGetProperty("layer_media", out var lm) ? lm.GetString() ?? "" : "";
         var layerMediaUrl = ResolveWikiUrl(layerMedia);
 
@@ -961,7 +937,7 @@ public sealed class GameSessionState : IDisposable
             var rasterRoot = await apiClient.PostFormAsync(
                 $"{baseAddress}/{sessionId}/api/Layer/GetRaster",
                 new[] { new KeyValuePair<string, string>("layer_name", layerName) });
-            var rasterPayload = GetPayload(rasterRoot);
+            var rasterPayload = ConversionUtils.GetPayload(rasterRoot);
 
             if (rasterPayload.TryGetProperty("image_data", out var imgData) &&
                 imgData.GetString() is string b64 &&
@@ -999,7 +975,7 @@ public sealed class GameSessionState : IDisposable
                     foreach (var (threshold, hex, label) in entries)
                     {
                         var normalised = threshold / entityValueMax * 255.0;
-                        rasterColorMap.Add(new RasterColorStop { Value = normalised, Rgba = HexToRgbaArray(hex) });
+                        rasterColorMap.Add(new RasterColorStop { Value = normalised, Rgba = ConversionUtils.HexToRgbaArray(hex) });
                         rasterThresholds.Add((normalised, label));
                     }
                 }
@@ -1021,7 +997,7 @@ public sealed class GameSessionState : IDisposable
             var geoRoot = await apiClient.PostFormAsync(
                 $"{baseAddress}/{sessionId}/api/Layer/Get",
                 new[] { new KeyValuePair<string, string>("layer_id", layerId) });
-            var geoPayload = GetPayload(geoRoot);
+            var geoPayload = ConversionUtils.GetPayload(geoRoot);
 
             if (geoPayload.ValueKind == JsonValueKind.Array && geoPayload.GetArrayLength() > 0)
                 vectorGeometriesJson = geoPayload.ToString();
@@ -1045,7 +1021,7 @@ public sealed class GameSessionState : IDisposable
             IsRaster = string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase),
             RasterThresholds = rasterThresholds,
             GeoType = geoType ?? "",
-            AssemblyTime = ParseAssemblyTime(layer),
+            AssemblyTime = ConversionUtils.ParseAssemblyTime(layer),
             Editable = editable,
             EditingType = editingType
         });
@@ -1068,21 +1044,6 @@ public sealed class GameSessionState : IDisposable
         };
     }
 
-    private static int ParseAssemblyTime(JsonElement layer)
-    {
-        if (!layer.TryGetProperty("layer_states", out var statesEl) ||
-            statesEl.ValueKind != JsonValueKind.Array)
-            return 0;
-
-        foreach (var s in statesEl.EnumerateArray())
-        {
-            var stateName = GetStringProp(s, "state");
-            if (string.Equals(stateName, "ASSEMBLY", StringComparison.OrdinalIgnoreCase))
-                return GetIntProp(s, "time");
-        }
-        return 0;
-    }
-
     private string? ResolveWikiUrl(string? media)
     {
         if (string.IsNullOrWhiteSpace(media) || string.IsNullOrWhiteSpace(WikiBaseUrl))
@@ -1092,12 +1053,6 @@ public sealed class GameSessionState : IDisposable
             ? media[prefix.Length..]
             : media;
         return string.IsNullOrWhiteSpace(page) ? null : $"{WikiBaseUrl}/{page}";
-    }
-
-    private static string FallbackDisplayName(string layerName)
-    {
-        var s = layerName.TrimStart('_');
-        return System.Text.RegularExpressions.Regex.Replace(s, "[_\\-]+", " ");
     }
 
     private async Task LoadPlanRestrictionsAsync(MspApiClient apiClient, string baseAddress, int sessionId)
@@ -1126,7 +1081,7 @@ public sealed class GameSessionState : IDisposable
         if (clearExisting)
             _restrictions.Clear();
 
-        var payload = GetPayload(root);
+        var payload = ConversionUtils.GetPayload(root);
 
         JsonElement restrictionsEl;
         if (payload.ValueKind == JsonValueKind.Array)
@@ -1155,182 +1110,19 @@ public sealed class GameSessionState : IDisposable
         {
             if (item.ValueKind != JsonValueKind.Object) continue;
 
-            var message = GetStringPropLoose(item, "message", "text", "description", "restriction_message") ?? "";
-            var type = GetStringPropLoose(item, "type", "severity", "level", "restriction_type") ?? "warning";
-            var startLayer = GetStringPropLoose(item, "startlayer", "start_layer", "start", "from_layer", "from", "restriction_start_layer_id") ?? "";
-            var startType = GetStringPropLoose(item, "starttype", "start_type", "start_layer_type", "from_type", "restriction_start_layer_type") ?? "";
-            var endLayer = GetStringPropLoose(item, "endlayer", "end_layer", "end", "to_layer", "to", "restriction_end_layer_id") ?? "";
-            var endType = GetStringPropLoose(item, "endtype", "end_type", "end_layer_type", "to_type", "restriction_end_layer_type") ?? "";
-            var sort = GetStringPropLoose(item, "sort", "order", "restriction_sort") ?? "";
+            var message = ConversionUtils.GetStringPropLoose(item, "message", "text", "description", "restriction_message") ?? "";
+            var type = ConversionUtils.GetStringPropLoose(item, "type", "severity", "level", "restriction_type") ?? "warning";
+            var startLayer = ConversionUtils.GetStringPropLoose(item, "startlayer", "start_layer", "start", "from_layer", "from", "restriction_start_layer_id") ?? "";
+            var startType = ConversionUtils.GetStringPropLoose(item, "starttype", "start_type", "start_layer_type", "from_type", "restriction_start_layer_type") ?? "";
+            var endLayer = ConversionUtils.GetStringPropLoose(item, "endlayer", "end_layer", "end", "to_layer", "to", "restriction_end_layer_id") ?? "";
+            var endType = ConversionUtils.GetStringPropLoose(item, "endtype", "end_type", "end_layer_type", "to_type", "restriction_end_layer_type") ?? "";
+            var sort = ConversionUtils.GetStringPropLoose(item, "sort", "order", "restriction_sort") ?? "";
 
             if (string.IsNullOrWhiteSpace(startLayer) || string.IsNullOrWhiteSpace(endLayer))
                 continue;
 
             _restrictions.Add(new RestrictionRule(message, type, startLayer, startType, endLayer, endType, sort));
         }
-    }
-
-    private static string? GetStringPropLoose(JsonElement el, params string[] names)
-    {
-        if (el.ValueKind != JsonValueKind.Object) return null;
-
-        var normalizedNames = names.Select(NormalizeKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var prop in el.EnumerateObject())
-        {
-            if (!normalizedNames.Contains(NormalizeKey(prop.Name))) continue;
-            return prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.ToString();
-        }
-
-        return null;
-    }
-
-    private static string NormalizeKey(string value)
-    {
-        return new string(value
-            .Trim()
-            .ToLowerInvariant()
-            .Where(char.IsLetterOrDigit)
-            .ToArray());
-    }
-
-    private static int[] HexToRgbaArray(string hex)
-    {
-        var h = hex.TrimStart('#');
-        int r = Convert.ToInt32(h[..2], 16);
-        int g = Convert.ToInt32(h[2..4], 16);
-        int b = Convert.ToInt32(h[4..6], 16);
-        int a = h.Length >= 8 ? Convert.ToInt32(h[6..8], 16) : 255;
-        return [r, g, b, a];
-    }
-
-    private static PlanMessage? ParsePlanMessage(JsonElement pm, int planId, int sequence)
-    {
-        var messageId = GetStringProp(pm, "message_id")
-                     ?? GetStringProp(pm, "id")
-                     ?? "";
-
-        var userName = GetStringProp(pm, "user_name")
-                    ?? GetStringProp(pm, "username")
-                    ?? GetStringProp(pm, "name")
-                    ?? "Unknown";
-
-        var message = GetStringProp(pm, "message")
-                   ?? GetStringProp(pm, "text")
-                   ?? GetStringProp(pm, "body")
-                   ?? GetStringProp(pm, "content")
-                   ?? pm.ToString();
-
-        var countryId = GetNullableIntProp(pm,
-            "team_id",
-            "country_id",
-            "country",
-            "sender_country_id",
-            "user_country_id");
-
-        var countryName = GetStringProp(pm, "country_name")
-                       ?? GetStringProp(pm, "country_display_name")
-                       ?? (countryId.HasValue && countryId.Value > 0 ? countryId.Value.ToString() : "");
-
-        var sentAt = GetDateTimeProp(pm,
-            "created_at",
-            "created",
-            "sent_at",
-            "timestamp",
-            "time");
-
-        if (string.IsNullOrWhiteSpace(message)) return null;
-
-        return new PlanMessage(messageId, planId, countryId, countryName, userName, message, sentAt, sequence);
-    }
-
-    // ── JSON helpers (private) ─────────────────────────────────────────────────
-    private static JsonElement GetPayload(JsonElement root)
-    {
-        if (root.ValueKind == JsonValueKind.Object &&
-            root.TryGetProperty("payload", out var payload))
-            return payload;
-        return root;
-    }
-
-    private static int GetIntProp(JsonElement el, string name)
-    {
-        foreach (var prop in el.EnumerateObject())
-        {
-            if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
-            if (prop.Value.ValueKind == JsonValueKind.Number) return prop.Value.GetInt32();
-            if (prop.Value.ValueKind == JsonValueKind.String &&
-                int.TryParse(prop.Value.GetString(), out var v)) return v;
-        }
-        return 0;
-    }
-
-    private static string? GetStringProp(JsonElement el, string name)
-    {
-        foreach (var prop in el.EnumerateObject())
-        {
-            if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
-            return prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() : prop.Value.ToString();
-        }
-        return null;
-    }
-
-    private static int? GetNullableIntProp(JsonElement el, params string[] names)
-    {
-        foreach (var name in names)
-        {
-            foreach (var prop in el.EnumerateObject())
-            {
-                if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
-                if (prop.Value.ValueKind == JsonValueKind.Number) return prop.Value.GetInt32();
-                if (prop.Value.ValueKind == JsonValueKind.String && int.TryParse(prop.Value.GetString(), out var parsed))
-                    return parsed;
-            }
-        }
-        return null;
-    }
-
-    private static DateTime? GetDateTimeProp(JsonElement el, params string[] names)
-    {
-        foreach (var name in names)
-        {
-            foreach (var prop in el.EnumerateObject())
-            {
-                if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
-                if (prop.Value.ValueKind == JsonValueKind.String)
-                {
-                    var text = prop.Value.GetString();
-                    if (string.IsNullOrWhiteSpace(text)) continue;
-
-                    if (DateTime.TryParseExact(
-                        text,
-                        ["MMM d HH:mm", "MMM dd HH:mm"],
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.None,
-                        out var monthDayTime))
-                    {
-                        return new DateTime(
-                            DateTime.UtcNow.Year,
-                            monthDayTime.Month,
-                            monthDayTime.Day,
-                            monthDayTime.Hour,
-                            monthDayTime.Minute,
-                            0,
-                            DateTimeKind.Utc);
-                    }
-
-                    var styles = System.Globalization.DateTimeStyles.AssumeUniversal
-                               | System.Globalization.DateTimeStyles.AdjustToUniversal;
-
-                    if (DateTimeOffset.TryParse(
-                        text,
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        styles,
-                        out var parsedOffset))
-                        return parsedOffset.UtcDateTime;
-                }
-            }
-        }
-        return null;
     }
 
     public int TotalMonths => GameEndMonth > 0 ? GameEndMonth : GameEndYear > 0  ? (GameEndYear - GameStartYear) * 12 : 0;

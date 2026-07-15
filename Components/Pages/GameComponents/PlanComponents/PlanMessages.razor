@@ -1,15 +1,18 @@
-@inherits PlanComponentBase
+@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
-<div class="plan-detail-chat-row">
-    @if (_planMessagesOpen)
-    {
-        <PlanPanelMessages Messages="@GameSessionState.GetPlanMessages(_detailPlan.PlanId)" 
-                          OnTogglePanel="@TogglePlanMessagesPanel" />
-    }
-    <button class="plan-detail-action-row" @onclick="TogglePlanMessagesPanel">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
-            <path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z"/>
-        </svg>
-        <span>See @_detailPlan.MessageCount message@(_detailPlan.MessageCount == 1 ? "" : "s")</span>
-    </button>
-</div>
+@if (_detailPlan is not null)
+{
+    <div class="plan-detail-chat-row">
+        @if (_planMessagesOpen)
+        {
+            <PlanPanelMessages Messages="@GameSessionState.GetPlanMessages(_detailPlan.PlanId)" 
+                              OnTogglePanel="@TogglePlanMessagesPanel" />
+        }
+        <button class="plan-detail-action-row" @onclick="TogglePlanMessagesPanel">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+                <path d="M2 3h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z"/>
+            </svg>
+            <span>See @_detailPlan.MessageCount message@(_detailPlan.MessageCount == 1 ? "" : "s")</span>
+        </button>
+    </div>
+}

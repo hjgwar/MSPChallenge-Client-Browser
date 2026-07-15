@@ -3,12 +3,10 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 using MSPChallenge_Client_Browser.Models;
-using MSPChallenge_Client_Browser.Utils;
-using MSPChallenge_Client_Browser.Utils.PlanCalculations;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
-public partial class PlanDetails : GameComponentBase
+public partial class PlanDetails : GameComponentBase, IDisposable
 {
     [Parameter] public MapViewPort? Map { get; set; }
     
@@ -29,18 +27,40 @@ public partial class PlanDetails : GameComponentBase
     private bool _editSaving = false;
     private string? _editError;
 
-    private bool _pendingEnterEditMode;
-
     private string? _editName;
     private string? _editDescription;
     private int _editStartYear;
     private int _editStartMonth;
-    private int _editMinConstructionMonths;
     private HashSet<string> _editPlanLayerIds = [];
     private HashSet<string> _editPolicyTypes = [];
     private string? _enterEditError;
+    private int? _lastDisplayedPlanId;
+    private readonly HashSet<string> _planActivatedLayerIds = [];
 
     protected override void OnInitialized()
+    {
+        GameSessionState.Changed += OnStateChanged;
+        UpdateDetailPlan();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || _lastDisplayedPlanId != GameSessionState.SelectedPlanId)
+        {
+            await DisplaySelectedPlanAsync();
+        }
+    }
+
+    private void OnStateChanged()
+    {
+        if (_lastDisplayedPlanId != GameSessionState.SelectedPlanId)
+        {
+            UpdateDetailPlan();
+            InvokeAsync(async () => await DisplaySelectedPlanAsync());
+        }
+    }
+
+    private void UpdateDetailPlan()
     {
         _detailPlan = GetDetailPlan();
         _detailLayers = _detailPlan.Layers
@@ -83,7 +103,8 @@ public partial class PlanDetails : GameComponentBase
     {
         if (GameSessionState.EditMode)
             await CancelEditAsync();
-        GameSessionState.SelectedPlanId = 0;
+        GameSessionState.SelectedPlanId = null;
+        GameSessionState.NotifyChanged();
     }
 
     private bool CanEnterEditMode =>
@@ -106,7 +127,6 @@ public partial class PlanDetails : GameComponentBase
         if (_detailPlan is null)
         {
             _enterEditError = "Selected plan not found. It may have been deleted or modified by another user. Please select the plan again.";
-            _pendingEnterEditMode = true;
             StateHasChanged();
             return;
         }
@@ -114,7 +134,6 @@ public partial class PlanDetails : GameComponentBase
         if (_detailPlan.LockedByUserId != 0 && _detailPlan.LockedByUserId != UserSessionService.User.Id)
         {
             _enterEditError = $"Plan is currently locked by another user.";
-            _pendingEnterEditMode = true;
             StateHasChanged();
             return;
         }
@@ -132,7 +151,6 @@ public partial class PlanDetails : GameComponentBase
         catch
         {
             _enterEditError = "Failed to lock plan.";
-            _pendingEnterEditMode = true;
             StateHasChanged();
             return;
         }
@@ -227,5 +245,165 @@ public partial class PlanDetails : GameComponentBase
         _editSaving = saving;
         StateHasChanged();
     }
+
+    private async Task DisplaySelectedPlanAsync()
+    {
+        if (Map?.MapJSModule is null) return;
+
+        var plan = GameSessionState.SelectedPlan;
+        
+        // If switching plans, fully clear the previous plan first to avoid concurrent operations
+        if (_lastDisplayedPlanId.HasValue && (plan is null || _lastDisplayedPlanId != plan.PlanId))
+        {
+            await DeactivatePlanLayersAsync();
+            await Map.MapJSModule.InvokeVoidAsync("clearPlanOverlay");
+            _lastDisplayedPlanId = null;
+            
+            // If deselecting (plan is null), we're done
+            if (plan is null) return;
+        }
+
+        // At this point, plan should not be null
+        if (plan is null) return;
+
+        // Create complete snapshot of plan data upfront to avoid race conditions with WebSocket updates
+        var planStartDate = plan.StartDate;
+        var planId = plan.PlanId;
+        var planLayersSnapshot = new List<dynamic>();
+        
+        foreach (var pl in plan.Layers.ToList())
+        {
+            var geometrySnapshot = new List<dynamic>();
+            foreach (var g in pl.Geometry.ToList())
+            {
+                var coordsSnapshot = new List<double[]>();
+                foreach (var c in g.Coordinates.ToList())
+                {
+                    coordsSnapshot.Add(new[] { c[0], c[1] });
+                }
+                
+                geometrySnapshot.Add(new
+                {
+                    g.Id,
+                    g.PersistentId,
+                    g.TypeIndex,
+                    Coordinates = coordsSnapshot
+                });
+            }
+            
+            planLayersSnapshot.Add(new
+            {
+                pl.OriginalLayerId,
+                Geometry = geometrySnapshot,
+                DeletedPersistentIds = pl.DeletedPersistentIds.ToList()
+            });
+        }
+
+        // Now display the new plan (no concurrent operations with previous plan)
+        _lastDisplayedPlanId = planId;
+
+        // Activate layers referenced by this plan
+        await ActivatePlanLayersAsync(plan);
+
+        var layersData = new List<object>();
+
+        foreach (var planLayer in planLayersSnapshot)
+        {
+            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
+            if (layerEntry is null) continue;
+
+            var geometries = new List<object>();
+            foreach (var g in (IEnumerable<dynamic>)planLayer.Geometry)
+            {
+                if (((ICollection<double[]>)g.Coordinates).Count > 0)
+                {
+                    geometries.Add(new
+                    {
+                        id = (string)g.Id,
+                        coords = ((List<double[]>)g.Coordinates).ToArray(),
+                        isNew = string.IsNullOrEmpty((string?)g.PersistentId) || (string)g.Id == (string)g.PersistentId,
+                        mspType = (int)g.TypeIndex
+                    });
+                }
+            }
+
+            if (geometries.Count > 0 || ((List<string>)planLayer.DeletedPersistentIds).Count > 0)
+            {
+                layersData.Add(new
+                {
+                    originalLayerId = planLayer.OriginalLayerId,
+                    geoType = layerEntry.GeoType,
+                    geometries,
+                    deletedIds = planLayer.DeletedPersistentIds
+                });
+            }
+        }
+
+        if (layersData.Count > 0)
+        {
+            await Map.MapJSModule.InvokeVoidAsync("showPlanGeometry", JsonSerializer.Serialize(layersData));
+        }
+        else
+        {
+            await Map.MapJSModule.InvokeVoidAsync("clearPlanOverlay");
+        }
+
+        // Apply plan projection to show world state at plan start date
+        // Don't pass currentPlan to avoid race conditions - the overlay already handles plan geometry display
+        if (Map is not null)
+        {
+            await Map.ApplyPlanProjectionAsync(planStartDate);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ActivatePlanLayersAsync(Plan plan)
+    {
+        if (Map is null) return;
+
+        // Get all unique layer IDs referenced by the plan
+        var referencedLayerIds = plan.Layers
+            .Where(pl => !string.IsNullOrEmpty(pl.OriginalLayerId))
+            .Select(pl => pl.OriginalLayerId)
+            .Distinct()
+            .ToList();
+
+        foreach (var layerId in referencedLayerIds)
+        {
+            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+            if (layerEntry is null || layerEntry.IsBaseLayer) continue;
+
+            // Only activate if not already visible
+            if (!layerEntry.Visible)
+            {
+                await Map.ToggleLayerInternalAsync(layerEntry, true, skipProjection: true);
+                _planActivatedLayerIds.Add(layerId);
+            }
+        }
+    }
+
+    private async Task DeactivatePlanLayersAsync()
+    {
+        if (Map is null || _planActivatedLayerIds.Count == 0) return;
+
+        // Deactivate layers that were activated by the plan
+        foreach (var layerId in _planActivatedLayerIds.ToList())
+        {
+            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+            if (layerEntry is not null)
+            {
+                await Map.ToggleLayerInternalAsync(layerEntry, false, skipProjection: true);
+            }
+        }
+        
+        _planActivatedLayerIds.Clear();
+    }
+
+    public void Dispose()
+    {
+        GameSessionState.Changed -= OnStateChanged;
+    }
 }
+
 

@@ -10,7 +10,7 @@ public class GameSessionStateEraTests
     private GameSessionState CreateTestState()
     {
         // Use a real WebSocket service instance; no connection is established in unit tests.
-        var ws = new GameWebSocketService();
+        var ws = new WebSocketService();
         return new GameSessionState(ws);
     }
 

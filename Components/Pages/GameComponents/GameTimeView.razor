@@ -1,3 +1,4 @@
+@using MSPChallenge_Client_Browser.Utils
 @inherits GameComponentBase
 <div class="game-bar">
     <div class="game-bar-row">
@@ -27,15 +28,15 @@
         @if (UserSessionService.IsAdmin)
         {
             <div class="game-bar-state game-bar-state--clickable" @onclick="ToggleTimeManager">
-                <div class="game-bar-state-label">@GameSessionState.GameStateLabel(GameSessionState.GameState)</div>
-                <div class="game-bar-timeleft">@GameSessionState.FormatTimeLeft(GameSessionState.EraTimeLeft)</div>
+                <div class="game-bar-state-label">@ConversionUtils.GameStateLabel(GameSessionState.GameState)</div>
+                <div class="game-bar-timeleft">@ConversionUtils.FormatTimeLeft(GameSessionState.EraTimeLeft)</div>
             </div>
         }
         else
         {
             <div class="game-bar-state">
-                <div class="game-bar-state-label">@GameSessionState.GameStateLabel(GameSessionState.GameState)</div>
-                <div class="game-bar-timeleft">@GameSessionState.FormatTimeLeft(GameSessionState.EraTimeLeft)</div>
+                <div class="game-bar-state-label">@ConversionUtils.GameStateLabel(GameSessionState.GameState)</div>
+                <div class="game-bar-timeleft">@ConversionUtils.FormatTimeLeft(GameSessionState.EraTimeLeft)</div>
             </div>
         }
     </div>

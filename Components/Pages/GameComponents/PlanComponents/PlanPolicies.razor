@@ -1,8 +1,8 @@
-@inherits PlanComponentBase
+@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
     @{
         var _displayedPolicies = _editMode
-            ? (IEnumerable<string>)GameState.AvailablePolicies
+            ? (IEnumerable<string>)GameSessionState.AvailablePolicies
                     .Where(ap => _editPolicyTypes.Contains(ap.PolicyType))
                     .Select(ap => ap.DisplayName)
                     .ToList()
@@ -31,9 +31,11 @@
         <div class="plan-detail-policy-row">
             @if (_policyPickerOpen)
             {
-                <PlanPanelPolicyPicker SelectedPolicyTypes="@_editPolicyTypes" OnTogglePolicyType="@ToggleEditPolicyType" AvailablePolicies="@GameState.AvailablePolicies" />
+                <PlanPanelPolicyPicker SelectedPolicyTypes="@_editPolicyTypes" 
+                                       OnTogglePolicyType="@OnTogglePolicyType" 
+                                       OnClose="@TogglePolicyPicker" />
             }
-            <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="TogglePolicyPicker">
+            <button class="plan-edit-add-btn" type="button" disabled="@EditSaving" @onclick="TogglePolicyPicker">
                 Add or remove policies
             </button>
         </div>

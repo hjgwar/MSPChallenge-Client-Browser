@@ -1,23 +1,24 @@
-@inherits PlanComponentBase
+@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
+<CascadingValue Value="this">
 <div class="plan-detail-layers-list">
     @{
-        var _displayedLayers = PlanController.EditMode
-            ? _editPlanLayerIds
-                .Select(id => _layerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName)
+        var _displayedLayers = GameSessionState.EditMode
+            ? EditPlanLayerIds
+                .Select(id => GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName)
                 .OfType<string>()
                 .OrderBy(n => n)
                 .ToList()
             : _detailLayers;
-        var _editableLayers = _layerEntries
+        var _editableLayers = GameSessionState.LayerEntries
             .Where(e => e.Editable && !e.IsBaseLayer)
             .ToList();
     }
-    @if (_editMode)
+    @if (GameSessionState.EditMode)
     {
-        @foreach (var _editLayerId in _editPlanLayerIds.OrderBy(id => _layerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName ?? ""))
+        @foreach (var _editLayerId in EditPlanLayerIds.OrderBy(id => GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName ?? ""))
         {
-            var _editLayerName  = _layerEntries.FirstOrDefault(e => e.LayerId == _editLayerId)?.DisplayName ?? _editLayerId;
+            var _editLayerName  = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == _editLayerId)?.DisplayName ?? _editLayerId;
             bool _isGeoActive    = _geometryToolLayerId == _editLayerId;
             <button class="plan-detail-item-row plan-detail-item-row--selectable @(_isGeoActive ? "plan-detail-item-row--active" : "")"
                     type="button" title="Open geometry tool"
@@ -61,7 +62,7 @@
         }
     }
     </div>
-    @if (_editMode)
+    @if (GameSessionState.EditMode)
     {
         <div class="plan-detail-layers-row">
             @if (_geometryToolLayerId is not null)
@@ -70,10 +71,11 @@
             }
             @if (_layerPickerOpen)
             {
-                <PlanPanelLayerPicker SelectedLayerIds="@_editPlanLayerIds" OnToggleLayer="@ToggleEditLayer" AvailableLayers="@_editableLayers" />
+                <PlanPanelLayerPicker SelectedLayerIds="@EditPlanLayerIds" OnToggleLayer="@ToggleEditLayerAsync" AvailableLayers="@_editableLayers" OnClose="@ToggleLayerPickerAsync" />
             }
-            <button class="plan-edit-add-btn" type="button" disabled="@_editSaving" @onclick="ToggleLayerPickerAsync">
+            <button class="plan-edit-add-btn" type="button" disabled="@EditSaving" @onclick="ToggleLayerPickerAsync">
                 Add or remove data layers
             </button>
         </div>
     }
+</CascadingValue>

@@ -1,5 +1,5 @@
 @{
-    var _geoToolLayer = _layerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
+    var _geoToolLayer = Parent != null ? Parent.GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == LayerId) : null;
     var _isMultiType  = _geoToolLayer?.IsMultiType ?? false;
 }
 <div class="geometry-tool-panel">
@@ -18,7 +18,7 @@
                 var _gtDef = _geoToolLayer.TypeDefs[i];
                 @if (_isMultiType)
                 {
-                    var _isChecked = (_geometryToolTypeIndex & (1 << _gtIdx)) != 0;
+                    var _isChecked = (Parent?._geometryToolTypeIndex & (1 << _gtIdx)) != 0;
                     <label class="geometry-type-row @(_isChecked ? "geometry-type-row--active" : "")">
                         <input type="checkbox" checked="@_isChecked"
                                 @onchange="@(async () => await ToggleGeometryTypeBitAsync(_gtIdx))" />
@@ -28,9 +28,9 @@
                 }
                 else
                 {
-                    <label class="geometry-type-row @(_gtIdx == _geometryToolTypeIndex ? "geometry-type-row--active" : "")">
-                        <input type="radio" name="geo_type_@(_geometryToolLayerId)" value="@_gtIdx"
-                                checked="@(_gtIdx == _geometryToolTypeIndex)"
+                    <label class="geometry-type-row @(_gtIdx == Parent?._geometryToolTypeIndex ? "geometry-type-row--active" : "")">
+                        <input type="radio" name="geo_type_@(LayerId)" value="@_gtIdx"
+                                checked="@(_gtIdx == Parent?._geometryToolTypeIndex)"
                                 @onchange="@(async () => await SetGeometryTypeIndexAsync(_gtIdx))" />
                         <span class="geometry-type-dot" style="background:@_gtDef.Color"></span>
                         <span class="geometry-type-label">@_gtDef.Label</span>
@@ -40,10 +40,10 @@
         </div>
     }
     <div class="geometry-tool-buttons">
-        <button class="geometry-tool-btn @(_geometryToolCreate ? "geometry-tool-btn--active" : "")"
+        <button class="geometry-tool-btn @(Parent?._geometryToolCreate == true ? "geometry-tool-btn--active" : "")"
                 type="button"
-                title="@(_geometryToolCreate ? "Stop drawing" : "Draw new geometry")"
-                @onclick="@(async () => { if (_geometryToolCreate) await SetGeometryModeEditAsync(); else await SetGeometryModeCreateAsync(); })">
+                title="@(Parent?._geometryToolCreate == true ? "Stop drawing" : "Draw new geometry")"
+                @onclick="@(async () => { if (Parent?._geometryToolCreate == true) await SetGeometryModeEditAsync(); else await SetGeometryModeCreateAsync(); })">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
                 <path d="M2 12.5L9 5.5l2 2-7 7H2v-2z"/>
                 <path d="M8 5.5L9.5 4l2 2-1.5 1.5"/>
@@ -51,7 +51,7 @@
             <span>Create</span>
         </button>
         <button class="geometry-tool-btn" type="button" title="Undo last action"
-                disabled="@(_drawingUndoStack.Count == 0)"
+                disabled="@(Parent?._drawingUndoStack.Count == 0)"
                 @onclick="UndoDrawingActionAsync">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" xmlns="http://www.w3.org/2000/svg">
                 <path d="M3.5 5.5H10a4 4 0 1 1 0 8H6"/>
@@ -60,7 +60,7 @@
             <span>Undo</span>
         </button>
         <button class="geometry-tool-btn" type="button" title="Redo last undone action"
-                disabled="@(_drawingRedoStack.Count == 0)"
+                disabled="@(Parent?._drawingRedoStack.Count == 0)"
                 @onclick="RedoDrawingActionAsync">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12.5 5.5H6a4 4 0 1 0 0 8h4"/>
@@ -68,10 +68,10 @@
             </svg>
             <span>Redo</span>
         </button>
-        @if (_geometryToolSelectedIsMarkedForDeletion)
+        @if (Parent?._geometryToolSelectedIsMarkedForDeletion == true)
         {
             <button class="geometry-tool-btn geometry-tool-btn--success" type="button" title="Restore selected geometry from deletion"
-                    disabled="@(_geometryToolSelectedFeatureId is null)"
+                    disabled="@(Parent?._geometryToolSelectedFeatureId is null)"
                     @onclick="RestoreSelectedGeometryAsync">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
                     <path d="M3 8a5 5 0 1 1 2 4"/>
@@ -83,7 +83,7 @@
         else
         {
             <button class="geometry-tool-btn geometry-tool-btn--danger" type="button" title="Delete selected geometry"
-                    disabled="@(_geometryToolSelectedFeatureId is null)"
+                    disabled="@(Parent?._geometryToolSelectedFeatureId is null)"
                     @onclick="DeleteSelectedGeometryAsync">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
                     <polyline points="2,4 14,4"/>

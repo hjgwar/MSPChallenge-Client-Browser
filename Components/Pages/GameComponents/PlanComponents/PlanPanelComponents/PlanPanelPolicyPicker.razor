@@ -1,14 +1,15 @@
+@inherits GameComponentBase
 <div class="plan-message-panel plan-policy-panel">
     <div class="plan-message-panel-header">
         <span class="plan-message-panel-title">Policy Picker</span>
         <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePolicyPicker">&#x2715;</button>
     </div>
     <div class="plan-message-panel-body plan-policy-picker-body">
-        @foreach (var policy in GameState.AvailablePolicies)
+        @foreach (PolicySetting policy in GameSessionState.AvailablePolicies)
         {
             var isSelected = _editPolicyTypes.Contains(policy.PolicyType);
             <div class="plan-policy-item @(!policy.Enabled ? "plan-policy-item--disabled" : "")"
-                    @onclick="@(policy.Enabled ? () => TogglePolicyType(policy.PolicyType) : (Action)(() => {}))" >
+                    @onclick="@(policy.Enabled ? async () => await TogglePolicyType(policy.PolicyType) : (Func<Task>)(() => Task.CompletedTask))" >
                 <input type="checkbox" class="plan-policy-toggle" checked="@isSelected" disabled="@(!policy.Enabled)" tabindex="-1" />
                 <span class="plan-policy-name">@policy.DisplayName</span>
             </div>

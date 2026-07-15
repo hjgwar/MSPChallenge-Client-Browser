@@ -1,9 +1,7 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Utils;
-using MSPChallenge_Client_Browser.Utils.PlanCalculations;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 

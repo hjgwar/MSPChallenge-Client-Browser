@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
 
@@ -6,6 +7,10 @@ namespace MSPChallenge_Client_Browser.Components.Pages;
 
 public partial class Home
 {
+    [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+    [Inject] private MspApiClient ApiClient { get; set; } = null!;
+    [Inject] private UserSessionService UserSessionService { get; set; } = null!;
+
     // ── Server & session selection state ──
     private string serverAddress = "server.mspchallenge.info";
     private bool isLoading;
@@ -109,9 +114,9 @@ public partial class Home
     private async Task SelectSessionAsync(JsonElement session)
     {
         selectedSession = session;
-        SessionState.SessionId = session.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0;
-        SessionState.GameServerAddress   = ResolveDockerHost(GetString(session, "game_server_address"));
-        SessionState.GameWsServerAddress = ResolveDockerHost(GetString(session, "game_ws_server_address"));
+        UserSessionService.SessionId = session.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0;
+        UserSessionService.GameServerAddress   = ResolveDockerHost(GetString(session, "game_server_address"));
+        UserSessionService.GameWsServerAddress = ResolveDockerHost(GetString(session, "game_ws_server_address"));
 
         // Load session config (countries, password requirements)
         await LoadSessionConfigAsync();
@@ -129,8 +134,8 @@ public partial class Home
 
         try
         {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var root = await ApiClient.GetAsync($"{baseAddress}/{SessionState.SessionId}/api/Game/Config");
+            var baseAddress = UserSessionService.GameServerAddress.TrimEnd('/');
+            var root = await ApiClient.GetAsync($"{baseAddress}/{UserSessionService.SessionId}/api/Game/Config");
 
             var payload = root.ValueKind == JsonValueKind.Object &&
                           root.TryGetProperty("payload", out var p)
@@ -148,7 +153,7 @@ public partial class Home
                 countriesEl.ValueKind == JsonValueKind.String)
             {
                 var layerName = countriesEl.GetString()!;
-                var metaUrl = $"{baseAddress}/{SessionState.SessionId}/api/Layer/MetaByName";
+                var metaUrl = $"{baseAddress}/{UserSessionService.SessionId}/api/Layer/MetaByName";
                 var metaRoot = await ApiClient.PostFormAsync(metaUrl, new[]
                 {
                     new KeyValuePair<string, string>("name", layerName)
@@ -214,8 +219,8 @@ public partial class Home
 
         try
         {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var url = $"{baseAddress}/{SessionState.SessionId}/api/User/RequestSession";
+            var baseAddress = UserSessionService.GameServerAddress.TrimEnd('/');
+            var url = $"{baseAddress}/{UserSessionService.SessionId}/api/User/RequestSession";
 
             var fields = new List<KeyValuePair<string, string>>
             {
@@ -236,14 +241,17 @@ public partial class Home
                 return;
             }
 
-            SessionState.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
-            SessionState.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
-            SessionState.User = new UserEntry
-            {
-                Id = payload.TryGetProperty("user_id", out var userIdEl) ? userIdEl.GetInt32() : null,
-                Name = username,
-                CountryId = countryId
-            };
+            UserSessionService.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
+            UserSessionService.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
+            UserSessionService.User = new User(
+                Id: payload.TryGetProperty("user_id", out var userIdEl) ? userIdEl.GetInt32() : 0,
+                Name: username,
+                Country: new Country(
+                    Id: countryId,
+                    Name: selectedCountry,
+                    Color: string.Empty
+                )
+            );
 
             NavigationManager.NavigateTo("/game");
         }
@@ -275,16 +283,16 @@ public partial class Home
         password = string.Empty;
     }
 
-    /// <summary>
-    /// Replaces the Docker-internal host alias with localhost so that addresses
-    /// advertised by a containerised game server are reachable from the Windows host.
-    /// </summary>
     /// <summary>Returns only the first non-empty line of a (possibly multi-line) message.</summary>
     private static string FirstLine(string message) =>
         message.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
                .FirstOrDefault()
                ?.Trim() ?? message;
 
+    /// <summary>
+    /// Replaces the Docker-internal host alias with localhost so that addresses
+    /// advertised by a containerised game server are reachable from the Windows host.
+    /// </summary>
     private static string ResolveDockerHost(string address) =>
         address.Replace("host.docker.internal", "localhost", StringComparison.OrdinalIgnoreCase);
 

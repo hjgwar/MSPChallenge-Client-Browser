@@ -1,10 +1,8 @@
-using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
-using MSPChallenge_Client_Browser.Utils.PlanCalculations;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
-public partial class PlansList : GameComponentBase
+public partial class PlansList : GameComponentBase, IDisposable
 {
     private readonly Dictionary<int, string> _planIssueSeverity = [];
     
@@ -16,9 +14,21 @@ public partial class PlansList : GameComponentBase
         .Where(c => c.Id > 0)
         .ToDictionary(c => c.Id, c => c.Name);
 
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        GameSessionState.Changed += OnStateChanged;
+    }
+
+    private void OnStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     private void SetPlansPanelOpen(bool open)
     {
         GameSessionState.PlansPanelOpen = open;
+        GameSessionState.NotifyChanged();
     }
 
     private async Task SelectPlanAsync(Plan plan)
@@ -34,6 +44,7 @@ public partial class PlansList : GameComponentBase
             GameSessionState.SelectedPlanId = plan.PlanId;
         }
         
+        GameSessionState.NotifyChanged();
         await Task.CompletedTask;
     }
 
@@ -55,5 +66,10 @@ public partial class PlansList : GameComponentBase
         {
             Console.WriteLine($"[ForceUnlockPlanAsync] Error: {ex.Message}");
         }
+    }
+
+    public void Dispose()
+    {
+        GameSessionState.Changed -= OnStateChanged;
     }
 }

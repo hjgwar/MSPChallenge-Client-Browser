@@ -4,10 +4,20 @@ using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
-public partial class MapLegend
+public partial class MapLegend : IDisposable
 {
     [Parameter] public Func<Layer, bool, Task> ToggleLayerAsync { get; set; } = null!;
     [Parameter] public Func<Task> SyncZIndicesAsync { get; set; } = null!;
+
+    protected override void OnInitialized()
+    {
+        GameSessionState.Changed += OnStateChanged;
+    }
+
+    private void OnStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
     [JSInvokable]
     public async Task ReorderLegend(int from, int to)
@@ -18,7 +28,11 @@ public partial class MapLegend
         GameSessionState.LegendOrderLayerIds.Insert(to, item);
         
         await SyncZIndicesAsync();
-        StateHasChanged();
+        GameSessionState.NotifyChanged();
     }
 
+    public void Dispose()
+    {
+        GameSessionState.Changed -= OnStateChanged;
+    }
 }

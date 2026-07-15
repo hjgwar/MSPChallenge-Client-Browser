@@ -1,6 +1,4 @@
-using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
-using MSPChallenge_Client_Browser.Services;
 
 namespace MSPChallenge_Client_Browser.Components.Pages;
 

@@ -96,6 +96,20 @@ public static partial class GenericUtils
                 return eez.CountryId;
         }
         return 0;
-    } 
+    }
+
+    /// <summary>
+    /// Determines whether two plan messages are the same based on their message ID or content.
+    /// </summary>
+    public static bool IsSameMessage(PlanMessage a, PlanMessage b)
+    {
+        if (!string.IsNullOrWhiteSpace(a.MessageId) && !string.IsNullOrWhiteSpace(b.MessageId))
+            return string.Equals(a.MessageId, b.MessageId, StringComparison.OrdinalIgnoreCase);
+
+        return a.PlanId == b.PlanId
+            && string.Equals(a.UserName, b.UserName, StringComparison.Ordinal)
+            && string.Equals(a.Message, b.Message, StringComparison.Ordinal)
+            && Nullable.Equals(a.SentAt, b.SentAt);
+    }
 
 }

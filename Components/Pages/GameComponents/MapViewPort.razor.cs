@@ -9,7 +9,12 @@ public partial class MapViewPort
 {
     public required IJSObjectReference MapJSModule;
     
-    public async Task ToggleLayerAsync(Layer entry, bool visible)
+    // Public method for UI components
+    public Task ToggleLayerAsync(Layer entry, bool visible) 
+        => ToggleLayerInternalAsync(entry, visible, skipProjection: false);
+    
+    // Internal method with skipProjection parameter for bulk operations
+    internal async Task ToggleLayerInternalAsync(Layer entry, bool visible, bool skipProjection)
     {
         entry.Visible = visible;
 
@@ -20,7 +25,7 @@ public partial class MapViewPort
 
             // If a plan is currently selected, immediately project prior-plan changes onto
             // this layer so the user sees the correct world state without re-selecting the plan.
-            if (GameSessionState.SelectedPlanId != 0)
+            if (!skipProjection && GameSessionState.SelectedPlanId != 0)
             {
                 var viewedPlan = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
                 if (viewedPlan is not null)
@@ -38,6 +43,7 @@ public partial class MapViewPort
             GameSessionState.LegendOrderLayerIds.Remove(entry.LayerId);
 
         await SyncZIndicesAsync();
+        GameSessionState.NotifyChanged();
     }
 
     private async Task EnsureLayerRenderedAsync(string layerId, bool visible)
@@ -86,20 +92,99 @@ public partial class MapViewPort
     /// the user activates a layer from the panel while a plan is already selected.
     /// Pass <paramref name="currentPlan"/> to also hide base geometry that the current plan modifies.
     /// </summary>
-    private async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null, Plan? currentPlan = null)
+    public async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null, Plan? currentPlan = null)
     {
         if (MapJSModule is null) return;
 
-        var priorPlans = GameSessionState.Plans
+        // Build defensive snapshot imperatively to avoid race conditions during plan switching
+        // (collections can be modified by layer activation during plan selection)
+        var relevantPlans = GameSessionState.Plans
             .Where(p => p.StartDate < planStartDate && PlanStates.IsFinalisedPlanState(p.State))
             .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
             .ToList();
 
+        var plansSnapshot = new List<dynamic>();
+        foreach (var plan in relevantPlans)
+        {
+            var planLayers = plan.Layers.ToList(); // snapshot layers immediately
+            var layersSnapshot = new List<dynamic>();
+            
+            foreach (var layer in planLayers)
+            {
+                var deletedIds = layer.DeletedPersistentIds.ToList();
+                var layerGeometry = layer.Geometry.ToList(); // snapshot geometry immediately
+                var geometrySnapshot = new List<dynamic>();
+                
+                foreach (var geo in layerGeometry)
+                {
+                    var geoCoords = geo.Coordinates.ToList(); // snapshot coords immediately
+                    var coordsArray = new List<double[]>();
+                    
+                    foreach (var c in geoCoords)
+                    {
+                        coordsArray.Add(new[] { c[0], c[1] }); // copy values immediately
+                    }
+                    
+                    geometrySnapshot.Add(new {
+                        geo.Id,
+                        geo.PersistentId,
+                        geo.TypeIndex,
+                        Coordinates = coordsArray
+                    });
+                }
+                
+                layersSnapshot.Add(new {
+                    layer.OriginalLayerId,
+                    DeletedIds = deletedIds,
+                    Geometry = geometrySnapshot
+                });
+            }
+            
+            plansSnapshot.Add(new {
+                plan.PlanId,
+                plan.StartDate,
+                Layers = layersSnapshot
+            });
+        }
+
+        // Snapshot current plan data if provided
+        dynamic? currentPlanSnapshot = null;
+        if (currentPlan is not null)
+        {
+            var currentPlanLayers = currentPlan.Layers.ToList();
+            var currentLayersSnapshot = new List<dynamic>();
+            
+            foreach (var layer in currentPlanLayers)
+            {
+                var deletedIds = layer.DeletedPersistentIds.ToList();
+                var layerGeometry = layer.Geometry.ToList();
+                var geometrySnapshot = new List<dynamic>();
+                
+                foreach (var geo in layerGeometry)
+                {
+                    geometrySnapshot.Add(new {
+                        geo.PersistentId,
+                        geo.Id
+                    });
+                }
+                
+                currentLayersSnapshot.Add(new {
+                    layer.OriginalLayerId,
+                    DeletedIds = deletedIds,
+                    Geometry = geometrySnapshot
+                });
+            }
+            
+            currentPlanSnapshot = new {
+                Layers = currentLayersSnapshot
+            };
+        }
+
         var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var addedFeatures  = new List<object>();
 
-        // Process prior finalized plans
-        foreach (var priorPlan in priorPlans)
+        // Process prior finalized plans using snapshot
+        foreach (var priorPlan in plansSnapshot)
         {
             foreach (var planLayer in priorPlan.Layers)
             {
@@ -108,10 +193,11 @@ public partial class MapViewPort
                     !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
+                HashSet<string> ids;
+                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out ids!))
                     hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var deletedId in planLayer.DeletedPersistentIds)
+                foreach (var deletedId in planLayer.DeletedIds)
                     ids.Add(deletedId);
 
                 var geoType = GameSessionState.LayerEntries
@@ -128,31 +214,29 @@ public partial class MapViewPort
                             geoType,
                             id        = geo.Id,
                             typeIndex = geo.TypeIndex,
-                            coords    = geo.Coordinates.Select(c => new[] { c[0], c[1] }).ToArray()
+                            coords    = geo.Coordinates.ToArray()
                         });
                 }
             }
         }
 
-        // Process current plan if provided - hide base geometry that it modifies
-        // Note: Don't add current plan's geometry to base layers (it's in the overlay)
-        if (currentPlan is not null)
+        // Process current plan snapshot if provided
+        if (currentPlanSnapshot is not null)
         {
-            foreach (var planLayer in currentPlan.Layers)
+            foreach (var planLayer in currentPlanSnapshot.Layers)
             {
                 if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
                 if (singleLayerId is not null &&
                     !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
+                HashSet<string> ids;
+                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out ids!))
                     hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                // Hide deleted base geometry
-                foreach (var deletedId in planLayer.DeletedPersistentIds)
+                foreach (var deletedId in planLayer.DeletedIds)
                     ids.Add(deletedId);
 
-                // Hide modified base geometry (where PersistentId != Id)
                 foreach (var geo in planLayer.Geometry)
                 {
                     if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)

@@ -3,7 +3,7 @@ using Microsoft.JSInterop;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
-public partial class WebSocketLog
+public partial class WebSocketLog : IDisposable
 {
     [Inject] private IJSRuntime JS { get; set; } = null!;
     
@@ -31,5 +31,10 @@ public partial class WebSocketLog
     private async Task ClearAsync()
     {
         await OnClear.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        // No cleanup needed currently, but implementing for consistency
     }
 }

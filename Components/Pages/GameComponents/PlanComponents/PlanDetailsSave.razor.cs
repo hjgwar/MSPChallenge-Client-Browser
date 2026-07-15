@@ -3,15 +3,17 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
+using MSPChallenge_Client_Browser.Services;
 using MSPChallenge_Client_Browser.Utils;
 using MSPChallenge_Client_Browser.Utils.PlanCalculations;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 
-public partial class PlanDetailsSave : GameComponentBase
+public partial class PlanDetailsSave : GameComponentBase, IDisposable
 {
     [Inject] private IJSRuntime JS { get; set; } = null!;
     [Inject] private IWebHostEnvironment HostEnvironment { get; set; } = null!;
+    [Inject] private WebSocketService WsService { get; set; } = null!;
 
     [Parameter] public string? EditName { get; set; }
     [Parameter] public string? EditDescription { get; set; }
@@ -31,6 +33,85 @@ public partial class PlanDetailsSave : GameComponentBase
     private TaskCompletionSource<bool>? _editWsConfirmationTcs;
     private string? _pendingBatchGuid;
     private int     _pendingCreatePlanCallId;
+    private int     _pendingSelectPlanId;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        WsService.MessageReceived += OnWsMessageReceived;
+    }
+
+    private void OnWsMessageReceived(WsMessage msg)
+    {
+        // Signal save completion when Game/Latest arrives
+        if (msg.HeaderName == "Game/Latest" && _editWsConfirmationTcs is { } confirmTcs)
+        {
+            confirmTcs.TrySetResult(true);
+        }
+
+        // Handle Batch/ExecuteBatch response to get new plan ID and select it
+        if (msg.HeaderName == "Batch/ExecuteBatch" && !string.IsNullOrEmpty(_pendingBatchGuid))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(msg.RawJson);
+                var root = doc.RootElement;
+                
+                string? batchGuid = null;
+                if (root.TryGetProperty("header_data", out var headerData) &&
+                    headerData.TryGetProperty("batch_guid", out var guidProp))
+                {
+                    batchGuid = guidProp.GetString();
+                }
+
+                if (batchGuid == _pendingBatchGuid && msg.Payload.TryGetProperty("results", out var results))
+                {
+                    foreach (var result in results.EnumerateArray())
+                    {
+                        if (result.TryGetProperty("call_id", out var callIdProp) &&
+                            callIdProp.GetInt32() == _pendingCreatePlanCallId &&
+                            result.TryGetProperty("payload", out var payloadProp))
+                        {
+                            var planIdStr = payloadProp.GetString();
+                            if (int.TryParse(planIdStr, out var newPlanId))
+                            {
+                                _pendingSelectPlanId = newPlanId;
+                                _pendingBatchGuid = null;
+                                _pendingCreatePlanCallId = 0;
+                                if (HostEnvironment.IsDevelopment())
+                                    Console.WriteLine($"[PlanDetailsSave] New plan ID from batch: {newPlanId}");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (HostEnvironment.IsDevelopment())
+                    Console.WriteLine($"[PlanDetailsSave] Error parsing Batch/ExecuteBatch: {ex.Message}");
+            }
+        }
+
+        // Once plan data arrives via Game/Latest, select the newly created plan
+        if (_pendingSelectPlanId != 0)
+        {
+            var newPlan = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == _pendingSelectPlanId);
+            if (newPlan is not null)
+            {
+                GameSessionState.SelectedPlanId = _pendingSelectPlanId;
+                GameSessionState.NotifyChanged();
+                _pendingSelectPlanId = 0;
+                if (HostEnvironment.IsDevelopment())
+                    Console.WriteLine($"[PlanDetailsSave] Selected new plan {GameSessionState.SelectedPlanId}");
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        WsService.MessageReceived -= OnWsMessageReceived;
+    }
 
     public void SetMapModule(IJSObjectReference? mapModule)
     {

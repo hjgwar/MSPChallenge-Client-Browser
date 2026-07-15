@@ -6,7 +6,7 @@
 
 @if (_isLoading || _loadingFading)
 {
-    <GameLoading IsFading="_loadingFading" LoadingStatus="_loadingStatus" />
+    <GameLoading IsFading="@_loadingFading" LoadingStatus="@_loadingStatus" />
 }
 
 <MapViewPort @ref="Map" />
@@ -18,22 +18,22 @@
     {
         <OnlineUsers OnCloseThisPanel="SideBarPanelController.ToggleOnlineUsersPanel" />
     }
-    @if (GameSessionState.LayerPanelOpen && GameSessionState.LayerEntries.Count > 0)
+    @if (Map is not null && GameSessionState.LayerPanelOpen && GameSessionState.LayerEntries.Count > 0)
     {
         <LayerSelector ToggleLayerAsync="Map.ToggleLayerAsync" OnCloseThisPanel="SideBarPanelController.ToggleLayerPanel" />
     }
 
-    @if (GameSessionState.LegendPanelOpen && GameSessionState.LegendOrderLayerIds.Count > 0)
+    @if (Map is not null && GameSessionState.LegendPanelOpen && GameSessionState.LegendOrderLayerIds.Count > 0)
     {
         <MapLegend ToggleLayerAsync="Map.ToggleLayerAsync" SyncZIndicesAsync="Map.SyncZIndicesAsync" OnCloseThisPanel="SideBarPanelController.ToggleLegendPanel" />
     }
 </div>
 
 <div class="map-right-panels">
-    <GameTimeView @ref="GameTimeViewer" MapJSModule="Map.MapJSModule"/>
+    <GameTimeView @ref="GameTimeViewer" MapJSModule="Map?.MapJSModule"/>
     <div class="map-plan-panels">
         @* Plan detail panel — shown when a plan is selected or in edit mode for new plan *@
-        @if (GameSessionState.SelectedPlanId != 0 || GameSessionState.EditMode)
+        @if (Map is not null && (GameSessionState.SelectedPlanId.HasValue || GameSessionState.EditMode))
         {
             <PlanDetails Map="@Map" />
         }
@@ -47,7 +47,7 @@
     </div>
 </div>
 
-@if (_plansPanelOpen)
+@if (GameSessionState.PlansPanelOpen)
 {
     <PlansList />
 }
@@ -59,7 +59,7 @@
                Properties="_popupProps" 
                OnClose="ClosePopup" />
 
-@if (GameTimeViewer.TimeManagerVisible) {
+@if (GameTimeViewer is not null && GameTimeViewer.TimeManagerVisible) {
     <TimeManager OnCloseThisPanel="GameTimeViewer.ToggleTimeManager" />
 }
 

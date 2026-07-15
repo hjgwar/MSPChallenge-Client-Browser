@@ -40,13 +40,20 @@
     <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--policies-picker" : "")" open>
         <summary class="plan-detail-section-hdr">Policies</summary>
         <div class="plan-detail-section-body">
-            <PlanPolicies @ref="PlanPoliciesInstance" />
+            <PlanPolicies @ref="PlanPoliciesInstance" 
+                          Plan="@_detailPlan" 
+                          EditSaving="@_editSaving"
+                          @bind-EditPolicyTypes="_editPolicyTypes" />
         </div>
     </details>
     <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--layers-picker" : "")" open>
         <summary class="plan-detail-section-hdr">Data Layers</summary>
         <div class="plan-detail-section-body">
-            <PlanLayers @ref="PlanLayersInstance" />
+            <PlanLayers @ref="PlanLayersInstance" 
+                        Plan="@_detailPlan"
+                        EditSaving="@_editSaving"
+                        @bind-EditPlanLayerIds="_editPlanLayerIds"
+                        Map="@Map" />
         </div>
     </details>
     </div>

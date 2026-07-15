@@ -2,17 +2,30 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
+using MSPChallenge_Client_Browser.Utils;
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
-public partial class GameTimeView
+public partial class GameTimeView : IDisposable
 {
     [Parameter] public IJSObjectReference MapJSModule { get; set; } = null!;
     public bool TimeManagerVisible { get; private set; } = false;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        GameSessionState.Changed += OnStateChanged;
+    }
+
+    private void OnStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
     public async Task SetPlanViewModeAsync(PlanViewMode mode)
     {
         if (MapJSModule is null || GameSessionState.SelectedPlan is null || mode == GameSessionState.PlanViewMode) return;
         GameSessionState.PlanViewMode = mode;
+        GameSessionState.NotifyChanged();
 
         // Overlay is hidden only in Original mode.
         await MapJSModule.InvokeVoidAsync("setPlanOverlayVisible", mode != PlanViewMode.Original);
@@ -44,5 +57,10 @@ public partial class GameTimeView
             return _planNeedlePct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
         }
         return "0";
+    }
+
+    public void Dispose()
+    {
+        GameSessionState.Changed -= OnStateChanged;
     }
 }

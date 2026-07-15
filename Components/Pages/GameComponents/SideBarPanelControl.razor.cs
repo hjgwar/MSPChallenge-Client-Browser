@@ -13,26 +13,31 @@ public partial class SideBarPanelControl
     public void ToggleOnlineUsersPanel()
     {
         GameSessionState.OnlineUsersPanelOpen = !GameSessionState.OnlineUsersPanelOpen;
+        GameSessionState.NotifyChanged();
     }
 
     public void ToggleLayerPanel()
     {
         GameSessionState.LayerPanelOpen = !GameSessionState.LayerPanelOpen;
+        GameSessionState.NotifyChanged();
     }
 
     public void ToggleLegendPanel()
     {
         GameSessionState.LegendPanelOpen = !GameSessionState.LegendPanelOpen;
+        GameSessionState.NotifyChanged();
     }
 
     public void TogglePlansPanel()
     {
         GameSessionState.PlansPanelOpen = !GameSessionState.PlansPanelOpen;
+        GameSessionState.NotifyChanged();
     }
 
     public void ToggleCreatePlanPanel()
     {
         GameSessionState.CreatePlanOpen = !GameSessionState.CreatePlanOpen;
+        GameSessionState.NotifyChanged();
     }
 
     public void OpenDependenciesPage()

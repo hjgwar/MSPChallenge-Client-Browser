@@ -24,7 +24,8 @@ public class MspApiClient
     public async Task<JsonElement> GetAsync(string endPoint )
     {
         var client = CreateClient();
-        var response = await client.GetAsync(CompleteApiUrl(endPoint));
+        var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
+        var response = await client.GetAsync(url);
         return await ReadJsonAsync(response);
     }
 
@@ -32,7 +33,8 @@ public class MspApiClient
     public async Task<JsonElement> PostFormAsync(string endPoint, IEnumerable<KeyValuePair<string, string>> fields)
     {
         var client = CreateClient();
-        var response = await client.PostAsync(CompleteApiUrl(endPoint), new FormUrlEncodedContent(fields));
+        var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
+        var response = await client.PostAsync(url, new FormUrlEncodedContent(fields));
         return await ReadJsonAsync(response);
     }
 
@@ -42,36 +44,39 @@ public class MspApiClient
         var client = CreateClient();
         var json = JsonSerializer.Serialize(body);
         var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-        var response = await client.PostAsync(CompleteApiUrl(endPoint), content);
+        var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
+        var response = await client.PostAsync(url, content);
         return await ReadJsonAsync(response);
     }
 
     /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
-    /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
     public async Task<JsonElement> SetGameStateAsync(string state)
     {
-        var url = CompleteApiUrl("Game/State");
         var fields = new[] { new KeyValuePair<string, string>("state", state) };
-        return await PostFormAsync(url, fields);
+        return await PostFormAsync("Game/State", fields);
     }
 
     /// <summary>Set current era real time (seconds remaining in current era).</summary>
     public async Task<JsonElement> SetRealtimeAsync(int realtimeSeconds)
     {
-        var url = CompleteApiUrl("Game/Realtime");
         var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeSeconds.ToString()) };
-        return await PostFormAsync(url, fields);
+        return await PostFormAsync("Game/Realtime", fields);
     }
 
     /// <summary>Set future era real times (comma-separated seconds for all 4 eras).</summary>
     public async Task<JsonElement> SetFutureRealtimeAsync(string realtimeCommaSeparated)
     {
-        var url = CompleteApiUrl("Game/FutureRealtime");
         var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeCommaSeparated) };
-        return await PostFormAsync(url, fields);
+        return await PostFormAsync("Game/FutureRealtime", fields);
     }
 
     // -------------------------------------------------------------------------
+    private static bool IsAbsoluteUrl(string url)
+    {
+        return url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+               url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+    }
+
     private string CompleteApiUrl(string endPoint)
     {
         return $"{_userSessionService.GameServerAddress.TrimEnd('/')}/{_userSessionService.SessionId}/api/{endPoint.TrimStart('/')}";

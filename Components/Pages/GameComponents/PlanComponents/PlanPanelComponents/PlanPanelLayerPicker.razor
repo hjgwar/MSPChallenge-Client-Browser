@@ -4,13 +4,13 @@
         <button class="panel-close-btn" type="button" title="Close" @onclick="ToggleLayerPickerAsync">&#10005;</button>
     </div>
     <div class="plan-message-panel-body plan-layer-picker-body">
-        @if (_editableLayers.Count == 0)
+        @if (AvailableLayers.Count == 0)
         {
             <div class="plan-message-empty">No editable layers available.</div>
         }
         else
         {
-            @foreach (var lcat in _editableLayers
+            @foreach (var lcat in AvailableLayers
                 .GroupBy(e => e.Category)
                 .OrderBy(g => g.Key))
             {
@@ -22,7 +22,7 @@
                             <summary class="layer-sub-header">@TitleCase(lsub.Key)</summary>
                             @foreach (var le in lsub)
                             {
-                                var _leSelected = _editPlanLayerIds.Contains(le.LayerId);
+                                var _leSelected = SelectedLayerIds.Contains(le.LayerId);
                                 <div class="plan-policy-item"
                                         @onclick="@(() => ToggleEditPlanLayerAsync(le.LayerId))">
                                     <input type="checkbox" class="plan-policy-toggle" checked="@_leSelected" tabindex="-1" />

@@ -16,9 +16,25 @@ public partial class PlanStartDate : GameComponentBase
 
     protected override void OnParametersSet()
     {
-        var startDate = new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(Plan?.StartDate ?? 0);
-        _editStartMonth = startDate.Month;
-        _editStartYear = startDate.Year;        
+        var baseDate = new DateTime(GameSessionState.GameStartYear, 1, 1);
+        var monthsToAdd = Plan?.StartDate ?? 0;
+        
+        // Clamp months to prevent DateTime overflow (valid range: years 1-9999)
+        // Limit to +/- 10000 years worth of months (120000 months)
+        monthsToAdd = Math.Clamp(monthsToAdd, -120000, 120000);
+        
+        try
+        {
+            var startDate = baseDate.AddMonths(monthsToAdd);
+            _editStartMonth = startDate.Month;
+            _editStartYear = startDate.Year;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // If still out of range, fall back to game start date
+            _editStartMonth = 1;
+            _editStartYear = GameSessionState.GameStartYear;
+        }
     }
 
     public int GetStartMonth()
