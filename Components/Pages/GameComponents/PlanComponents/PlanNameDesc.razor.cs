@@ -13,10 +13,16 @@ public partial class PlanNameDesc : GameComponentBase
     private string? _editName;
     private string? _editDescription;
     private bool _detailDescExpanded = false;
+    private int? _lastInitialisedPlanId;
 
     protected override void OnParametersSet()
     {
-        _editName = Plan?.Name;
+        // Only reinitialise when the plan identity changes, not on routine re-renders,
+        // so that text the user has typed isn't silently reverted mid-edit.
+        if (Plan?.PlanId == _lastInitialisedPlanId) return;
+        _lastInitialisedPlanId = Plan?.PlanId;
+
+        _editName        = Plan?.Name;
         _editDescription = Plan?.Description;
     }
 

@@ -54,6 +54,12 @@ public partial class PlanCreation : IDisposable
         OpenEditMode(this);
     }
 
+    private void ClosePanel()
+    {
+        GameSessionState.CreatePlanOpen = false;
+        GameSessionState.NotifyChanged();
+    }
+
     public void Dispose()
     {
         

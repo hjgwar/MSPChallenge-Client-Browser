@@ -7,20 +7,37 @@ public partial class PlanState : GameComponentBase
 {
     [Parameter] public Plan? Plan { get; set; }
     [Parameter] public IReadOnlyList<PlanRestrictionIssue> SelectedPlanIssues { get; set; } = [];
+    [Parameter] public EventCallback OnSubPanelOpening { get; set; }
+
     private bool _planStateOpen = false;
     private Models.PlanState? _planStatePending;
     private bool _planStateSending = false;
 
     private bool CanChangeState()
     {
-        if (Plan is null) return false;
+        if (Plan is null || Plan.PlanId == 0) return false;
+        if (GameSessionState.EditMode) return false;
         return !Plan.State.Equals(Models.PlanState.APPROVED)
             && (UserSessionService.IsAdmin || Plan.Country == UserSessionService.User.Country.Id);
     }
 
-    private void TogglePlanStatePanel()
+    /// <summary>Closes this sub-panel. Called by PlanDetails when another panel is opened.</summary>
+    public void CloseSubPanel()
     {
+        _planStateOpen = false;
+        StateHasChanged();
+    }
+
+    private async Task TogglePlanStatePanel()
+    {
+        if (!_planStateOpen)
+        {
+            await OnSubPanelOpening.InvokeAsync();
+            // Seed the pending state so the trigger label and highlighted item are correct.
+            _planStatePending = Plan?.State;
+        }
         _planStateOpen = !_planStateOpen;
+        StateHasChanged();
     }
     
     private async Task SetPlanStateAsync()

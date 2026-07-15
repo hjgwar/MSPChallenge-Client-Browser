@@ -244,7 +244,11 @@ public partial class Home
             UserSessionService.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
             UserSessionService.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
             UserSessionService.User = new User(
-                Id: payload.TryGetProperty("user_id", out var userIdEl) ? userIdEl.GetInt32() : 0,
+                Id: payload.TryGetProperty("session_id", out var userIdEl)
+                    ? (userIdEl.ValueKind == JsonValueKind.Number
+                        ? userIdEl.GetInt32()
+                        : int.TryParse(userIdEl.GetString(), out var parsedId) ? parsedId : 0)
+                    : 0,
                 Name: username,
                 Country: new Country(
                     Id: countryId,

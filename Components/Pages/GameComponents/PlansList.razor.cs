@@ -41,9 +41,24 @@ public partial class PlansList : GameComponentBase, IDisposable
         }
         else
         {
+            // If an existing plan is locked for editing, release the lock before switching.
+            if (GameSessionState.EditMode && GameSessionState.SelectedPlanId is > 0)
+            {
+                _ = ApiClient.PostFormAsync("Plan/Unlock",
+                    new[]
+                    {
+                        new KeyValuePair<string, string>("id", GameSessionState.SelectedPlanId.ToString()!),
+                        new KeyValuePair<string, string>("force_unlock", "0"),
+                        new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
+                    });
+            }
+            GameSessionState.EditMode = false;
+
+            // Selecting a plan dismisses the creation form (the two panels are mutually exclusive).
+            GameSessionState.CreatePlanOpen = false;
             GameSessionState.SelectedPlanId = plan.PlanId;
         }
-        
+
         GameSessionState.NotifyChanged();
         await Task.CompletedTask;
     }
@@ -54,13 +69,13 @@ public partial class PlansList : GameComponentBase, IDisposable
 
         try
         {
-            var url = $"api/Plan/ForceUnlock";
-            var fields = new List<KeyValuePair<string, string>>
-            {
-                new("plan_id", planId.ToString())
-            };
-
-            await ApiClient.PostFormAsync(url, fields);
+            await ApiClient.PostFormAsync("Plan/Unlock",
+                new[]
+                {
+                    new KeyValuePair<string, string>("id",           planId.ToString()),
+                    new KeyValuePair<string, string>("force_unlock", "1"),
+                    new KeyValuePair<string, string>("user",         UserSessionService.User.Id.ToString()),
+                });
         }
         catch (Exception ex)
         {

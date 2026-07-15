@@ -96,108 +96,31 @@ public partial class MapViewPort
     {
         if (MapJSModule is null) return;
 
-        // Build defensive snapshot imperatively to avoid race conditions during plan switching
-        // (collections can be modified by layer activation during plan selection)
+        // Snapshot the Plans list: the WS background thread may call _plans.Add / _plans[i] = ...
+        // via ApplyGameLatest while we iterate here.  Individual Plan / PlanLayerData /
+        // PlanGeometryItem records are immutable once constructed, so no deeper copies are needed.
         var relevantPlans = GameSessionState.Plans
             .Where(p => p.StartDate < planStartDate && PlanStates.IsFinalisedPlanState(p.State))
             .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
             .ToList();
 
-        var plansSnapshot = new List<dynamic>();
-        foreach (var plan in relevantPlans)
-        {
-            var planLayers = plan.Layers.ToList(); // snapshot layers immediately
-            var layersSnapshot = new List<dynamic>();
-            
-            foreach (var layer in planLayers)
-            {
-                var deletedIds = layer.DeletedPersistentIds.ToList();
-                var layerGeometry = layer.Geometry.ToList(); // snapshot geometry immediately
-                var geometrySnapshot = new List<dynamic>();
-                
-                foreach (var geo in layerGeometry)
-                {
-                    var geoCoords = geo.Coordinates.ToList(); // snapshot coords immediately
-                    var coordsArray = new List<double[]>();
-                    
-                    foreach (var c in geoCoords)
-                    {
-                        coordsArray.Add(new[] { c[0], c[1] }); // copy values immediately
-                    }
-                    
-                    geometrySnapshot.Add(new {
-                        geo.Id,
-                        geo.PersistentId,
-                        geo.TypeIndex,
-                        Coordinates = coordsArray
-                    });
-                }
-                
-                layersSnapshot.Add(new {
-                    layer.OriginalLayerId,
-                    DeletedIds = deletedIds,
-                    Geometry = geometrySnapshot
-                });
-            }
-            
-            plansSnapshot.Add(new {
-                plan.PlanId,
-                plan.StartDate,
-                Layers = layersSnapshot
-            });
-        }
-
-        // Snapshot current plan data if provided
-        dynamic? currentPlanSnapshot = null;
-        if (currentPlan is not null)
-        {
-            var currentPlanLayers = currentPlan.Layers.ToList();
-            var currentLayersSnapshot = new List<dynamic>();
-            
-            foreach (var layer in currentPlanLayers)
-            {
-                var deletedIds = layer.DeletedPersistentIds.ToList();
-                var layerGeometry = layer.Geometry.ToList();
-                var geometrySnapshot = new List<dynamic>();
-                
-                foreach (var geo in layerGeometry)
-                {
-                    geometrySnapshot.Add(new {
-                        geo.PersistentId,
-                        geo.Id
-                    });
-                }
-                
-                currentLayersSnapshot.Add(new {
-                    layer.OriginalLayerId,
-                    DeletedIds = deletedIds,
-                    Geometry = geometrySnapshot
-                });
-            }
-            
-            currentPlanSnapshot = new {
-                Layers = currentLayersSnapshot
-            };
-        }
-
         var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var addedFeatures  = new List<object>();
 
-        // Process prior finalized plans using snapshot
-        foreach (var priorPlan in plansSnapshot)
+        // Process prior finalized plans
+        foreach (var plan in relevantPlans)
         {
-            foreach (var planLayer in priorPlan.Layers)
+            foreach (var planLayer in plan.Layers)
             {
                 if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
                 if (singleLayerId is not null &&
                     !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                HashSet<string> ids;
-                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out ids!))
+                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
                     hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var deletedId in planLayer.DeletedIds)
+                foreach (var deletedId in planLayer.DeletedPersistentIds)
                     ids.Add(deletedId);
 
                 var geoType = GameSessionState.LayerEntries
@@ -220,21 +143,20 @@ public partial class MapViewPort
             }
         }
 
-        // Process current plan snapshot if provided
-        if (currentPlanSnapshot is not null)
+        // Process current plan if provided (hide base-layer features it modifies)
+        if (currentPlan is not null)
         {
-            foreach (var planLayer in currentPlanSnapshot.Layers)
+            foreach (var planLayer in currentPlan.Layers)
             {
                 if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
                 if (singleLayerId is not null &&
                     !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                HashSet<string> ids;
-                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out ids!))
+                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
                     hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var deletedId in planLayer.DeletedIds)
+                foreach (var deletedId in planLayer.DeletedPersistentIds)
                     ids.Add(deletedId);
 
                 foreach (var geo in planLayer.Geometry)
@@ -258,10 +180,17 @@ public partial class MapViewPort
     {
         if (MapJSModule is null) return;
 
+        // Snapshot the list before iterating: the await inside the loop yields control,
+        // which allows concurrent plan-activation/deactivation tasks to Add or Remove
+        // entries from LegendOrderLayerIds mid-iteration, causing an
+        // InvalidOperationException.  A snapshot keeps the iteration stable while
+        // the live list remains free to be updated by other operations.
+        var snapshot = GameSessionState.LegendOrderLayerIds.ToList();
+
         int i = 0;
-        foreach (string LayerId in GameSessionState.LegendOrderLayerIds)
+        foreach (string layerId in snapshot)
         {
-            await MapJSModule.InvokeVoidAsync("setLayerZIndex", LayerId, i + 1);
+            await MapJSModule.InvokeVoidAsync("setLayerZIndex", layerId, i + 1);
             i++;
         }
     }

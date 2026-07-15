@@ -47,7 +47,7 @@ public partial class PlanPanelMessages : GameComponentBase
                 new("text", _planMessageDraft.Trim())
             };
 
-            await ApiClient.PostFormAsync("api/Plan/Message", fields);
+            await ApiClient.PostFormAsync("Plan/Message", fields);
 
             // Do not append locally. The authoritative message arrives via Game/Latest WebSocket.
             _planMessageDraft = string.Empty;

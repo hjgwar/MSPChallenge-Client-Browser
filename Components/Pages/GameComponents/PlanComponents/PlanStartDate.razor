@@ -10,14 +10,14 @@
     {
         <div class="plan-edit-date-wrapper">
             <div class="plan-edit-date-row">
-                <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartMonth" disabled="@EditSaving">
+                <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartMonth" @bind:after="OnMonthChangedAsync" disabled="@EditSaving">
                     @for (int m = 1; m <= 12; m++)
                     {
                         var _m = m;
                         <option value="@_m" disabled="@EditMonthDisabled(_m)">@ConversionUtils.MonthName(_m)</option>
                     }
                 </select>
-                <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartYear" disabled="@EditSaving">
+                <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartYear" @bind:after="OnYearChangedAsync" disabled="@EditSaving">
                     @for (int y = EditEarliestStart.Year; y <= GameSessionState.GameEndYear; y++)
                     {
                         var _y = y;

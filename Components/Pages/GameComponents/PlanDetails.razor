@@ -26,15 +26,15 @@
                            ConstructionTime="@GetConstructionTime()"
                            StartMonthChanged="@OnStartMonthChanged"
                            StartYearChanged="@OnStartYearChanged" />
-            <PlanState Plan="@_detailPlan" SelectedPlanIssues="@_selectedPlanIssues" />
+            <PlanState @ref="PlanStateInstance" Plan="@_detailPlan" SelectedPlanIssues="@_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
     <details class="plan-detail-section plan-detail-section--communication" open>
         <summary class="plan-detail-section-hdr">Communication</summary>
         <div class="plan-detail-section-body">
             <PlanApproval />
-            <PlanMessages @ref="PlanMessagesInstance" />
-            <PlanIssues @ref="PlanIssuesInstance" Map="@Map" @bind-SelectedPlanIssues="_selectedPlanIssues" />
+            <PlanMessages @ref="PlanMessagesInstance" OnSubPanelOpening="CloseAllSubPanels" />
+            <PlanIssues @ref="PlanIssuesInstance" Map="@Map" @bind-SelectedPlanIssues="_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
     <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--policies-picker" : "")" open>
@@ -43,7 +43,8 @@
             <PlanPolicies @ref="PlanPoliciesInstance" 
                           Plan="@_detailPlan" 
                           EditSaving="@_editSaving"
-                          @bind-EditPolicyTypes="_editPolicyTypes" />
+                          @bind-EditPolicyTypes="_editPolicyTypes"
+                          OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
     <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--layers-picker" : "")" open>
@@ -53,7 +54,8 @@
                         Plan="@_detailPlan"
                         EditSaving="@_editSaving"
                         @bind-EditPlanLayerIds="_editPlanLayerIds"
-                        Map="@Map" />
+                        Map="@Map"
+                        OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
     </div>

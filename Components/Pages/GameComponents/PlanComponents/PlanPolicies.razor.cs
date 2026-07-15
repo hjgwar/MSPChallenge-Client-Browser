@@ -9,6 +9,7 @@ public partial class PlanPolicies : GameComponentBase
     [Parameter] public bool EditSaving { get; set; }
     [Parameter] public HashSet<string> EditPolicyTypes { get; set; } = [];
     [Parameter] public EventCallback<HashSet<string>> EditPolicyTypesChanged { get; set; }
+    [Parameter] public EventCallback OnSubPanelOpening { get; set; }
 
     private Plan _detailPlan => Plan ?? new Plan(
         0, string.Empty, string.Empty, Models.PlanState.DESIGN, 0, 0, 0,
@@ -18,8 +19,17 @@ public partial class PlanPolicies : GameComponentBase
     private HashSet<string> _editPolicyTypes => EditPolicyTypes;
     private bool _policyPickerOpen = false;
 
-    private void TogglePolicyPicker()
+    /// <summary>Closes this sub-panel. Called by PlanDetails when another panel is opened.</summary>
+    public void CloseSubPanel()
     {
+        _policyPickerOpen = false;
+        StateHasChanged();
+    }
+
+    private async Task TogglePolicyPicker()
+    {
+        if (!_policyPickerOpen)
+            await OnSubPanelOpening.InvokeAsync();
         _policyPickerOpen = !_policyPickerOpen;
         StateHasChanged();
     }

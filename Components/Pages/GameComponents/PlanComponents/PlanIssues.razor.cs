@@ -1,34 +1,101 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Utils;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 
-public partial class PlanIssues : GameComponentBase
+public partial class PlanIssues : GameComponentBase, IDisposable
 {
     [Parameter] public MapViewPort? Map { get; set; }
     [Parameter] public List<PlanRestrictionIssue> SelectedPlanIssues { get; set; } = [];
     [Parameter] public EventCallback<List<PlanRestrictionIssue>> SelectedPlanIssuesChanged { get; set; }
 
-    private bool _planIssuesOpen = false;
+    [Parameter] public EventCallback OnSubPanelOpening { get; set; }
 
+    private bool _planIssuesOpen = false;
 
     public int SelectedPlanIssueCount => SelectedPlanIssues.Count;
 
-    public void TogglePlanIssuesPanel()
+    /// <summary>Closes this sub-panel and clears map markers. Called by PlanDetails when another panel is opened.</summary>
+    public void CloseSubPanel()
     {
-        _planIssuesOpen = !_planIssuesOpen;
+        _planIssuesOpen = false;
+        if (Map?.MapJSModule is not null)
+            _ = Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
         StateHasChanged();
+    }
+
+    public async Task TogglePlanIssuesPanel()
+    {
+        if (!_planIssuesOpen)
+        {
+            await OnSubPanelOpening.InvokeAsync();
+            _planIssuesOpen = true;
+            await ShowIssueMarkersOnMapAsync();
+        }
+        else
+        {
+            _planIssuesOpen = false;
+            await ClearIssueMarkersFromMapAsync();
+        }
+        StateHasChanged();
+    }
+
+    private async Task ShowIssueMarkersOnMapAsync()
+    {
+        if (Map?.MapJSModule is null || SelectedPlanIssues.Count == 0) return;
+        var markersJson = System.Text.Json.JsonSerializer.Serialize(
+            SelectedPlanIssues.Select(i => new { x = i.MarkerX, y = i.MarkerY, severity = i.Severity }));
+        await Map.MapJSModule.InvokeVoidAsync("showIssueMarkers", markersJson);
+    }
+
+    private async Task ClearIssueMarkersFromMapAsync()
+    {
+        if (Map?.MapJSModule is null) return;
+        await Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
+    }
+
+    // Fingerprint of the last plan we calculated issues for.
+    // Format: "{planId}:{startDate}:{totalGeometryCount}"
+    // Only changes when relevant plan data changes, so we avoid recalculating on every WS heartbeat.
+    private string _lastIssuePlanFingerprint = string.Empty;
+
+    private string GetPlanFingerprint()
+    {
+        var plan = GameSessionState.SelectedPlan;
+        if (plan is null) return string.Empty;
+        var totalGeometry = plan.Layers.Sum(l => l.Geometry.Count);
+        return $"{plan.PlanId}:{plan.StartDate}:{totalGeometry}";
     }
 
     protected override void OnInitialized()
     {
+        GameSessionState.Changed += OnStateChanged;
         _ = CalculatePlanIssues();
+    }
+
+    public void Dispose() => GameSessionState.Changed -= OnStateChanged;
+
+    private void OnStateChanged()
+    {
+        var fingerprint = GetPlanFingerprint();
+        if (fingerprint == _lastIssuePlanFingerprint) return;
+        _ = InvokeAsync(async () =>
+        {
+            await CalculatePlanIssues();
+            // If the issues panel is open, refresh the map markers with updated locations.
+            if (_planIssuesOpen)
+                await ShowIssueMarkersOnMapAsync();
+            StateHasChanged();
+        });
     }
 
     private async Task CalculatePlanIssues()
     {
+        _lastIssuePlanFingerprint = GetPlanFingerprint();
+
         if (GameSessionState.SelectedPlan is null)
         {
             SelectedPlanIssues = [];

@@ -47,6 +47,16 @@ public sealed class GameSessionState : IDisposable
     public PlanViewMode PlanViewMode { get; set; } = PlanViewMode.AfterChanges;
     public bool EditMode { get; set; } = false;
 
+    /// <summary>
+    /// Temporary seed values written by Game.OpenEditModeFromCreation when the player
+    /// accepts the PlanCreation form.  PlanDetails reads and clears these on its first
+    /// OnInitialized / OnStateChanged after mounting in new-plan edit mode.
+    /// </summary>
+    public string PendingNewPlanName        { get; set; } = string.Empty;
+    public string PendingNewPlanDescription { get; set; } = string.Empty;
+    public int    PendingNewPlanStartYear   { get; set; } = 0;
+    public int    PendingNewPlanStartMonth  { get; set; } = 1;
+
     /// <summary>Toggle edit mode on/off.</summary>
     public void ToggleEditMode()
     {

@@ -35,13 +35,13 @@
         @* Plan detail panel — shown when a plan is selected or in edit mode for new plan *@
         @if (Map is not null && (GameSessionState.SelectedPlanId.HasValue || GameSessionState.EditMode))
         {
-            <PlanDetails Map="@Map" />
+            <PlanDetails @ref="PlanDetailsPanel" Map="@Map" />
         }
 
         @* Create plan panel — shown instead of plan-detail when creating a new plan *@
         @if (GameSessionState.CreatePlanOpen)
         {
-            <PlanCreation />
+            <PlanCreation @ref="PlanCreationPanel" OpenEditMode="@OpenEditModeFromCreation" />
         }
 
     </div>

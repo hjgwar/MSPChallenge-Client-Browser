@@ -13,13 +13,26 @@ public partial class PlanLayers : GameComponentBase, IDisposable
     [Parameter] public HashSet<string> EditPlanLayerIds { get; set; } = [];
     [Parameter] public EventCallback<HashSet<string>> EditPlanLayerIdsChanged { get; set; }
     [Parameter] public MapViewPort? Map { get; set; }
+    [Parameter] public EventCallback OnSubPanelOpening { get; set; }
 
     // Expose GameSessionState publicly for child components
     public new GameSessionState GameSessionState => base.GameSessionState;
 
     private bool _layerPickerOpen = false;
+
+    /// <summary>Closes all sub-panels (layer picker + geometry tool). Called by PlanDetails for mutual exclusion.</summary>
+    public void CloseSubPanel()
+    {
+        _layerPickerOpen = false;
+        if (_geometryToolLayerId is not null && Map?.MapJSModule is not null)
+            _ = Map.MapJSModule.InvokeVoidAsync("stopGeometryEditing");
+        _geometryToolLayerId = null;
+        StateHasChanged();
+    }
+
     private string? _geometryToolLayerId;
     private string? _geometryEditedLayerId;
+    public string? GeometryEditedLayerId => _geometryEditedLayerId;
     public bool _geometryToolCreate;
     public int _geometryToolTypeIndex;
     public string? _geometryToolSelectedFeatureId;
@@ -31,6 +44,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
     public List<DrawingAction> _drawingUndoStack = [];
     public List<DrawingAction> _drawingRedoStack = [];
     private HashSet<string> _deletedWorldStateIds = [];
+    public HashSet<string> DeletedWorldStateIds => _deletedWorldStateIds;
 
     private DotNetObjectReference<PlanLayers>? _dotNetRef;
 
@@ -63,9 +77,10 @@ public partial class PlanLayers : GameComponentBase, IDisposable
             await CloseGeometryToolAsync();
             return;
         }
-        if (Map?.MapJSModule is null) return;
-
+        // Opening a geometry tool: close all other sub-panels in PlanDetails first.
+        await OnSubPanelOpening.InvokeAsync();
         _layerPickerOpen = false;
+        if (Map?.MapJSModule is null) return;
         _geometryToolLayerId = layerId;
         _geometryEditedLayerId = layerId;
         _geometryToolTypeIndex = 0;
@@ -526,6 +541,8 @@ public partial class PlanLayers : GameComponentBase, IDisposable
 
     private async Task ToggleLayerPickerAsync()
     {
+        if (!_layerPickerOpen)
+            await OnSubPanelOpening.InvokeAsync();
         _layerPickerOpen = !_layerPickerOpen;
         if (_layerPickerOpen)
         {

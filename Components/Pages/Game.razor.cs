@@ -22,6 +22,8 @@ public partial class Game : IAsyncDisposable
     public SideBarPanelControl SideBarPanelController { get; set; } = null!;
     public GameTimeView GameTimeViewer { get; set; } = null!;
     public MapViewPort Map { get; set; } = null!;
+    public PlanDetails PlanDetailsPanel { get; set; } = null!;
+    public PlanCreation PlanCreationPanel { get; set; } = null!;
     // Returns the selected plan or a new unsaved plan for edit mode
     private IJSObjectReference? _mapModule;
     private DotNetObjectReference<Game>? _dotNetRef;
@@ -49,6 +51,23 @@ public partial class Game : IAsyncDisposable
     {
         _popupVisible = false;
         StateHasChanged();
+    }
+
+    private void OpenEditModeFromCreation(PlanCreation creation)
+    {
+        // Seed the pending values into GameSessionState so PlanDetails can read them
+        // when it mounts. Setting EditMode=true and SelectedPlanId=0 here causes Blazor
+        // to render PlanDetails on the next cycle; StartNewPlanEdit is then called on the
+        // already-mounted instance via the NotifyChanged callback that PlanDetails subscribes to.
+        GameSessionState.CreatePlanOpen = false;
+        GameSessionState.SelectedPlanId = 0;
+        GameSessionState.EditMode = true;
+        // Store the creation-form values so PlanDetails.OnStateChanged can pick them up.
+        GameSessionState.PendingNewPlanName        = creation._createPlanName ?? string.Empty;
+        GameSessionState.PendingNewPlanDescription = creation._createPlanDescription ?? string.Empty;
+        GameSessionState.PendingNewPlanStartYear   = creation._createPlanStartYear;
+        GameSessionState.PendingNewPlanStartMonth  = creation._createPlanStartMonth;
+        GameSessionState.NotifyChanged();
     }
 
     private async Task EnsureRestrictionLayersVisibleAsync(string? sourceDisplayName, string? targetDisplayName)

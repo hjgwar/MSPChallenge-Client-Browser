@@ -9,6 +9,7 @@ public partial class SideBarPanelControl
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [Inject] private UserSessionService UserSessionService { get; set; } = null!;
     [Inject] private GameSessionState GameSessionState { get; set; } = null!;
+    [Inject] private MspApiClient ApiClient { get; set; } = null!;
     
     public void ToggleOnlineUsersPanel()
     {
@@ -36,7 +37,25 @@ public partial class SideBarPanelControl
 
     public void ToggleCreatePlanPanel()
     {
-        GameSessionState.CreatePlanOpen = !GameSessionState.CreatePlanOpen;
+        var opening = !GameSessionState.CreatePlanOpen;
+        if (opening)
+        {
+            // If an existing plan is locked for editing, release the lock (fire-and-forget).
+            if (GameSessionState.EditMode && GameSessionState.SelectedPlanId is > 0)
+            {
+                _ = ApiClient.PostFormAsync("Plan/Unlock",
+                    new[]
+                    {
+                        new KeyValuePair<string, string>("id", GameSessionState.SelectedPlanId.ToString()!),
+                        new KeyValuePair<string, string>("force_unlock", "0"),
+                        new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
+                    });
+            }
+            // Cancel any active edit/view before showing the creation form.
+            GameSessionState.EditMode = false;
+            GameSessionState.SelectedPlanId = null;
+        }
+        GameSessionState.CreatePlanOpen = opening;
         GameSessionState.NotifyChanged();
     }
 

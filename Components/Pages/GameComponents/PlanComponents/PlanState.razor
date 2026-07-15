@@ -18,7 +18,7 @@
                 <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
                 <path d="M2 4l6-2 6 2"/>
             </svg>
-            <span>Plan state: @PlanStates.PlanStateLabel(GameSessionState.SelectedPlan?.State)</span>
+            <span>Plan state: @PlanStates.PlanStateLabel(Plan?.State)</span>
         </button>
     }
     else
@@ -28,7 +28,7 @@
                 <path d="M2 4h12v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4z"/>
                 <path d="M2 4l6-2 6 2"/>
             </svg>
-            <span>Plan state: @PlanStates.PlanStateLabel(GameSessionState.SelectedPlan?.State)</span>
+            <span>Plan state: @PlanStates.PlanStateLabel(Plan?.State)</span>
         </div>
     }
 </div>

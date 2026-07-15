@@ -546,7 +546,7 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
             }
 
             await ApiClient.PostFormAsync(
-                "api/Batch/ExecuteBatch",
+                "Batch/ExecuteBatch",
                 new[]
                 {
                     new KeyValuePair<string, string>("country_id", UserSessionService.User.Country.Id.ToString()),
@@ -576,7 +576,7 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
             if (!isNewPlan)
             {
                 await ApiClient.PostFormAsync(
-                    "api/Plan/Unlock",
+                    "Plan/Unlock",
                     new[]
                     {
                         new KeyValuePair<string, string>("id", GameSessionState.SelectedPlanId.ToString()!),

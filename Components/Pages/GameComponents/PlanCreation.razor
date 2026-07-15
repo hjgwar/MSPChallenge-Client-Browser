@@ -3,7 +3,7 @@
 <div class="plan-detail-panel">
     <div class="plan-detail-panel-title">
         NEW PLAN
-        <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
+        <button class="panel-close-btn" title="Close" @onclick="ClosePanel">&#10005;</button>
     </div>
     <div class="plan-detail-header">
         <div class="plan-detail-header-body">
@@ -45,7 +45,7 @@
         <div class="plan-edit-error">@_createPlanError</div>
     }
     <div class="plan-edit-footer">
-        <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel" type="button" disabled="@_createPlanSaving" @onclick="OnCloseThisPanel">
+        <button class="plan-edit-footer-btn plan-edit-footer-btn--cancel" type="button" disabled="@_createPlanSaving" @onclick="ClosePanel">
             &#8249; Cancel
         </button>
         <button class="plan-edit-footer-btn plan-edit-footer-btn--accept" type="button" disabled="@(_createPlanSaving || string.IsNullOrWhiteSpace(_createPlanName))" @onclick="CreatePlanAsync">
