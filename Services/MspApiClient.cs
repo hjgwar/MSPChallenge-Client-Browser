@@ -11,70 +11,76 @@ public class MspApiClient
 {
     private readonly IHttpClientFactory _factory;
     private readonly IConfiguration _configuration;
-    private readonly SessionState _sessionState;
+    private readonly UserSessionService _userSessionService;
 
-    public MspApiClient(IHttpClientFactory factory, IConfiguration configuration, SessionState sessionState)
+    public MspApiClient(IHttpClientFactory factory, IConfiguration configuration, UserSessionService userSessionService)
     {
         _factory = factory;
         _configuration = configuration;
-        _sessionState = sessionState;
+        _userSessionService = userSessionService;
     }
 
     /// <summary>GET a URL and return the parsed JSON root element.</summary>
-    public async Task<JsonElement> GetAsync(string url)
+    public async Task<JsonElement> GetAsync(string endPoint )
     {
         var client = CreateClient();
+        var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
         var response = await client.GetAsync(url);
         return await ReadJsonAsync(response);
     }
 
     /// <summary>POST form-encoded key/value pairs and return the parsed JSON root element.</summary>
-    public async Task<JsonElement> PostFormAsync(string url, IEnumerable<KeyValuePair<string, string>> fields)
+    public async Task<JsonElement> PostFormAsync(string endPoint, IEnumerable<KeyValuePair<string, string>> fields)
     {
         var client = CreateClient();
+        var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
         var response = await client.PostAsync(url, new FormUrlEncodedContent(fields));
         return await ReadJsonAsync(response);
     }
 
     /// <summary>POST a JSON-serialisable object and return the parsed JSON root element.</summary>
-    public async Task<JsonElement> PostJsonAsync(string url, object body)
+    public async Task<JsonElement> PostJsonAsync(string endPoint, object body)
     {
         var client = CreateClient();
         var json = JsonSerializer.Serialize(body);
         var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
         var response = await client.PostAsync(url, content);
         return await ReadJsonAsync(response);
     }
 
     /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
-    /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
-    public async Task<JsonElement> SetGameStateAsync(string baseUrl, int sessionId, string state)
+    public async Task<JsonElement> SetGameStateAsync(string state)
     {
-        var baseAddress = baseUrl.TrimEnd('/');
-        var url = $"{baseAddress}/{sessionId}/api/Game/State";
         var fields = new[] { new KeyValuePair<string, string>("state", state) };
-        return await PostFormAsync(url, fields);
+        return await PostFormAsync("Game/State", fields);
     }
 
     /// <summary>Set current era real time (seconds remaining in current era).</summary>
-    public async Task<JsonElement> SetRealtimeAsync(string baseUrl, int sessionId, int realtimeSeconds)
+    public async Task<JsonElement> SetRealtimeAsync(int realtimeSeconds)
     {
-        var baseAddress = baseUrl.TrimEnd('/');
-        var url = $"{baseAddress}/{sessionId}/api/Game/Realtime";
         var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeSeconds.ToString()) };
-        return await PostFormAsync(url, fields);
+        return await PostFormAsync("Game/Realtime", fields);
     }
 
     /// <summary>Set future era real times (comma-separated seconds for all 4 eras).</summary>
-    public async Task<JsonElement> SetFutureRealtimeAsync(string baseUrl, int sessionId, string realtimeCommaSeparated)
+    public async Task<JsonElement> SetFutureRealtimeAsync(string realtimeCommaSeparated)
     {
-        var baseAddress = baseUrl.TrimEnd('/');
-        var url = $"{baseAddress}/{sessionId}/api/Game/FutureRealtime";
         var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeCommaSeparated) };
-        return await PostFormAsync(url, fields);
+        return await PostFormAsync("Game/FutureRealtime", fields);
     }
 
     // -------------------------------------------------------------------------
+    private static bool IsAbsoluteUrl(string url)
+    {
+        return url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+               url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string CompleteApiUrl(string endPoint)
+    {
+        return $"{_userSessionService.GameServerAddress.TrimEnd('/')}/{_userSessionService.SessionId}/api/{endPoint.TrimStart('/')}";
+    }
 
     private HttpClient CreateClient()
     {
@@ -82,9 +88,9 @@ public class MspApiClient
         var clientVersion = _configuration["MspClientVersion"] ?? "6.0.0";
         client.DefaultRequestHeaders.TryAddWithoutValidation("Msp-Client-Version", clientVersion);
 
-        if (!string.IsNullOrEmpty(_sessionState.ApiAccessToken))
+        if (!string.IsNullOrEmpty(_userSessionService.ApiAccessToken))
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", _sessionState.ApiAccessToken);
+                new AuthenticationHeaderValue("Bearer", _userSessionService.ApiAccessToken);
 
         return client;
     }

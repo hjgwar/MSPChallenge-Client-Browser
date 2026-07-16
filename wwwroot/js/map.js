@@ -462,6 +462,49 @@ export function focusOnCoordinate(x, y) {
     view.animate({ center: [x, y], zoom: targetZoom, duration: 350 });
 }
 
+// ── Issue markers ─────────────────────────────────────────────────────────────
+
+let _issueMarkersLayer = null;
+
+/**
+ * Renders colour-coded circle markers on the map at each restriction-issue location.
+ * @param {string} markersJson  JSON array of { x, y, severity } objects (EPSG:3035 coords).
+ */
+export function showIssueMarkers(markersJson) {
+    if (!map) return;
+    clearIssueMarkers();
+
+    const markers = JSON.parse(markersJson);
+    const features = markers.map(m => {
+        const feature = new ol.Feature({
+            geometry: new ol.geom.Point([m.x, m.y])
+        });
+        const isError = (m.severity || '').toUpperCase() === 'ERROR';
+        feature.setStyle(new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 8,
+                fill: new ol.style.Fill({ color: isError ? '#e74c3c' : '#f39c12' }),
+                stroke: new ol.style.Stroke({ color: '#ffffff', width: 2.5 })
+            })
+        }));
+        return feature;
+    });
+
+    const source = new ol.source.Vector({ features });
+    _issueMarkersLayer = new ol.layer.Vector({ source, zIndex: 9999 });
+    map.addLayer(_issueMarkersLayer);
+}
+
+/**
+ * Removes all restriction-issue markers added by showIssueMarkers().
+ */
+export function clearIssueMarkers() {
+    if (_issueMarkersLayer && map) {
+        map.removeLayer(_issueMarkersLayer);
+        _issueMarkersLayer = null;
+    }
+}
+
 export function unregisterClickHandler() {
     if (map && _clickHandler) {
         map.un('singleclick', _clickHandler);

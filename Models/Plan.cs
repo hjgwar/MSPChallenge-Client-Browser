@@ -1,11 +1,11 @@
 namespace MSPChallenge_Client_Browser.Models;
 
 /// <summary>A single plan received via the Game/Latest WebSocket message.</summary>
-public sealed record PlanEntry(
+public sealed record Plan(
     int    PlanId,
     string Name,
     string Description,
-    string State,
+    PlanState State,
     int    Country,
     int    StartDate,
     int    ConstructionTime,
@@ -32,3 +32,34 @@ public sealed record PlanGeometryItem(
     string Id           = "",
     string PersistentId = "",
     int    TypeIndex    = 0);
+
+
+public sealed record PlanRestrictionIssue(
+        string  Severity,
+        string  Message,
+        string? SourceLayer,
+        string? TargetLayer,
+        string  ChangeKind,
+        double  MarkerX,
+        double  MarkerY
+);
+
+/// <summary>A single plan message shown in the communication panel.</summary>
+public sealed record PlanMessage(
+    string   MessageId,
+    int      PlanId,
+    int?     CountryId,
+    string   CountryName,
+    string   UserName,
+    string   Message,
+    DateTime? SentAt,
+    int      Sequence);
+
+public enum PlanViewMode { AfterChanges, Original, ChangesOnly }
+
+public enum PlanState { DESIGN, CONSULTATION, APPROVAL, APPROVED, IMPLEMENTED, DELETED }
+
+public sealed record PlanApprovalRequirement(
+    int                   CountryId,
+    string                CountryName,
+    IReadOnlyList<string> Reasons);

@@ -1,0 +1,110 @@
+﻿using System.Globalization;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
+using MSPChallenge_Client_Browser.Models;
+
+namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents;
+
+public partial class PlanPanelMessages : GameComponentBase
+{
+    [Inject] private IJSRuntime JS { get; set; } = null!;
+
+    [Parameter] public IReadOnlyList<PlanMessage>? Messages { get; set; }
+    [Parameter] public EventCallback OnTogglePanel { get; set; }
+
+    private ElementReference _messageBody;
+    private int _lastScrolledMessageCount = -1;
+
+    private string _planMessageDraft = string.Empty;
+    private string? _planMessageSendError;
+    private bool _sendingPlanMessage;
+
+    private IReadOnlyList<PlanMessage> SelectedPlanMessages => Messages ?? [];
+
+    private bool CanSendPlanMessage =>
+        GameUIStateService.SelectedPlanId != 0 &&
+        !_sendingPlanMessage &&
+        !string.IsNullOrWhiteSpace(_planMessageDraft);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        int count = SelectedPlanMessages.Count;
+        if (firstRender || count != _lastScrolledMessageCount)
+        {
+            _lastScrolledMessageCount = count;
+            try { await JS.InvokeVoidAsync("scrollElementToBottom", _messageBody); }
+            catch { /* element may not be mounted yet */ }
+        }
+    }
+
+    private async Task TogglePlanMessagesPanel()
+    {
+        await OnTogglePanel.InvokeAsync();
+    }
+
+    private async Task SendPlanMessageAsync()
+    {
+        if (!CanSendPlanMessage || GameUIStateService.SelectedPlanId == 0) return;
+
+        _sendingPlanMessage = true;
+        _planMessageSendError = null;
+
+        try
+        {
+            var userName = string.IsNullOrWhiteSpace(UserSessionService.User.Name) 
+                ? $"Team {UserSessionService.User.Country.Id}" 
+                : UserSessionService.User.Name;
+
+            var fields = new List<KeyValuePair<string, string>>
+            {
+                new("plan", GameUIStateService.SelectedPlanId.ToString() ?? "0"),
+                new("team_id", UserSessionService.User.Country.Id.ToString()),
+                new("user_name", userName),
+                new("text", _planMessageDraft.Trim())
+            };
+
+            await ApiClient.PostFormAsync("Plan/Message", fields);
+
+            // Do not append locally. The authoritative message arrives via Game/Latest WebSocket.
+            _planMessageDraft = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _planMessageSendError = ex.Message;
+        }
+        finally
+        {
+            _sendingPlanMessage = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task HandlePlanMessageKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await SendPlanMessageAsync();
+    }
+
+    private static string FormatPlanMessageTime(DateTime sentAt)
+    {
+        var utc = sentAt.Kind switch
+        {
+            DateTimeKind.Utc => sentAt,
+            DateTimeKind.Local => sentAt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(sentAt, DateTimeKind.Utc)
+        };
+        return utc.ToLocalTime().ToString("MMM d HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private string PlanMessageDotColour(int? countryId)
+    {
+        if (!countryId.HasValue || countryId.Value <= 0)
+            return "#6c757d";
+        if (countryId.Value == 1 || countryId.Value == 2)
+            return "#ff69b4";
+        
+        var country = GameSessionService.Countries.FirstOrDefault(c => c.Id == countryId.Value);
+        return country?.Color ?? "#6c757d";
+    }
+}

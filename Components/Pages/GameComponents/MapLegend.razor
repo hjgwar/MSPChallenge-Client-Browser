@@ -1,0 +1,49 @@
+﻿@inherits GameComponentBase
+<div class="legend-panel">
+    <div class="legend-panel-title">
+        <span style="flex:1">Legend</span>
+        <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
+    </div>
+    <div class="legend-panel-content">
+    @for (int i = 0; i < GameUIStateService.LegendOrderLayerIds.Count; i++)
+    {
+        var layerId = GameUIStateService.LegendOrderLayerIds[i];
+        Layer? entry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+        if (entry is null) continue;
+        var idx = i; // capture for lambda
+        <div class="legend-layer" draggable="true" data-legend-idx="@idx">
+            <div class="legend-layer-header">
+                <span class="legend-drag-handle" title="Drag to reorder">
+                    <svg viewBox="0 0 8 12" width="10" height="14" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="2" cy="2" r="1"/>
+                        <circle cx="6" cy="2" r="1"/>
+                        <circle cx="2" cy="6" r="1"/>
+                        <circle cx="6" cy="6" r="1"/>
+                        <circle cx="2" cy="10" r="1"/>
+                        <circle cx="6" cy="10" r="1"/>
+                    </svg>
+                </span>
+                <span class="legend-name-group">
+                    <span class="legend-layer-name" title="@entry.Tooltip">@entry.DisplayName</span>
+                    @if (entry.MediaUrl is not null)
+                    {
+                        <a class="info-icon-link" href="@entry.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
+                    }
+                </span>
+                <button class="legend-hide-btn" title="Hide layer" @onclick="@(async () => await ToggleLayerAsync(entry, false))">&#10005;</button>
+            </div>
+            @foreach (TypeDef td in entry.TypeDefs)
+            {
+                <div class="legend-row">
+                    <span class="legend-swatch" style="background:@Utils.ConversionUtils.HexToRGB(td.Color);"></span>
+                    <span class="legend-label">@td.Label</span>
+                    @if (td.MediaUrl is not null)
+                    {
+                        <a class="info-icon-link" href="@td.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
+                    }
+                </div>
+            }
+        </div>
+    }
+    </div>
+</div>

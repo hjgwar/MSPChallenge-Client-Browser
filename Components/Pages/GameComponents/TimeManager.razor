@@ -1,10 +1,10 @@
-@if (IsVisible)
-{
-    <div class="time-manager-overlay" @onclick="OnBackdropClick">
+﻿@inherits GameComponentBase
+<div class="time-manager-overlay">
+    <div class="time-manager-container">
         <div class="time-manager-panel" @onclick:stopPropagation="true">
             <div class="time-manager-header">
                 <div class="time-manager-title">Time Manager</div>
-                <button class="time-manager-close" @onclick="OnClose" title="Close">
+                <button class="time-manager-close" @onclick="OnCloseThisPanel" title="Close">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
                         <line x1="18" y1="6" x2="6" y2="18"/>
                         <line x1="6" y1="6" x2="18" y2="18"/>
@@ -15,23 +15,23 @@
                 <div class="time-manager-section">
                     <div class="time-manager-section-title">Remaining planning time</div>
                     <div class="time-manager-time-display">
-                        @for (int i = 0; i < GameSessionState.ERA_COUNT; i++)
+                        @for (int i = 0; i < GameSessionService.ERA_COUNT; i++)
                         {
                             var eraIndex = i; // Capture for lambda
                             <div class="time-manager-time-block">
                                 @if (IsEraEditable(eraIndex) && _eraTimeEditing[eraIndex])
                                 {
                                     <input type="text" 
-                                           class="time-manager-time-input"
-                                           value="@_eraTimeInputs[eraIndex]"
-                                           @onchange="@(e => OnEraTimeInputChange(eraIndex, e))"
-                                           @onblur="@(() => OnEraTimeBlur(eraIndex))"
-                                           placeholder="H:MM:SS" />
+                                            class="time-manager-time-input"
+                                            value="@_eraTimeInputs[eraIndex]"
+                                            @onchange="@(e => OnEraTimeInputChange(eraIndex, e))"
+                                            @onblur="@(() => OnEraTimeBlur(eraIndex))"
+                                            placeholder="H:MM:SS" />
                                 }
                                 else
                                 {
                                     <span @onclick="@(() => OnEraTimeClick(eraIndex))" 
-                                          class="@(IsEraEditable(eraIndex) ? "time-manager-time-editable" : "")">
+                                            class="@(IsEraEditable(eraIndex) ? "time-manager-time-editable" : "")">
                                         @GetEraTimeDisplay(eraIndex)
                                     </span>
                                 }
@@ -41,11 +41,11 @@
                 </div>
                 <div class="time-manager-timeline">
                     <div class="time-manager-timeline-years">
-                        <span>@GameSessionState.GameStartYear</span>
-                        <span>@((GameSessionState.GameStartYear + GameSessionState.GameEraTotalMonths / 12))</span>
-                        <span>@((GameSessionState.GameStartYear + GameSessionState.GameEraTotalMonths / 6))</span>
-                        <span>@((GameSessionState.GameStartYear + GameSessionState.GameEraTotalMonths / 4))</span>
-                        <span>@GameSessionState.GameEndYear</span>
+                        <span>@GameSessionService.GameStartYear</span>
+                        <span>@((GameSessionService.GameStartYear + GameSessionService.GameEraTotalMonths / 12))</span>
+                        <span>@((GameSessionService.GameStartYear + GameSessionService.GameEraTotalMonths / 6))</span>
+                        <span>@((GameSessionService.GameStartYear + GameSessionService.GameEraTotalMonths / 4))</span>
+                        <span>@GameSessionService.GameEndYear</span>
                     </div>
                     <div class="time-manager-timeline-track">
                         <div class="time-manager-timeline-fill" style="width: @(_timelineProgress)%"></div>
@@ -82,4 +82,4 @@
             </div>
         </div>
     </div>
-}
+</div>

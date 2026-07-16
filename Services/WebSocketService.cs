@@ -16,7 +16,7 @@ namespace MSPChallenge_Client_Browser.Services;
 ///    <see cref="ExecuteBatchMessages"/>, and <see cref="ImmersiveSessionsMessages"/>.
 /// </para>
 /// </summary>
-public sealed class GameWebSocketService : IAsyncDisposable
+public sealed class WebSocketService : IAsyncDisposable
 {
     // ── Stored messages by type ────────────────────────────────────────────────
     private readonly List<WsMessage> _gameLatest        = new();

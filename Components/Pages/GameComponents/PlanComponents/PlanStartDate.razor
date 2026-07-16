@@ -1,0 +1,53 @@
+﻿@using MSPChallenge_Client_Browser.Utils
+@inherits GameComponentBase
+
+<div class="plan-detail-info-row">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" class="plan-detail-icon">
+        <circle cx="8" cy="8" r="6.5"/>
+        <polyline points="8,4.5 8,8 10.5,9.5"/>
+    </svg>
+    @if (GameUIStateService.EditMode)
+    {
+        <div class="plan-edit-date-wrapper">
+            <div class="plan-edit-date-row">
+                <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartMonth" @bind:after="OnMonthChangedAsync" disabled="@EditSaving">
+                    @for (int m = 1; m <= 12; m++)
+                    {
+                        var _m = m;
+                        <option value="@_m" disabled="@EditMonthDisabled(_m)">@ConversionUtils.MonthName(_m)</option>
+                    }
+                </select>
+                <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartYear" @bind:after="OnYearChangedAsync" disabled="@EditSaving">
+                    @for (int y = EditEarliestStart.Year; y <= GameSessionService.GameEndYear; y++)
+                    {
+                        var _y = y;
+                        <option value="@_y">@_y</option>
+                    }
+                </select>
+            </div>
+            @if (ConstructionTime > 0)
+            {
+                <span class="plan-edit-date-hint @(!EditStartDateValid ? "plan-edit-date-hint--error" : "")">
+                    Min. @(ConstructionTime) month@(ConstructionTime == 1 ? "" : "s") construction — earliest @EditEarliestStart.ToString("MMM yyyy")
+                </span>
+            }
+            else if (!EditStartDateValid)
+            {
+                <span class="plan-edit-date-hint plan-edit-date-hint--error">
+                    Must be @EditEarliestStart.ToString("MMM yyyy") or later
+                </span>
+            }
+        </div>
+    }
+    else
+    {
+        <span>
+            @GameSessionService.MonthToDate(
+                Plan?.StartDate ?? 0
+            )
+            @(ConstructionTime > 0 
+                    ? $", after {(ConstructionTime)} months construction" 
+                    : ""
+            )</span>
+    }
+</div>

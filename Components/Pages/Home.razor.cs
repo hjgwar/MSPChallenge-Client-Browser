@@ -1,10 +1,17 @@
-using System.Text.Json;
+﻿using System.Text.Json;
+using Microsoft.AspNetCore.Components;
+using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
 
 namespace MSPChallenge_Client_Browser.Components.Pages;
 
 public partial class Home
 {
+    [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+    [Inject] private MspApiClient ApiClient { get; set; } = null!;
+    [Inject] private UserSessionService UserSessionService { get; set; } = null!;
+    [Inject] private GameSessionService GameSessionService { get; set; } = null!;
+
     // ── Server & session selection state ──
     private string serverAddress = "server.mspchallenge.info";
     private bool isLoading;
@@ -17,19 +24,18 @@ public partial class Home
     private bool isLoadingConfig;
     private bool isConnecting;
     private bool configLoaded;
-    // Key = displayName shown to user, Value = integer country_id sent to API
-    private Dictionary<string, int> countries = new();
-    private string selectedCountry = string.Empty;
+    // Full Country objects (id + name + color), not including Admin/RegionManager sentinels.
+    private IReadOnlyList<Country> countries = [];
+    private string selectedCountryId = string.Empty;   // string because <select> binds strings
     private string username = string.Empty;
     private string password = string.Empty;
     private bool userAdminHasPassword;
     private bool userCommonHasPassword;
 
-    private static readonly HashSet<string> AdminRoles = new() { "Admin", "Region Manager" };
-
+    // Admin=1, RegionManager=2 use the admin password; all real country IDs use the common one.
     private bool NeedsPassword =>
-        !string.IsNullOrEmpty(selectedCountry) &&
-        (AdminRoles.Contains(selectedCountry) ? userAdminHasPassword : userCommonHasPassword);
+        int.TryParse(selectedCountryId, out var id) && id > 0 &&
+        (id <= 2 ? userAdminHasPassword : userCommonHasPassword);
 
     protected override async Task OnInitializedAsync()
     {
@@ -108,9 +114,9 @@ public partial class Home
     private async Task SelectSessionAsync(JsonElement session)
     {
         selectedSession = session;
-        SessionState.SessionId = session.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0;
-        SessionState.GameServerAddress   = ResolveDockerHost(GetString(session, "game_server_address"));
-        SessionState.GameWsServerAddress = ResolveDockerHost(GetString(session, "game_ws_server_address"));
+        UserSessionService.SessionId = session.TryGetProperty("id", out var idProp) ? idProp.GetInt32() : 0;
+        UserSessionService.GameServerAddress   = ResolveDockerHost(GetString(session, "game_server_address"));
+        UserSessionService.GameWsServerAddress = ResolveDockerHost(GetString(session, "game_ws_server_address"));
 
         // Load session config (countries, password requirements)
         await LoadSessionConfigAsync();
@@ -121,15 +127,15 @@ public partial class Home
         isLoadingConfig = true;
         errorMessage = null;
         configLoaded = false;
-        countries.Clear();
-        selectedCountry = string.Empty;
+        countries = [];
+        selectedCountryId = string.Empty;
         username = string.Empty;
         password = string.Empty;
 
         try
         {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var root = await ApiClient.GetAsync($"{baseAddress}/{SessionState.SessionId}/api/Game/Config");
+            var baseAddress = UserSessionService.GameServerAddress.TrimEnd('/');
+            var root = await ApiClient.GetAsync($"{baseAddress}/{UserSessionService.SessionId}/api/Game/Config");
 
             var payload = root.ValueKind == JsonValueKind.Object &&
                           root.TryGetProperty("payload", out var p)
@@ -143,11 +149,12 @@ public partial class Home
                 userCommonHasPassword = commonPwd.ValueKind == JsonValueKind.True ||
                     (commonPwd.ValueKind == JsonValueKind.Number && commonPwd.GetInt32() != 0);
 
+            var parsedCountries = new List<Country>();
             if (payload.TryGetProperty("countries", out var countriesEl) &&
                 countriesEl.ValueKind == JsonValueKind.String)
             {
                 var layerName = countriesEl.GetString()!;
-                var metaUrl = $"{baseAddress}/{SessionState.SessionId}/api/Layer/MetaByName";
+                var metaUrl = $"{baseAddress}/{UserSessionService.SessionId}/api/Layer/MetaByName";
                 var metaRoot = await ApiClient.PostFormAsync(metaUrl, new[]
                 {
                     new KeyValuePair<string, string>("name", layerName)
@@ -163,18 +170,31 @@ public partial class Home
                 {
                     foreach (var lt in layerTypes.EnumerateArray())
                     {
-                        if (lt.TryGetProperty("displayName", out var dn) &&
-                            lt.TryGetProperty("value", out var val))
+                        if (lt.TryGetProperty("value", out var val) &&
+                            val.ValueKind == JsonValueKind.Number &&
+                            lt.TryGetProperty("displayName", out var dn))
                         {
-                            countries[dn.GetString() ?? string.Empty] = val.GetInt32();
+                            var color = lt.TryGetProperty("polygonColor", out var col)
+                                ? col.GetString() ?? string.Empty
+                                : string.Empty;
+                            parsedCountries.Add(new Country(
+                                Id:    val.GetInt32(),
+                                Name:  dn.GetString() ?? string.Empty,
+                                Color: color));
                         }
                     }
                 }
 
-                // Admin = 1, Region Manager = 2 (special sentinel values)
-                countries["Admin"] = 1;
-                countries["Region Manager"] = 2;
+                // Capture the EEZ layer ID so GameSessionService can load EEZ geometry
+                // using Layer/Get without calling Layer/MetaByName a second time.
+                if (metaPayload.TryGetProperty("layer_id", out var lIdEl))
+                    GameSessionService.EezLayerId = lIdEl.ValueKind == JsonValueKind.Number
+                        ? lIdEl.GetInt32().ToString()
+                        : lIdEl.GetString();
             }
+            // Admin and Region Manager are login roles, not real map countries.
+            // They are added as static dropdown options in Home.razor, not here.
+            countries = parsedCountries;
 
             configLoaded = true;
         }
@@ -202,10 +222,24 @@ public partial class Home
 
     private async Task ConnectAsync()
     {
-        if (!countries.TryGetValue(selectedCountry, out var countryId))
+        if (!int.TryParse(selectedCountryId, out var countryId) || countryId <= 0)
         {
             errorMessage = "Please select a valid country.";
             return;
+        }
+
+        // Look up the full Country object. Real countries are in the list; Admin (1) and
+        // Region Manager (2) are login roles with sentinel IDs not stored in the list.
+        var selectedCountryObj = countries.FirstOrDefault(c => c.Id == countryId);
+        if (selectedCountryObj is null)
+        {
+            if      (countryId == 1) selectedCountryObj = new Country(1, "Admin",          "#FF69B4");
+            else if (countryId == 2) selectedCountryObj = new Country(2, "Region Manager", "#FF69B4");
+            else
+            {
+                errorMessage = "Please select a valid country.";
+                return;
+            }
         }
 
         isConnecting = true;
@@ -213,12 +247,12 @@ public partial class Home
 
         try
         {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var url = $"{baseAddress}/{SessionState.SessionId}/api/User/RequestSession";
+            var baseAddress = UserSessionService.GameServerAddress.TrimEnd('/');
+            var url = $"{baseAddress}/{UserSessionService.SessionId}/api/User/RequestSession";
 
             var fields = new List<KeyValuePair<string, string>>
             {
-                new("country_id", countryId.ToString()),
+                new("country_id", selectedCountryObj.Id.ToString()),
                 new("user_name", username)
             };
             if (NeedsPassword && !string.IsNullOrEmpty(password))
@@ -235,16 +269,21 @@ public partial class Home
                 return;
             }
 
-            SessionState.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
-            SessionState.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
-            SessionState.CountryId       = countryId;
-            SessionState.UserName        = username;
+            UserSessionService.ApiAccessToken  = accessToken.GetString() ?? string.Empty;
+            UserSessionService.ApiRefreshToken = refreshToken.GetString() ?? string.Empty;
+            UserSessionService.User = new User(
+                Id: payload.TryGetProperty("session_id", out var userIdEl)
+                    ? (userIdEl.ValueKind == JsonValueKind.Number
+                        ? userIdEl.GetInt32()
+                        : int.TryParse(userIdEl.GetString(), out var parsedId) ? parsedId : 0)
+                    : 0,
+                Name: username,
+                Country: selectedCountryObj
+            );
 
-            if (payload.TryGetProperty("user_id", out var userIdEl) &&
-                userIdEl.ValueKind == JsonValueKind.Number)
-                SessionState.UserId = userIdEl.GetInt32();
-            else
-                SessionState.UserId = countryId; // fallback
+            // Seed the pre-built country list (with colors) into GameSessionService so the Game
+            // page does not need to re-fetch country metadata from the server.
+            GameSessionService.Countries = countries;
 
             NavigationManager.NavigateTo("/game");
         }
@@ -270,22 +309,22 @@ public partial class Home
     {
         selectedSession = null;
         configLoaded = false;
-        countries.Clear();
-        selectedCountry = string.Empty;
+        countries = [];
+        selectedCountryId = string.Empty;
         username = string.Empty;
         password = string.Empty;
     }
 
-    /// <summary>
-    /// Replaces the Docker-internal host alias with localhost so that addresses
-    /// advertised by a containerised game server are reachable from the Windows host.
-    /// </summary>
     /// <summary>Returns only the first non-empty line of a (possibly multi-line) message.</summary>
     private static string FirstLine(string message) =>
         message.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
                .FirstOrDefault()
                ?.Trim() ?? message;
 
+    /// <summary>
+    /// Replaces the Docker-internal host alias with localhost so that addresses
+    /// advertised by a containerised game server are reachable from the Windows host.
+    /// </summary>
     private static string ResolveDockerHost(string address) =>
         address.Replace("host.docker.internal", "localhost", StringComparison.OrdinalIgnoreCase);
 

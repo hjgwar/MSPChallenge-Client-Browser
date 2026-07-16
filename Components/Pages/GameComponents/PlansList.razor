@@ -1,0 +1,84 @@
+﻿@using MSPChallenge_Client_Browser.Utils.PlanCalculations
+@inherits GameComponentBase
+<div class="plans-panel" id="plans-panel-float">
+    <div class="plans-panel-header plans-panel-drag-handle">
+        <span class="plans-panel-title">Plans</span>
+        <button class="panel-close-btn" title="Close" @onclick="@(() => SetPlansPanelOpen(false))">&#10005;</button>
+    </div>
+    <div class="plans-panel-content">
+    @{
+        var _visiblePlans = GameSessionService.Plans
+            .Where(p => UserSessionService.IsAdmin || p.StartDate != -1)
+            .Where(p => UserSessionService.IsAdmin || p.State != PlanState.DESIGN || p.Country == UserSessionService.User.Country.Id)
+            .GroupBy(p => p.State)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+    @if (!UserSessionService.IsAdmin && GameSessionService.Plans.Count == 0)
+    {
+        <div class="plans-status">Waiting for game data…</div>
+    }
+    @foreach (PlanState state in (PlanState[])Enum.GetValues(typeof(PlanState)))
+    {
+        var _statePlans = _visiblePlans.GetValueOrDefault(state, []);
+        <details class="plan-group" open>
+            <summary class="plan-group-header">
+                @PlanStates.PlanStateLabel(state)
+                <span class="plan-group-count">@_statePlans.Count</span>
+            </summary>
+            @if (_statePlans.Count == 0)
+            {
+                <div class="plans-empty-state">No plans in this state</div>
+            }
+            else
+            {
+                @foreach (var plan in _statePlans)
+                {
+                    var _planDotColour = (plan.Country == 1 || plan.Country == 2)
+                        ? "#ff69b4"
+                        : _countryColours.GetValueOrDefault(plan.Country, "#6c757d");
+                    <div class="plan-row @((GameUIStateService.SelectedPlanId == plan.PlanId) ? "plan-row--selected" : "")"
+                        @onclick="@(() => SelectPlanAsync(plan))">
+                        @if (plan.LockedByUserId != 0)
+                        {
+                            @if (UserSessionService.IsAdmin)
+                            {
+                                <button class="plan-lock-icon plan-lock-icon--admin" style="color:@_planDotColour;"
+                                        title="Force unlock this plan"
+                                        @onclick:stopPropagation="true"
+                                        @onclick="@(async () => await ForceUnlockPlanAsync(plan.PlanId))">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                                    </svg>
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="plan-lock-icon" style="color:@_planDotColour;" title="Plan locked for editing">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                                    </svg>
+                                </span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="plan-row-indicator"><span class="user-dot" style="background:@_planDotColour;" title="@(_countryNames.GetValueOrDefault(plan.Country, $"Country {plan.Country}"))"></span></span>
+                        }
+                        <span class="plan-name">@plan.Name</span>
+                        @if (_planIssueSeverity.TryGetValue(plan.PlanId, out var _planBadgeSev))
+                        {
+                            <span class="plan-issue-badge plan-issue-badge--@_planBadgeSev.ToLowerInvariant()"
+                                title="Has @_planBadgeSev.ToLowerInvariant() issues">
+                                <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="plan-issue-badge-icon">
+                                    <path d="M8 1.5L1 14h14L8 1.5zm0 2.2l5.5 9.3H2.5L8 3.7zM7.25 7v3.5h1.5V7H7.25zm0 4.5v1.5h1.5v-1.5H7.25z"/>
+                                </svg>
+                            </span>
+                        }
+                        <span class="plan-date">@GameSessionService.MonthToDate(plan.StartDate)</span>
+                    </div>
+                }
+            }
+        </details>
+    }
+    </div>
+</div>

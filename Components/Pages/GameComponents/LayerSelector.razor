@@ -1,0 +1,41 @@
+﻿@inherits GameComponentBase
+
+<div class="layer-panel">
+    <div class="layer-panel-title">
+        <span style="flex:1">Layers</span>
+        <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
+    </div>
+    <div class="layer-panel-content">
+    <input class="layer-search" type="search" placeholder="Search layers…" @bind="_layerSearch" @bind:event="oninput" />
+    @foreach (IGrouping<string, Layer> cat in GameSessionService.LayerEntries
+        .Where(e => !e.IsBaseLayer && e.IsToggleable &&
+            (string.IsNullOrWhiteSpace(_layerSearch) ||
+                e.DisplayName.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase) ||
+                e.Category.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase) ||
+                e.Subcategory.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase)))
+        .GroupBy(e => e.Category)
+        .OrderBy(g => g.Key))
+    {
+        <details class="layer-cat" open>
+            <summary class="layer-cat-header">@Utils.ConversionUtils.TitleCase(cat.Key)</summary>
+            @foreach (var sub in cat.GroupBy(e => e.Subcategory).OrderBy(g => g.Key))
+            {
+                <details class="layer-sub" open>
+                    <summary class="layer-sub-header">@Utils.ConversionUtils.TitleCase(sub.Key)</summary>
+                    @foreach (var entry in sub)
+                    {
+                        <label class="layer-panel-row">
+                            <input type="checkbox" checked="@entry.Visible" @onchange="@(async e => await ToggleLayerAsync(entry, (bool)e.Value!))" />
+                            <span class="layer-panel-name" title="@entry.Tooltip">@entry.DisplayName</span>
+                            @if (entry.MediaUrl is not null)
+                            {
+                                <a class="info-icon-link" href="@entry.MediaUrl" target="_blank" rel="noopener noreferrer" title="Open wiki page">ⓘ</a>
+                            }
+                        </label>
+                    }
+                </details>
+            }
+        </details>
+    }
+    </div>
+</div>

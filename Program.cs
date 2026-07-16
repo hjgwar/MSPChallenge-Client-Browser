@@ -18,10 +18,11 @@ else
 {
     builder.Services.AddHttpClient();
 }
-builder.Services.AddScoped<SessionState>();
+builder.Services.AddScoped<UserSessionService>();
 builder.Services.AddScoped<MspApiClient>();
-builder.Services.AddScoped<GameWebSocketService>();
-builder.Services.AddScoped<GameSessionState>();
+builder.Services.AddScoped<WebSocketService>();
+builder.Services.AddScoped<GameUIStateService>();
+builder.Services.AddScoped<GameSessionService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {

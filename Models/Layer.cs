@@ -1,6 +1,6 @@
 namespace MSPChallenge_Client_Browser.Models;
 
-public sealed class LayerEntry
+public sealed class Layer
 {
     public string LayerId     { get; init; } = "";
     public string LayerName   { get; init; } = "";
@@ -9,9 +9,9 @@ public sealed class LayerEntry
     public string Subcategory { get; init; } = "";
     public string Tooltip     { get; init; } = "";
     public string? MediaUrl   { get; init; }
-    public bool   IsBaseLayer  { get; init; }
-    public bool   IsToggleable { get; init; }
-    public bool   Visible     { get; set; }
+    public bool   IsBaseLayer   { get; init; }
+    public bool   IsToggleable  { get; init; }
+    public bool   Visible        { get; set; }
     public int    Depth       { get; init; }
     public IReadOnlyList<TypeDef> TypeDefs { get; init; } = [];
     public IReadOnlyDictionary<string, string> PropertyDisplayNames { get; init; } = new Dictionary<string, string>();
@@ -35,3 +35,6 @@ public sealed class LayerEntry
 
     public bool IsMultiType => EditingType.Equals("multitype", StringComparison.OrdinalIgnoreCase);
 }
+
+public sealed record TypeDef(string Label, string Color, string? MediaUrl = null, string Approval = "NotDependent");
+

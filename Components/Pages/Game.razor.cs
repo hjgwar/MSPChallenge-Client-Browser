@@ -1,8 +1,9 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
-using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
 
@@ -10,22 +11,28 @@ namespace MSPChallenge_Client_Browser.Components.Pages;
 
 public partial class Game : IAsyncDisposable
 {
+    [Inject] NavigationManager NavigationManager { get; set; } = null!;
+    [Inject] IJSRuntime JS { get; set; } = null!;
+    [Inject] IHostEnvironment HostEnvironment { get; set; } = null!;
+    [Inject] UserSessionService SessionState { get; set; } = null!;
+    [Inject] MspApiClient ApiClient { get; set; } = null!;
+    [Inject] WebSocketService WsService { get; set; } = null!;
+    [Inject] GameSessionService GameSessionService { get; set; } = null!;
+    [Inject] GameUIStateService GameUIStateService { get; set; } = null!;
+
+    public SideBarPanelControl SideBarPanelController { get; set; } = null!;
+    public GameTimeView GameTimeViewer { get; set; } = null!;
+    public MapViewPort Map { get; set; } = null!;
+    public PlanDetails PlanDetailsPanel { get; set; } = null!;
+    public PlanCreation PlanCreationPanel { get; set; } = null!;
     // Returns the selected plan or a new unsaved plan for edit mode
     private IJSObjectReference? _mapModule;
     private DotNetObjectReference<Game>? _dotNetRef;
 
     // ── Aliases to shared session state ──────────────────────────────────────
-    private IReadOnlyList<PlanEntry>    _plans          => GameState.Plans;
-    private List<LayerEntry>            _layerEntries   => GameState.LayerEntries;
-    private Dictionary<int, string>     _countryColours => GameState.CountryColours;
-    private Dictionary<int, string>     _countryNames   => GameState.CountryNames;
-    private int    _gameStartYear    => GameState.GameStartYear;
-    private int    _gameCurrentMonth => GameState.GameCurrentMonth;
-    private int    _gameEndMonth     => GameState.GameEndMonth;
-    private int    _gameEndYear      => GameState.GameEndYear;
-    private int    _gameEraTotalMonths => GameState.GameEraTotalMonths;
-    private double _eraTimeLeft      => GameState.EraTimeLeft;
-    private bool   IsAdmin           => SessionState.CountryId == 1 || SessionState.CountryId == 2;
+    private IReadOnlyList<Plan>       _plans        => GameSessionService.Plans;
+    private List<Layer>               _layerEntries => GameSessionService.LayerEntries;
+    private bool   IsAdmin           => SessionState.User.Country.Id == 1 || SessionState.User.Country.Id == 2;
 
     // ── Loading & UI state ────────────────────────────────────────────────────
     private bool    _isLoading     = true;
@@ -34,12 +41,6 @@ public partial class Game : IAsyncDisposable
     private string? errorMessage;
     private string? errorDetail;
 
-    // ── Panel open/close state ────────────────────────────────────────────────
-    private bool _layerPanelOpen  = false;
-    private bool _legendPanelOpen = false;
-    private bool _usersPanelOpen  = false;
-    private bool _timeManagerVisible = false;
-
     // ── Feature popup ─────────────────────────────────────────────────────────
     private bool                   _popupVisible;
     private double                 _popupX;
@@ -47,48 +48,99 @@ public partial class Game : IAsyncDisposable
     private string?                _popupLayerName;
     private List<(string, string)> _popupProps = [];
 
-    // ── Legend order ──────────────────────────────────────────────────────────
-    private List<LayerEntry> _legendOrder = [];
+    private void ClosePopup()
+    {
+        _popupVisible = false;
+        StateHasChanged();
+    }
 
-    // ── Users ─────────────────────────────────────────────────────────────────
-    private List<UserEntry> _users        = [];
-    private bool            _usersLoading;
-    private string?         _usersError;
+    private void OpenEditModeFromCreation(PlanCreation creation)
+    {
+        // Seed the pending values into GameSessionService so PlanDetails can read them
+        // when it mounts. Setting EditMode=true and SelectedPlanId=0 here causes Blazor
+        // to render PlanDetails on the next cycle; StartNewPlanEdit is then called on the
+        // already-mounted instance via the NotifyChanged callback that PlanDetails subscribes to.
+        GameUIStateService.CreatePlanOpen = false;
+        GameUIStateService.SelectedPlanId = 0;
+        GameUIStateService.EditMode = true;
+        // Store the creation-form values so PlanDetails.OnStateChanged can pick them up.
+        GameUIStateService.PendingNewPlanName        = creation._createPlanName ?? string.Empty;
+        GameUIStateService.PendingNewPlanDescription = creation._createPlanDescription ?? string.Empty;
+        GameUIStateService.PendingNewPlanStartYear   = creation._createPlanStartYear;
+        GameUIStateService.PendingNewPlanStartMonth  = creation._createPlanStartMonth;
+        GameSessionService.NotifyChanged();
+    }
+
+    private async Task EnsureRestrictionLayersVisibleAsync(string? sourceDisplayName, string? targetDisplayName)
+    {
+        if (Map is null) return;
+        
+        bool changed = false;
+        foreach (string? name in new[] { sourceDisplayName, targetDisplayName })
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var le = _layerEntries.FirstOrDefault(e =>
+                string.Equals(e.DisplayName, name, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(e.LayerName, name, StringComparison.OrdinalIgnoreCase));
+            if (le is null || le.Visible) continue;
+            await Map.ToggleLayerAsync(le, true);
+            changed = true;
+        }
+        if (changed) StateHasChanged();
+    }
 
     // ── WebSocket log ─────────────────────────────────────────────────────────
     private const int WsLogMaxEntries = 100;
     private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = [];
     private bool _wsLogVisible;
-    private bool _wsCopied;
+
+    private void CloseWsLog()
+    {
+        _wsLogVisible = false;
+        StateHasChanged();
+    }
+
+    private void ClearWsLog()
+    {
+        lock (_wsLog)
+        {
+            _wsLog.Clear();
+        }
+        StateHasChanged();
+    }
+
+    protected override void OnInitialized()
+    {
+        GameSessionService.Changed += OnGameSessionServiceChanged;
+    }
+
+    private void OnGameSessionServiceChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
-        {
-            if (_scrollPlanMessagesPending && _mapModule is not null)
-            {
-                _scrollPlanMessagesPending = false;
-                await _mapModule.InvokeVoidAsync("scrollElementToBottom", ".plan-message-panel-body");
-            }
             return;
-        }
 
         // Capture cold-start status before async work so warm returns can skip map refit.
         var isColdStart = _isLoading;
 
-        _mapModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
+        Map.MapJSModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
+        _mapModule = Map.MapJSModule;
 
         // Default view centred on North Sea – will be replaced once _PLAYAREA bounds are known
         await _mapModule.InvokeVoidAsync("initMap", "map", 54.5, 3.5, 6);
 
         // On warm return, restore saved camera immediately for instant visual feedback.
-        if (!isColdStart && GameState.HasSavedMapView)
+        if (!isColdStart && GameUIStateService.HasSavedMapView)
         {
             await _mapModule.InvokeVoidAsync(
                 "setView",
-                GameState.MapLat!.Value,
-                GameState.MapLng!.Value,
-                GameState.MapZoom!.Value,
+                GameUIStateService.MapLat!.Value,
+                GameUIStateService.MapLng!.Value,
+                GameUIStateService.MapZoom!.Value,
                 false);
         }
 
@@ -120,54 +172,11 @@ public partial class Game : IAsyncDisposable
         StateHasChanged();
     }
 
-    private async Task LoadUsersAsync()
-    {
-        _usersLoading = true;
-        _usersError = null;
-        StateHasChanged();
-        try
-        {
-            var baseAddress = SessionState.GameServerAddress.TrimEnd('/');
-            var url = $"{baseAddress}/{SessionState.SessionId}/api/User/List";
-            bool isAdmin = SessionState.CountryId == 1 || SessionState.CountryId == 2;
-            JsonElement root = isAdmin
-                ? await ApiClient.GetAsync(url)
-                : await ApiClient.PostFormAsync(url, new[] { new KeyValuePair<string, string>("country_id", SessionState.CountryId.ToString()) });
-            var payload = root.TryGetProperty("payload", out var p) ? p : root;
-            var list = new List<UserEntry>();
-            if (payload.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var u in payload.EnumerateArray())
-                {
-                    var name = u.TryGetProperty("user_name",       out var n) ? n.GetString() ?? "" : "";
-                    var cid  = u.TryGetProperty("user_country_id", out var c)
-                        ? (c.ValueKind == JsonValueKind.Number ? c.GetInt32()
-                           : int.TryParse(c.GetString(), out var parsed) ? parsed : 0)
-                        : 0;
-                    var col  = _countryColours.GetValueOrDefault(cid, "#6c757d");
-                    list.Add(new UserEntry(name, cid, col));
-                }
-            }
-            _users = isAdmin
-                ? list.OrderBy(u => u.CountryId).ThenBy(u => u.Name).ToList()
-                : list.OrderBy(u => u.Name).ToList();
-        }
-        catch (Exception ex)
-        {
-            _usersError = ex.Message;
-        }
-        finally
-        {
-            _usersLoading = false;
-            StateHasChanged();
-        }
-    }
-
     private async Task LoadGameDataAsync()
     {
         try
         {
-            await GameState.EnsureInitializedAsync(
+            await GameSessionService.EnsureInitializedAsync(
                 ApiClient,
                 SessionState,
                 async status =>
@@ -193,19 +202,16 @@ public partial class Game : IAsyncDisposable
     {
         if (_mapModule is null) return;
 
-        // Page instance state resets on navigation; rebuild from cached session state.
-        _legendOrder.Clear();
-
         // Always materialize the base layer first (needed for fitToPlayArea and z-index reference).
         var baseLayer = _layerEntries.FirstOrDefault(e => e.IsBaseLayer);
         if (baseLayer is not null)
         {
-            var baseSnapshot = GameState.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == baseLayer.LayerId);
+            var baseSnapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == baseLayer.LayerId);
             if (baseSnapshot is not null)
                 await EnsureLayerRenderedAsync(baseLayer.LayerId, visible: true);
         }
 
-        foreach (var snapshot in GameState.MapLayerSnapshots)
+        foreach (var snapshot in GameSessionService.MapLayerSnapshots)
         {
             var entry = _layerEntries.FirstOrDefault(e => e.LayerId == snapshot.LayerId);
             if (entry?.IsBaseLayer == true) continue;  // Already materialized above.
@@ -218,26 +224,10 @@ public partial class Game : IAsyncDisposable
             await EnsureLayerRenderedAsync(snapshot.LayerId, visible: true);
         }
 
-        var byId = _layerEntries
-            .Where(e => e.Visible && !e.IsBaseLayer)
-            .ToDictionary(e => e.LayerId, StringComparer.Ordinal);
-
-        foreach (var id in GameState.LegendOrderLayerIds)
+        if (Map is not null)
         {
-            if (byId.TryGetValue(id, out var le))
-            {
-                _legendOrder.Add(le);
-                byId.Remove(id);
-            }
+            await Map.SyncZIndicesAsync();
         }
-
-        // If order is empty/stale, append remaining visible non-base layers by depth.
-        foreach (var le in byId.Values.OrderBy(e => e.Depth))
-            _legendOrder.Add(le);
-
-        PersistLegendOrderToState();
-
-        await SyncZIndicesAsync();
 
         if (fitToPlayArea && baseLayer is not null)
         {
@@ -249,7 +239,7 @@ public partial class Game : IAsyncDisposable
     {
         if (_mapModule is null) return;
 
-        var snapshot = GameState.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
+        var snapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
         if (snapshot is null) return;
 
         var entry = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
@@ -284,149 +274,19 @@ public partial class Game : IAsyncDisposable
         }
     }
 
-    private async Task ToggleLayerAsync(LayerEntry entry, bool visible)
-    {
-        entry.Visible = visible;
-
-        if (visible)
-        {
-            // Hidden layers are not materialized on warm return until user enables them.
-            await EnsureLayerRenderedAsync(entry.LayerId, visible: true);
-
-            // If a plan is currently selected, immediately project prior-plan changes onto
-            // this layer so the user sees the correct world state without re-selecting the plan.
-            if (_selectedPlanId != 0)
-            {
-                var viewedPlan = _plans.FirstOrDefault(p => p.PlanId == _selectedPlanId);
-                if (viewedPlan is not null)
-                    await ApplyPlanProjectionAsync(viewedPlan.StartDate, entry.LayerId, currentPlan: viewedPlan);
-            }
-        }
-        else if (_mapModule is not null)
-        {
-            await _mapModule.InvokeVoidAsync("setLayerVisible", entry.LayerId, false);
-        }
-
-        if (visible && !entry.IsBaseLayer && !_legendOrder.Contains(entry))
-            _legendOrder.Add(entry);
-        else if (!visible)
-            _legendOrder.Remove(entry);
-
-        PersistLegendOrderToState();
-
-        await SyncZIndicesAsync();
-    }
-
-    private void SetLayerPanelOpen(bool open)
-    {
-        _layerPanelOpen = open;
-        GameState.LayerPanelOpen = open;
-    }
-
-    private void SetLegendPanelOpen(bool open)
-    {
-        _legendPanelOpen = open;
-        GameState.LegendPanelOpen = open;
-    }
-
-    private async Task SetUsersPanelOpenAsync(bool open)
-    {
-        _usersPanelOpen = open;
-        GameState.UsersPanelOpen = open;
-        if (open)
-            await LoadUsersAsync();
-    }
-
-    private async Task ToggleUsersPanelAsync()
-    {
-        await SetUsersPanelOpenAsync(!_usersPanelOpen);
-    }
-
-    private void ToggleLayerPanel()
-    {
-        SetLayerPanelOpen(!_layerPanelOpen);
-    }
-
-    private void ToggleLegendPanel()
-    {
-        SetLegendPanelOpen(!_legendPanelOpen);
-    }
+    // ── Legend reorder (called from JS via _dotNetRef) ────────────────────────
 
     [JSInvokable]
     public async Task ReorderLegend(int from, int to)
     {
-        if (from == to || from < 0 || to < 0 || from >= _legendOrder.Count || to >= _legendOrder.Count) return;
-        var item = _legendOrder[from];
-        _legendOrder.RemoveAt(from);
-        _legendOrder.Insert(to, item);
-        PersistLegendOrderToState();
-        await SyncZIndicesAsync();
-        StateHasChanged();
-    }
-
-    private void PersistLegendOrderToState()
-    {
-        GameState.SetLegendOrder(_legendOrder.Select(e => e.LayerId));
-    }
-
-    /// <summary>Assigns z-indices so that _legendOrder[0] = bottom, last = top.</summary>
-    private async Task SyncZIndicesAsync()
-    {
-        if (_mapModule is null) return;
-        for (int i = 0; i < _legendOrder.Count; i++)
-            await _mapModule.InvokeVoidAsync("setLayerZIndex", _legendOrder[i].LayerId, i + 1);
-    }
-
-    /// <summary>Inline style for the users sidebar button: tinted with the country colour.</summary>
-    private static string CountryBtnStyle(string hex, bool active)
-    {
-        if (string.IsNullOrEmpty(hex) || !hex.StartsWith('#')) return "";
-        var h = hex.TrimStart('#');
-        if (h.Length < 6) return "";
-        int r = Convert.ToInt32(h[..2], 16);
-        int g = Convert.ToInt32(h[2..4], 16);
-        int b = Convert.ToInt32(h[4..6], 16);
-        double a = active ? 0.40 : 0.20;
-        return $"background:rgba({r},{g},{b},{a:F2});color:#fff;";
-    }
-
-    private static string HexToCss(string hex)
-    {
-        if (string.IsNullOrEmpty(hex) || !hex.StartsWith('#')) return hex;
-        var h = hex.TrimStart('#');
-        if (h.Length == 6) return $"rgba({Convert.ToInt32(h[..2], 16)},{Convert.ToInt32(h[2..4], 16)},{Convert.ToInt32(h[4..6], 16)},1)";
-        if (h.Length == 8) return $"rgba({Convert.ToInt32(h[..2], 16)},{Convert.ToInt32(h[2..4], 16)},{Convert.ToInt32(h[4..6], 16)},{Convert.ToInt32(h[6..8], 16) / 255.0:F3})";
-        return hex;
-    }
-
-    private static string TitleCase(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return value;
-        var s = Regex.Replace(value, "[_\\-]+", " ");
-        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant());
-    }
-
-    private async Task FocusPlanIssueAsync(PlanRestrictionIssue issue)
-    {
-        if (_mapModule is null) return;
-        await EnsureRestrictionLayersVisibleAsync(issue.SourceLayer, issue.TargetLayer);
-        await _mapModule.InvokeVoidAsync("focusOnCoordinate", issue.MarkerX, issue.MarkerY);
-    }
-
-    private async Task EnsureRestrictionLayersVisibleAsync(string? sourceDisplayName, string? targetDisplayName)
-    {
-        var changed = false;
-        foreach (var name in new[] { sourceDisplayName, targetDisplayName })
-        {
-            if (string.IsNullOrWhiteSpace(name)) continue;
-            var le = _layerEntries.FirstOrDefault(e =>
-                string.Equals(e.DisplayName, name, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(e.LayerName,   name, StringComparison.OrdinalIgnoreCase));
-            if (le is null || le.Visible) continue;
-            await ToggleLayerAsync(le, true);
-            changed = true;
-        }
-        if (changed) StateHasChanged();
+        if (from == to || from < 0 || to < 0
+            || from >= GameUIStateService.LegendOrderLayerIds.Count
+            || to   >= GameUIStateService.LegendOrderLayerIds.Count) return;
+        var item = GameUIStateService.LegendOrderLayerIds[from];
+        GameUIStateService.LegendOrderLayerIds.RemoveAt(from);
+        GameUIStateService.LegendOrderLayerIds.Insert(to, item);
+        await Map.SyncZIndicesAsync();
+        GameSessionService.NotifyChanged();
     }
 
     // ── Map Click Handler ──────────────────────────────────────────────────────
@@ -434,7 +294,6 @@ public partial class Game : IAsyncDisposable
     [JSInvokable]
     public void OnMapClick(string json)
     {
-        if (_geometryToolLayerId is not null) return; // suppress feature popup while geometry tool is active
         try
         {
             using var doc = JsonDocument.Parse(json);
@@ -561,116 +420,15 @@ public partial class Game : IAsyncDisposable
                 _wsLog.RemoveAt(_wsLog.Count - 1);
         }
 
-        // Data parsing is handled by GameSessionState which also subscribes to MessageReceived.
-        if (msg.HeaderName == "Game/Latest" && _planMessagesOpen && _selectedPlanId != 0)
-            _scrollPlanMessagesPending = true;
-
-        if (msg.HeaderName == "Game/Latest" && _editWsConfirmationTcs is { } confirmTcs)
-            confirmTcs.TrySetResult(true);
-
-        // Handle Batch/ExecuteBatch response to get new plan ID
-        if (msg.HeaderName == "Batch/ExecuteBatch" && !string.IsNullOrEmpty(_pendingBatchGuid))
-        {
-            try
-            {
-                // Parse raw JSON to get header_data.batch_guid (not in Payload)
-                using var doc = System.Text.Json.JsonDocument.Parse(msg.RawJson);
-                var root = doc.RootElement;
-                
-                string? batchGuid = null;
-                if (root.TryGetProperty("header_data", out var headerData) &&
-                    headerData.TryGetProperty("batch_guid", out var guidProp))
-                {
-                    batchGuid = guidProp.GetString();
-                }
-
-                if (batchGuid == _pendingBatchGuid && msg.Payload.TryGetProperty("results", out var results))
-                {
-                    foreach (var result in results.EnumerateArray())
-                    {
-                        if (result.TryGetProperty("call_id", out var callIdProp) &&
-                            callIdProp.GetInt32() == _pendingCreatePlanCallId &&
-                            result.TryGetProperty("payload", out var payloadProp))
-                        {
-                            var planIdStr = payloadProp.GetString();
-                            if (int.TryParse(planIdStr, out var newPlanId))
-                            {
-                                _pendingSelectPlanId = newPlanId;
-                                _pendingBatchGuid = null;
-                                _pendingCreatePlanCallId = 0;
-                                if (HostEnvironment.IsDevelopment())
-                                    Console.WriteLine($"[OnWsMessageReceived] New plan ID from batch: {newPlanId}");
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                if (HostEnvironment.IsDevelopment())
-                    Console.WriteLine($"[OnWsMessageReceived] Error parsing Batch/ExecuteBatch: {ex.Message}");
-            }
-        }
-
-        if (_pendingSelectPlanId != 0)
-        {
-            var newPlan = _plans.FirstOrDefault(p => p.PlanId == _pendingSelectPlanId);
-            if (newPlan is not null)
-            {
-                _pendingSelectPlanId  = 0;
-                var enterEdit = _pendingEnterEditMode;
-                _pendingEnterEditMode = false;
-                _ = InvokeAsync(async () =>
-                {
-                    await SelectPlanAsync(newPlan);
-                    if (enterEdit) await EnterEditModeAsync();
-                });
-                return;
-            }
-        }
+        // Data parsing is handled by GameSessionService which also subscribes to MessageReceived.
+        // Plan selection after batch creation is handled by PlanDetailsSave component.
 
         InvokeAsync(StateHasChanged);
     }
 
-    // ── Time Manager ──────────────────────────────────────────────────────────
-    private void OnGameBarStateClick()
-    {
-        if (IsAdmin)
-            _timeManagerVisible = true;
-    }
-
-    private void OnCloseTimeManager()
-    {
-        _timeManagerVisible = false;
-    }
-
-    private async Task OnSetGameStateAsync(string state)
-    {
-        try
-        {
-            await ApiClient.SetGameStateAsync(SessionState.GameServerAddress, SessionState.SessionId, state);
-            // State will be updated via WebSocket, no need to manually update here
-        }
-        catch (Exception ex)
-        {
-            // Log error or show notification
-            Console.WriteLine($"Failed to set game state: {ex.Message}");
-        }
-    }
-
-    private async Task CopyWsMessageAsync(string raw)
-    {
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", raw);
-        _wsCopied = true;
-        StateHasChanged();
-        await Task.Delay(1500);
-        _wsCopied = false;
-        StateHasChanged();
-    }
-
     public async ValueTask DisposeAsync()
     {
+        GameSessionService.Changed -= OnGameSessionServiceChanged;
         WsService.MessageReceived -= OnWsMessageReceived;
         // GameWebSocketService lifetime is managed by DI (circuit scope); do not dispose here.
         if (_mapModule is not null)
@@ -680,12 +438,14 @@ public partial class Game : IAsyncDisposable
                 var viewState = await _mapModule.InvokeAsync<JsonElement>("getViewState");
                 if (viewState.ValueKind == JsonValueKind.Object)
                 {
-                    var lat = GetDouble(viewState, "lat");
-                    var lng = GetDouble(viewState, "lng");
-                    var zoom = GetDouble(viewState, "zoom");
-
+                    var lat = viewState.TryGetProperty("lat", out var latValue) && latValue.ValueKind == JsonValueKind.Number
+                        ? latValue.GetDouble() : double.NaN;
+                    var lng = viewState.TryGetProperty("lng", out var lngValue) && lngValue.ValueKind == JsonValueKind.Number
+                        ? lngValue.GetDouble() : double.NaN;
+                    var zoom = viewState.TryGetProperty("zoom", out var zoomValue) && zoomValue.ValueKind == JsonValueKind.Number
+                        ? zoomValue.GetDouble() : double.NaN;
                     if (!double.IsNaN(lat) && !double.IsNaN(lng) && !double.IsNaN(zoom))
-                        GameState.SaveMapView(lat, lng, zoom);
+                        GameUIStateService.SaveMapView(lat, lng, zoom);
                 }
 
                 await _mapModule.InvokeVoidAsync("unregisterClickHandler");
@@ -694,12 +454,5 @@ public partial class Game : IAsyncDisposable
             catch { }
         }
         _dotNetRef?.Dispose();
-    }
-
-    private static double GetDouble(JsonElement element, string propertyName)
-    {
-        return element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Number
-            ? value.GetDouble()
-            : double.NaN;
     }
 }

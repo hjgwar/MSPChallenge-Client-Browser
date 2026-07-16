@@ -1,0 +1,24 @@
+<div class="ws-console">
+    <div class="ws-console-header">
+        <span class="ws-console-title">WebSocket Log</span>
+        <span class="ws-console-count">@LogEntries.Count msg@(LogEntries.Count == 1 ? "" : "s")</span>
+        <button class="ws-console-clear" @onclick="ClearAsync">Clear</button>
+        @if (_wsCopied)
+        {
+            <span class="ws-copy-confirm">Copied!</span>
+        }
+        <button class="ws-console-clear" @onclick="CloseAsync" title="Hide">&#10005;</button>
+    </div>
+    <div class="ws-console-body">
+        @foreach (var entry in LogEntries)
+        {
+            <div class="ws-log-row"
+                    title="Click to copy full message"
+                    @onclick="@(async () => await CopyWsMessageAsync(entry.Raw))">
+                <span class="ws-log-time">@entry.ReceivedAt.ToString("HH:mm:ss.fff")</span>
+                <span class="ws-log-header">@entry.HeaderName</span>
+                <span class="ws-log-raw">@entry.Raw</span>
+            </div>
+        }
+    </div>
+</div>
