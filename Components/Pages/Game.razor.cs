@@ -313,7 +313,7 @@ public partial class Game : IAsyncDisposable
 
             _popupX = root.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number ? cx.GetDouble() : 0;
             _popupY = root.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number ? cy.GetDouble() : 0;
-            _popupLayerName = entry?.DisplayName ?? resolvedLayerId;
+            _popupLayerName = entry?.DisplayName ?? "Planned geometry";
             _popupProps.Clear();
 
             if (root.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object)
