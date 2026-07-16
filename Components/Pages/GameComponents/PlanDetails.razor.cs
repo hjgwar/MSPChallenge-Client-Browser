@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BlazorBootstrap;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
@@ -10,7 +11,6 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 public partial class PlanDetails : GameComponentBase, IDisposable
 {
     [Parameter] public MapViewPort? Map { get; set; }
-    
     public PlanNameDesc PlanNameDescInstance { get; set; } = null!;
     public PlanStartDate PlanStartDateInstance { get; set; } = null!;
     public PlanComponents.PlanState PlanStateInstance { get; set; } = null!;
@@ -20,6 +20,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     public PlanMessages PlanMessagesInstance { get; set; } = null!;
     public PlanIssues PlanIssuesInstance { get; set; } = null!;
     public PlanDetailsSave PlanDetailsSaveInstance { get; set; } = null!;
+    private ConfirmDialog cancelDialog = null!;
 
     /// <summary>
     /// Closes all sub-panels. Wired to OnSubPanelOpening on every child component that
@@ -283,6 +284,11 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
     private async Task CancelEditAsync()
     {
+        var confirmation = await cancelDialog.ShowAsync(
+            title: "Are you sure you want to cancel editing this plan?",
+            message1: "This will undo any edits you made to the plan, and unlock it again.",
+            message2: "Do you want to proceed?");
+        if (!confirmation) return;
         GameUIStateService.ToggleEditMode();
         _editSaving = true;
         StateHasChanged();
@@ -292,7 +298,6 @@ public partial class PlanDetails : GameComponentBase, IDisposable
                 new[]
                 {
                     new KeyValuePair<string, string>("id", GameUIStateService.SelectedPlanId.ToString()!),
-                    new KeyValuePair<string, string>("force_unlock", "0"),
                     new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
                 });
         }

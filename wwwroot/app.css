@@ -3,6 +3,10 @@ html, body {
     font-size: 13px;
 }
 
+.toast-container {
+    z-index: 3000;
+}
+
 .map-viewport {
     position: fixed;
     left: 0;

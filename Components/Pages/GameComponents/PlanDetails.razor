@@ -1,6 +1,6 @@
 @inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents
-
+<ConfirmDialog @ref="cancelDialog" />
 <div class="panel plan-detail-panel">
     <div class="panel-title plan-detail-panel-title">
         <span style="flex: 1">@(GameUIStateService.EditMode ? "Edit Plan" : "Active Plan")</span>
