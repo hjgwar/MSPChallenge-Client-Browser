@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
@@ -16,7 +16,7 @@ public partial class PlanState : GameComponentBase
     private bool CanChangeState()
     {
         if (Plan is null || Plan.PlanId == 0) return false;
-        if (GameSessionState.EditMode) return false;
+        if (GameUIStateService.EditMode) return false;
         return !Plan.State.Equals(Models.PlanState.APPROVED)
             && (UserSessionService.IsAdmin || Plan.Country == UserSessionService.User.Country.Id);
     }
@@ -42,7 +42,7 @@ public partial class PlanState : GameComponentBase
     
     private async Task SetPlanStateAsync()
     {
-        if (_planStateSending || _planStatePending is null || GameSessionState.SelectedPlanId == 0 || GameSessionState.SelectedPlanId is null)
+        if (_planStateSending || _planStatePending is null || GameUIStateService.SelectedPlanId == 0 || GameUIStateService.SelectedPlanId is null)
             return;
         if (_planStatePending.Equals(Plan?.State))
         {
@@ -58,7 +58,7 @@ public partial class PlanState : GameComponentBase
             await ApiClient.PostFormAsync("Plan/Lock",
                 new[]
                 {
-                    new KeyValuePair<string, string>("id",   GameSessionState.SelectedPlanId.ToString() ?? "0"),
+                    new KeyValuePair<string, string>("id",   GameUIStateService.SelectedPlanId.ToString() ?? "0"),
                     new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString() ?? "0"),
                 });
 
@@ -71,7 +71,7 @@ public partial class PlanState : GameComponentBase
                     endpoint      = "api/Plan/Unlock",
                     endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
                     {
-                        id           = GameSessionState.SelectedPlanId,
+                        id           = GameUIStateService.SelectedPlanId,
                         force_unlock = 0,
                         user         = UserSessionService.User.Id,
                     }),
@@ -83,7 +83,7 @@ public partial class PlanState : GameComponentBase
                     endpoint      = "api/Plan/Message",
                     endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
                     {
-                        plan      = GameSessionState.SelectedPlanId,
+                        plan      = GameUIStateService.SelectedPlanId,
                         team_id   = UserSessionService.User.Country.Id,
                         user_name = UserSessionService.User.Name,
                         text      = $"Changed the plans status to: {Utils.PlanCalculations.PlanStates.PlanStateLabel(_planStatePending)}",
@@ -96,7 +96,7 @@ public partial class PlanState : GameComponentBase
                     endpoint      = "api/Plan/SetState",
                     endpoint_data = System.Text.Json.JsonSerializer.Serialize(new
                     {
-                        id    = GameSessionState.SelectedPlanId,
+                        id    = GameUIStateService.SelectedPlanId,
                         state = _planStatePending,
                         user  = UserSessionService.User.Id,
                     }),

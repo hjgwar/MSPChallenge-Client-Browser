@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 
@@ -23,7 +23,7 @@ public partial class PlanPanelIssues : GameComponentBase
         foreach (string? name in new[] { sourceDisplayName, targetDisplayName })
         {
             if (string.IsNullOrWhiteSpace(name)) continue;
-            Layer? le = GameSessionState.LayerEntries.FirstOrDefault(e =>
+            Layer? le = GameSessionService.LayerEntries.FirstOrDefault(e =>
                 string.Equals(e.DisplayName, name, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(e.LayerName,   name, StringComparison.OrdinalIgnoreCase));
             if (le is null || le.Visible || Map is null) continue;

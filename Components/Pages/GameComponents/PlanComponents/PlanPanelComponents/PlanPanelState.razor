@@ -1,4 +1,4 @@
-@using MSPChallenge_Client_Browser.Utils.PlanCalculations
+﻿@using MSPChallenge_Client_Browser.Utils.PlanCalculations
 @inherits GameComponentBase
 <div class="plan-message-panel plan-state-panel">
     <div class="plan-message-panel-header">
@@ -19,7 +19,7 @@
             @if (_planStateDropdownOpen)
             {
                 <div class="plan-state-dropdown-list">
-                    @foreach (Models.PlanState availableState in GetAvailablePlanStates(GameSessionState.SelectedPlan))
+                    @foreach (Models.PlanState availableState in GetAvailablePlanStates(GameSessionService.SelectedPlan))
                     {
                         <button class="plan-state-dropdown-item @(availableState == PlanStatePending ? "selected" : "")"
                                 type="button"

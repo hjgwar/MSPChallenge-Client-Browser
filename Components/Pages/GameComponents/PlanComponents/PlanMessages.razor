@@ -1,11 +1,11 @@
-@inherits GameComponentBase
+﻿@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
 @if (_detailPlan is not null)
 {
     <div class="plan-detail-chat-row">
         @if (_planMessagesOpen)
         {
-            <PlanPanelMessages Messages="@GameSessionState.GetPlanMessages(_detailPlan.PlanId)" 
+            <PlanPanelMessages Messages="@GameSessionService.GetPlanMessages(_detailPlan.PlanId)" 
                               OnTogglePanel="@TogglePlanMessagesPanel" />
         }
         <button class="plan-detail-action-row" @onclick="TogglePlanMessagesPanel">

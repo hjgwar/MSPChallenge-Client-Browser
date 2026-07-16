@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
@@ -26,7 +26,7 @@ public partial class PlanStartDate : GameComponentBase
         if (currentPlanId == _lastInitialisedPlanId) return;
         _lastInitialisedPlanId = currentPlanId;
 
-        var baseDate = new DateTime(GameSessionState.GameStartYear, 1, 1);
+        var baseDate = new DateTime(GameSessionService.GameStartYear, 1, 1);
         var monthsToAdd = Plan?.StartDate ?? 0;
 
         // Clamp months to prevent DateTime overflow (valid range: years 1-9999)
@@ -42,13 +42,13 @@ public partial class PlanStartDate : GameComponentBase
         {
             // If still out of range, fall back to game start date
             _editStartMonth = 1;
-            _editStartYear = GameSessionState.GameStartYear;
+            _editStartYear = GameSessionService.GameStartYear;
         }
     }
 
     public int GetStartMonth()
     {
-        return (_editStartYear - GameSessionState.GameStartYear) * 12 + _editStartMonth - 1;
+        return (_editStartYear - GameSessionService.GameStartYear) * 12 + _editStartMonth - 1;
     }
 
     // Called via @bind:after on the month <select> to propagate the new value to PlanDetails.
@@ -58,7 +58,7 @@ public partial class PlanStartDate : GameComponentBase
     private async Task OnYearChangedAsync() => await StartYearChanged.InvokeAsync(_editStartYear);
 
     private DateTime EditEarliestStart =>
-        new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(GameSessionState.GameCurrentMonth + Math.Max(ConstructionTime, 1));
+        new DateTime(GameSessionService.GameStartYear, 1, 1).AddMonths(GameSessionService.GameCurrentMonth + Math.Max(ConstructionTime, 1));
 
     private bool EditStartDateValid =>
         _editStartYear > EditEarliestStart.Year ||

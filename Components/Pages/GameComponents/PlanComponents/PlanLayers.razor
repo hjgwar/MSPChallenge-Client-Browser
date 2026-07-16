@@ -1,24 +1,24 @@
-@inherits GameComponentBase
+﻿@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
 <CascadingValue Value="this">
 <div class="plan-detail-layers-list">
     @{
-        var _displayedLayers = GameSessionState.EditMode
+        var _displayedLayers = GameUIStateService.EditMode
             ? EditPlanLayerIds
-                .Select(id => GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName)
+                .Select(id => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName)
                 .OfType<string>()
                 .OrderBy(n => n)
                 .ToList()
             : _detailLayers;
-        var _editableLayers = GameSessionState.LayerEntries
+        var _editableLayers = GameSessionService.LayerEntries
             .Where(e => e.Editable && !e.IsBaseLayer)
             .ToList();
     }
-    @if (GameSessionState.EditMode)
+    @if (GameUIStateService.EditMode)
     {
-        @foreach (var _editLayerId in EditPlanLayerIds.OrderBy(id => GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName ?? ""))
+        @foreach (var _editLayerId in EditPlanLayerIds.OrderBy(id => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == id)?.DisplayName ?? ""))
         {
-            var _editLayerName  = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == _editLayerId)?.DisplayName ?? _editLayerId;
+            var _editLayerName  = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == _editLayerId)?.DisplayName ?? _editLayerId;
             bool _isGeoActive    = _geometryToolLayerId == _editLayerId;
             <button class="plan-detail-item-row plan-detail-item-row--selectable @(_isGeoActive ? "plan-detail-item-row--active" : "")"
                     type="button" title="Open geometry tool"
@@ -62,7 +62,7 @@
         }
     }
     </div>
-    @if (GameSessionState.EditMode)
+    @if (GameUIStateService.EditMode)
     {
         <div class="plan-detail-layers-row">
             @if (_geometryToolLayerId is not null)

@@ -1,14 +1,14 @@
-@inherits GameComponentBase
+﻿@inherits GameComponentBase
 <div class="legend-panel">
     <div class="legend-panel-title">
         <span style="flex:1">Legend</span>
         <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
     <div class="legend-panel-content">
-    @for (int i = 0; i < GameSessionState.LegendOrderLayerIds.Count; i++)
+    @for (int i = 0; i < GameUIStateService.LegendOrderLayerIds.Count; i++)
     {
-        var layerId = GameSessionState.LegendOrderLayerIds[i];
-        Layer? entry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+        var layerId = GameUIStateService.LegendOrderLayerIds[i];
+        Layer? entry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
         if (entry is null) continue;
         var idx = i; // capture for lambda
         <div class="legend-layer" draggable="true" data-legend-idx="@idx">

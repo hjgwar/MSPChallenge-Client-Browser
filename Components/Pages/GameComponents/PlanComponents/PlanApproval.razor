@@ -1,10 +1,9 @@
-@inherits GameComponentBase
+﻿@inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents
 @using MSPChallenge_Client_Browser.Utils.PlanCalculations
 
-@if (GameSessionState.SelectedPlan is not null 
-     && !PlanStates.IsApprovalCompleteState(GameSessionState.SelectedPlan.State) 
-     && !GameSessionState.EditMode)
+@if (GameSessionService.SelectedPlan is not null 
+     && !PlanStates.IsApprovalCompleteState(GameSessionService.SelectedPlan.State))
 {
 <div class="plan-detail-approval-row">
     @if (_planApprovalOpen)

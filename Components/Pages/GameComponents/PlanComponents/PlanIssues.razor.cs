@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
@@ -64,7 +64,7 @@ public partial class PlanIssues : GameComponentBase, IDisposable
 
     private string GetPlanFingerprint()
     {
-        var plan = GameSessionState.SelectedPlan;
+        var plan = GameSessionService.SelectedPlan;
         if (plan is null) return string.Empty;
         var totalGeometry = plan.Layers.Sum(l => l.Geometry.Count);
         return $"{plan.PlanId}:{plan.StartDate}:{totalGeometry}";
@@ -72,11 +72,11 @@ public partial class PlanIssues : GameComponentBase, IDisposable
 
     protected override void OnInitialized()
     {
-        GameSessionState.Changed += OnStateChanged;
+        GameSessionService.Changed += OnStateChanged;
         _ = CalculatePlanIssues();
     }
 
-    public void Dispose() => GameSessionState.Changed -= OnStateChanged;
+    public void Dispose() => GameSessionService.Changed -= OnStateChanged;
 
     private void OnStateChanged()
     {
@@ -96,14 +96,14 @@ public partial class PlanIssues : GameComponentBase, IDisposable
     {
         _lastIssuePlanFingerprint = GetPlanFingerprint();
 
-        if (GameSessionState.SelectedPlan is null)
+        if (GameSessionService.SelectedPlan is null)
         {
             SelectedPlanIssues = [];
             await SelectedPlanIssuesChanged.InvokeAsync(SelectedPlanIssues);
             return;
         }
 
-        var issues = EvaluatePlanRestrictions(GameSessionState.SelectedPlan);
+        var issues = EvaluatePlanRestrictions(GameSessionService.SelectedPlan);
         SelectedPlanIssues = issues.ToList();
         await SelectedPlanIssuesChanged.InvokeAsync(SelectedPlanIssues);
     }
@@ -117,13 +117,13 @@ public partial class PlanIssues : GameComponentBase, IDisposable
 
         foreach (var planLayer in plan.Layers)
         {
-            Layer? sourceLayer = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
+            Layer? sourceLayer = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
             foreach (var geometry in planLayer.Geometry)
             {
                 var isNewGeometry = string.IsNullOrEmpty(geometry.PersistentId) || geometry.Id == geometry.PersistentId;
                 var geometryIssues = EvaluateRestrictionsForGeometry(
-                    GameSessionState.Restrictions,
-                    GameSessionState.Plans,
+                    GameSessionService.Restrictions,
+                    GameSessionService.Plans,
                     sourceLayer,
                     geometry,
                     isNewGeometry,
@@ -174,7 +174,7 @@ public partial class PlanIssues : GameComponentBase, IDisposable
             if (targetLayer is null || targetLayer.IsRaster)
                 continue;
 
-            var targetGeometries = GameSessionState.GetProjectedLayerGeometries(targetLayer.LayerId, planStartDate);
+            var targetGeometries = GameSessionService.GetProjectedLayerGeometries(targetLayer.LayerId, planStartDate);
             var constraintSort = NormaliseConstraintSort(rule.Sort);
             var sourceMarker = GeometryUtils.GetGeometryCenter(geometry.Coordinates);
             var overlapFound = false;
@@ -245,14 +245,14 @@ public partial class PlanIssues : GameComponentBase, IDisposable
             return null;
 
         var normalizedRule = GenericUtils.NormaliseToken(ruleLayer);
-        var exact = GameSessionState.LayerEntries.FirstOrDefault(layer =>
+        var exact = GameSessionService.LayerEntries.FirstOrDefault(layer =>
             normalizedRule == GenericUtils.NormaliseToken(layer.LayerId)
             || normalizedRule == GenericUtils.NormaliseToken(layer.LayerName)
             || normalizedRule == GenericUtils.NormaliseToken(layer.DisplayName));
         if (exact is not null)
             return exact;
 
-        return GameSessionState.LayerEntries.FirstOrDefault(layer => RuleLayerMatches(ruleLayer, layer));
+        return GameSessionService.LayerEntries.FirstOrDefault(layer => RuleLayerMatches(ruleLayer, layer));
     }
 
     private static bool RuleLayerMatches(string? ruleLayer, Layer layer)

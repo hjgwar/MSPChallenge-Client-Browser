@@ -1,25 +1,51 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Utils;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
 
-public partial class PlanApproval : GameComponentBase
+public partial class PlanApproval : GameComponentBase, IDisposable
 {
     private List<PlanApprovalRequirement> _approvalRequired = [];
     private readonly Dictionary<string, List<ParsedGeometry>> _parsedLayerGeometryCache = [];
+    [Parameter] public EventCallback OnSubPanelOpening { get; set; }
+
     private bool _planApprovalOpen = false;
 
-    /// <summary>Toggle the approval panel open/closed.</summary>
-    public void ToggleApprovalPanel()
+    /// <summary>Closes this sub-panel. Called by PlanDetails when another panel is opened.</summary>
+    public void CloseSubPanel()
     {
+        _planApprovalOpen = false;
+        StateHasChanged();
+    }
+
+    /// <summary>Toggle the approval panel open/closed.</summary>
+    public async Task ToggleApprovalPanel()
+    {
+        if (!_planApprovalOpen)
+            await OnSubPanelOpening.InvokeAsync();
         _planApprovalOpen = !_planApprovalOpen;
         StateHasChanged();
     }
 
     protected override void OnInitialized()
     {
+        GameSessionService.Changed += OnStateChanged;
         CalculateApproval();
+    }
+
+    private void OnStateChanged()
+    {
+        // Recalculate whenever the server sends updated plan data — covers the
+        // initial load as well as updates that arrive after a plan edit is saved.
+        CalculateApproval();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        GameSessionService.Changed -= OnStateChanged;
     }
 
     /// <summary>
@@ -29,7 +55,7 @@ public partial class PlanApproval : GameComponentBase
     /// </summary>
     private void CalculateApproval()
     {
-        if (GameSessionState.SelectedPlan is null) return;
+        if (GameSessionService.SelectedPlan is null) return;
 
         _approvalRequired.Clear();
         var reasons = new Dictionary<int, List<string>>(); // countryId → list of reason strings
@@ -37,7 +63,7 @@ public partial class PlanApproval : GameComponentBase
 
         void AddReason(int countryId, string reason)
         {
-            if (countryId <= 0 || countryId == GameSessionState.SelectedPlan.Country) return;
+            if (countryId <= 0 || countryId == GameSessionService.SelectedPlan.Country) return;
             if (!reasons.TryGetValue(countryId, out var list))
             {
                 list = new List<string>();
@@ -46,9 +72,9 @@ public partial class PlanApproval : GameComponentBase
             if (!list.Contains(reason)) list.Add(reason);
         }
 
-        foreach (var planLayer in GameSessionState.SelectedPlan.Layers)
+        foreach (var planLayer in GameSessionService.SelectedPlan.Layers)
         {
-            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
+            var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
             var layerDisplayName = layerEntry?.DisplayName ?? planLayer.OriginalLayerId;
 
             // ── Deleted geometry ────────────────────────────────────────── 
@@ -77,10 +103,10 @@ public partial class PlanApproval : GameComponentBase
                         // Derive ownership from EEZ intersection of the representative coordinate
                         if (geom.Coordinates.Count > 0)
                         {
-                            var owner = GeometryUtils.GetCountryForCoordinate(geom.Coordinates[0], GameSessionState.EezPolygons);
-                            if (owner > 0 && owner != GameSessionState.SelectedPlan.Country)
+                            var owner = GeometryUtils.GetCountryForCoordinate(geom.Coordinates[0], GameSessionService.EezPolygons);
+                            if (owner > 0 && owner != GameSessionService.SelectedPlan.Country)
                             {
-                                var ownerCountry = GameSessionState.Countries.FirstOrDefault(c => c.Id == owner);
+                                var ownerCountry = GameSessionService.Countries.FirstOrDefault(c => c.Id == owner);
                                 var countryName = ownerCountry?.Name ?? $"Country {owner}";
                                 AddReason(owner, $"Geometry belonging to {countryName} was removed on the {layerDisplayName} layer.");
                             }
@@ -108,11 +134,11 @@ public partial class PlanApproval : GameComponentBase
                          && geomItem.Coordinates.Count > 0)
                 {
                     var pt = geomItem.Coordinates[0];
-                    foreach (var eez in GameSessionState.EezPolygons)
+                    foreach (var eez in GameSessionService.EezPolygons)
                     {
-                        if (eez.CountryId != GameSessionState.SelectedPlan.Country && GeometryUtils.PointInPolygon(pt, eez.Points))
+                        if (eez.CountryId != GameSessionService.SelectedPlan.Country && GeometryUtils.PointInPolygon(pt, eez.Points))
                         {
-                            var eezCountry = GameSessionState.Countries.FirstOrDefault(c => c.Id == eez.CountryId);
+                            var eezCountry = GameSessionService.Countries.FirstOrDefault(c => c.Id == eez.CountryId);
                             var countryName = eezCountry?.Name ?? $"Country {eez.CountryId}";
                             AddReason(eez.CountryId, $"Geometry on the {layerDisplayName} layer was added or altered in {countryName}'s EEZ.");
                         }
@@ -124,9 +150,9 @@ public partial class PlanApproval : GameComponentBase
         // AllCountries: add those reasons to every non-owner country team
         if (allCountriesReasons.Count > 0)
         {
-            foreach (var country in GameSessionState.Countries)
+            foreach (var country in GameSessionService.Countries)
             {
-                if (country.Id <= 2 || country.Id == GameSessionState.SelectedPlan.Country) continue; // skip admin/GM slots
+                if (country.Id <= 2 || country.Id == GameSessionService.SelectedPlan.Country) continue; // skip admin/GM slots
                 foreach (var r in allCountriesReasons)
                     AddReason(country.Id, r);
             }
@@ -135,7 +161,7 @@ public partial class PlanApproval : GameComponentBase
         // Build sorted result
         foreach (var kvp in reasons.OrderBy(k => k.Key))
         {
-            var country = GameSessionState.Countries.FirstOrDefault(c => c.Id == kvp.Key);
+            var country = GameSessionService.Countries.FirstOrDefault(c => c.Id == kvp.Key);
             var name = country?.Name ?? $"Country {kvp.Key}";
             _approvalRequired.Add(new PlanApprovalRequirement(kvp.Key, name, kvp.Value));
         }
@@ -151,7 +177,7 @@ public partial class PlanApproval : GameComponentBase
         var parsed = new List<ParsedGeometry>();
         _parsedLayerGeometryCache[layerId] = parsed;
 
-        var snapshot = GameSessionState.MapLayerSnapshots.FirstOrDefault(s =>
+        var snapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s =>
             string.Equals(s.LayerId, layerId, StringComparison.OrdinalIgnoreCase));
         if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.VectorGeometriesJson))
             return parsed;

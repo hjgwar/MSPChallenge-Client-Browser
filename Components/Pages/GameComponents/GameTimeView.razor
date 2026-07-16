@@ -1,4 +1,4 @@
-@using MSPChallenge_Client_Browser.Utils
+﻿@using MSPChallenge_Client_Browser.Utils
 @inherits GameComponentBase
 <div class="game-bar">
     <div class="game-bar-row">
@@ -10,37 +10,37 @@
             </svg>
         </div>
         <div class="game-bar-body">
-            <div class="game-bar-date">@GameSessionState.MonthToDate(GameSessionState.GameCurrentMonth)</div>
+            <div class="game-bar-date">@GameSessionService.MonthToDate(GameSessionService.GameCurrentMonth)</div>
             <div class="game-bar-timeline">
-                <span class="game-bar-year">@GameSessionState.GameStartYear</span>
+                <span class="game-bar-year">@GameSessionService.GameStartYear</span>
                 <div class="game-bar-track">
                     <div class="game-bar-fill" style="width:@(BarProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
                     <div class="game-bar-needle" style="left:@(BarProgress.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%"></div>
-                    @if (GameSessionState.SelectedPlan is not null)
+                    @if (GameSessionService.SelectedPlan is not null)
                     {
                         <div class="game-bar-plan-needle" style="left:@(BarNeedle())%"
-                            title="Plan time: @GameSessionState.MonthToDate(GameSessionState.SelectedPlan.StartDate)"></div>
+                            title="Plan time: @GameSessionService.MonthToDate(GameSessionService.SelectedPlan.StartDate)"></div>
                     }
                 </div>
-                <span class="game-bar-year">@GameSessionState.GameEndYear</span>
+                <span class="game-bar-year">@GameSessionService.GameEndYear</span>
             </div>
         </div>
         @if (UserSessionService.IsAdmin)
         {
             <div class="game-bar-state game-bar-state--clickable" @onclick="ToggleTimeManager">
-                <div class="game-bar-state-label">@ConversionUtils.GameStateLabel(GameSessionState.GameState)</div>
-                <div class="game-bar-timeleft">@ConversionUtils.FormatTimeLeft(GameSessionState.EraTimeLeft)</div>
+                <div class="game-bar-state-label">@ConversionUtils.GameStateLabel(GameSessionService.GameState)</div>
+                <div class="game-bar-timeleft">@ConversionUtils.FormatTimeLeft(GameSessionService.EraTimeLeft)</div>
             </div>
         }
         else
         {
             <div class="game-bar-state">
-                <div class="game-bar-state-label">@ConversionUtils.GameStateLabel(GameSessionState.GameState)</div>
-                <div class="game-bar-timeleft">@ConversionUtils.FormatTimeLeft(GameSessionState.EraTimeLeft)</div>
+                <div class="game-bar-state-label">@ConversionUtils.GameStateLabel(GameSessionService.GameState)</div>
+                <div class="game-bar-timeleft">@ConversionUtils.FormatTimeLeft(GameSessionService.EraTimeLeft)</div>
             </div>
         }
     </div>
-    @if (GameSessionState.SelectedPlan is not null)
+    @if (GameSessionService.SelectedPlan is not null)
     {
         <div class="game-bar-plan-view">
             <div class="game-bar-plan-time">
@@ -49,10 +49,10 @@
                     <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none"/>
                 </svg>
                 <span class="game-bar-plan-time-label">Viewing plan</span>
-                <span class="game-bar-plan-time-date">@GameSessionState.MonthToDate(GameSessionState.SelectedPlan.StartDate)</span>
+                <span class="game-bar-plan-time-date">@GameSessionService.MonthToDate(GameSessionService.SelectedPlan.StartDate)</span>
             </div>
             <div class="game-bar-plan-modes">
-                <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"
+                <button class="plan-mode-btn @(GameUIStateService.PlanViewMode == PlanViewMode.Original ? "plan-mode-btn--active" : "")"
                         title="Show original data only"
                         @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.Original))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
@@ -64,7 +64,7 @@
                     </svg>
                     <span>Original</span>
                 </button>
-                <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.AfterChanges ? "plan-mode-btn--active" : "")"
+                <button class="plan-mode-btn @(GameUIStateService.PlanViewMode == PlanViewMode.AfterChanges ? "plan-mode-btn--active" : "")"
                         title="Show base data with plan changes applied"
                         @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.AfterChanges))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">
@@ -76,7 +76,7 @@
                     </svg>
                     <span>After changes</span>
                 </button>
-                <button class="plan-mode-btn @(GameSessionState.PlanViewMode == PlanViewMode.ChangesOnly ? "plan-mode-btn--active" : "")"
+                <button class="plan-mode-btn @(GameUIStateService.PlanViewMode == PlanViewMode.ChangesOnly ? "plan-mode-btn--active" : "")"
                         title="Show plan changes only, without base data"
                         @onclick="@(async () => await SetPlanViewModeAsync(PlanViewMode.ChangesOnly))">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg">

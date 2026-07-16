@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
@@ -10,7 +10,7 @@ public partial class Home
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [Inject] private MspApiClient ApiClient { get; set; } = null!;
     [Inject] private UserSessionService UserSessionService { get; set; } = null!;
-    [Inject] private GameSessionState GameSessionState { get; set; } = null!;
+    [Inject] private GameSessionService GameSessionService { get; set; } = null!;
 
     // ── Server & session selection state ──
     private string serverAddress = "server.mspchallenge.info";
@@ -185,10 +185,10 @@ public partial class Home
                     }
                 }
 
-                // Capture the EEZ layer ID so GameSessionState can load EEZ geometry
+                // Capture the EEZ layer ID so GameSessionService can load EEZ geometry
                 // using Layer/Get without calling Layer/MetaByName a second time.
                 if (metaPayload.TryGetProperty("layer_id", out var lIdEl))
-                    GameSessionState.EezLayerId = lIdEl.ValueKind == JsonValueKind.Number
+                    GameSessionService.EezLayerId = lIdEl.ValueKind == JsonValueKind.Number
                         ? lIdEl.GetInt32().ToString()
                         : lIdEl.GetString();
             }
@@ -281,9 +281,9 @@ public partial class Home
                 Country: selectedCountryObj
             );
 
-            // Seed the pre-built country list (with colors) into GameSessionState so the Game
+            // Seed the pre-built country list (with colors) into GameSessionService so the Game
             // page does not need to re-fetch country metadata from the server.
-            GameSessionState.Countries = countries;
+            GameSessionService.Countries = countries;
 
             NavigationManager.NavigateTo("/game");
         }

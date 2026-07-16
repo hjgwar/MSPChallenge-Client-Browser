@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -23,7 +23,7 @@ public partial class PlanPanelMessages : GameComponentBase
     private IReadOnlyList<PlanMessage> SelectedPlanMessages => Messages ?? [];
 
     private bool CanSendPlanMessage =>
-        GameSessionState.SelectedPlanId != 0 &&
+        GameUIStateService.SelectedPlanId != 0 &&
         !_sendingPlanMessage &&
         !string.IsNullOrWhiteSpace(_planMessageDraft);
 
@@ -45,7 +45,7 @@ public partial class PlanPanelMessages : GameComponentBase
 
     private async Task SendPlanMessageAsync()
     {
-        if (!CanSendPlanMessage || GameSessionState.SelectedPlanId == 0) return;
+        if (!CanSendPlanMessage || GameUIStateService.SelectedPlanId == 0) return;
 
         _sendingPlanMessage = true;
         _planMessageSendError = null;
@@ -58,7 +58,7 @@ public partial class PlanPanelMessages : GameComponentBase
 
             var fields = new List<KeyValuePair<string, string>>
             {
-                new("plan", GameSessionState.SelectedPlanId.ToString() ?? "0"),
+                new("plan", GameUIStateService.SelectedPlanId.ToString() ?? "0"),
                 new("team_id", UserSessionService.User.Country.Id.ToString()),
                 new("user_name", userName),
                 new("text", _planMessageDraft.Trim())
@@ -104,7 +104,7 @@ public partial class PlanPanelMessages : GameComponentBase
         if (countryId.Value == 1 || countryId.Value == 2)
             return "#ff69b4";
         
-        var country = GameSessionState.Countries.FirstOrDefault(c => c.Id == countryId.Value);
+        var country = GameSessionService.Countries.FirstOrDefault(c => c.Id == countryId.Value);
         return country?.Color ?? "#6c757d";
     }
 }

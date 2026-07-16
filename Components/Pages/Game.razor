@@ -14,18 +14,18 @@
 <SideBarPanelControl @ref="SideBarPanelController" />
 
 <div class="map-sidebar-panels">
-    @if (GameSessionState.OnlineUsersPanelOpen)
+    @if (GameUIStateService.OnlineUsersPanelOpen)
     {
-        <OnlineUsers OnCloseThisPanel="SideBarPanelController.ToggleOnlineUsersPanel" />
+        <OnlineUsers OnCloseThisPanel="GameUIStateService.ToggleOnlineUsersPanel" />
     }
-    @if (Map is not null && GameSessionState.LayerPanelOpen && GameSessionState.LayerEntries.Count > 0)
+    @if (Map is not null && GameUIStateService.LayerPanelOpen && GameSessionService.LayerEntries.Count > 0)
     {
-        <LayerSelector ToggleLayerAsync="Map.ToggleLayerAsync" OnCloseThisPanel="SideBarPanelController.ToggleLayerPanel" />
+        <LayerSelector ToggleLayerAsync="Map.ToggleLayerAsync" OnCloseThisPanel="GameUIStateService.ToggleLayerPanel" />
     }
 
-    @if (Map is not null && GameSessionState.LegendPanelOpen && GameSessionState.LegendOrderLayerIds.Count > 0)
+    @if (Map is not null && GameUIStateService.LegendPanelOpen && GameUIStateService.LegendOrderLayerIds.Count > 0)
     {
-        <MapLegend ToggleLayerAsync="Map.ToggleLayerAsync" OnCloseThisPanel="SideBarPanelController.ToggleLegendPanel" />
+        <MapLegend ToggleLayerAsync="Map.ToggleLayerAsync" OnCloseThisPanel="GameUIStateService.ToggleLegendPanel" />
     }
 </div>
 
@@ -33,13 +33,13 @@
     <GameTimeView @ref="GameTimeViewer" MapJSModule="Map?.MapJSModule"/>
     <div class="map-plan-panels">
         @* Plan detail panel — shown when a plan is selected or in edit mode for new plan *@
-        @if (Map is not null && (GameSessionState.SelectedPlanId.HasValue || GameSessionState.EditMode))
+        @if (Map is not null && (GameUIStateService.SelectedPlanId.HasValue || GameUIStateService.EditMode))
         {
             <PlanDetails @ref="PlanDetailsPanel" Map="@Map" />
         }
 
         @* Create plan panel — shown instead of plan-detail when creating a new plan *@
-        @if (GameSessionState.CreatePlanOpen)
+        @if (GameUIStateService.CreatePlanOpen)
         {
             <PlanCreation @ref="PlanCreationPanel" OpenEditMode="@OpenEditModeFromCreation" />
         }
@@ -47,7 +47,7 @@
     </div>
 </div>
 
-@if (GameSessionState.PlansPanelOpen)
+@if (GameUIStateService.PlansPanelOpen)
 {
     <PlansList />
 }
@@ -59,7 +59,7 @@
                Properties="_popupProps" 
                OnClose="ClosePopup" />
 
-@if (GameSessionState.TimeManagerOpen) {
+@if (GameUIStateService.TimeManagerOpen) {
     <TimeManager OnCloseThisPanel="GameTimeViewer.ToggleTimeManager" />
 }
 

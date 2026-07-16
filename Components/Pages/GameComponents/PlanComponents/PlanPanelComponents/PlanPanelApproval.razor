@@ -1,4 +1,4 @@
-@inherits GameComponentBase
+﻿@inherits GameComponentBase
 <div class="plan-message-panel plan-approval-panel">
     <div class="plan-message-panel-header">
         <span class="plan-message-panel-title">Approval</span>
@@ -11,7 +11,7 @@
         }
         else
         {
-            Plan? approvalPlan = GameSessionState.SelectedPlan;
+            Plan? approvalPlan = GameSessionService.SelectedPlan;
             bool isVotingState = approvalPlan?.State == PlanState.APPROVAL;
             int? myCountryId   = UserSessionService.User?.Country.Id;
             <table class="plan-approval-table">
@@ -27,7 +27,7 @@
                 <tbody>
                     @foreach (PlanApprovalRequirement req in RequiredApprovals)
                     {
-                        string dotCol     = GameSessionState.Countries.FirstOrDefault(c => c.Id == req.CountryId)?.Color ?? "#6c757d";
+                        string dotCol     = GameSessionService.Countries.FirstOrDefault(c => c.Id == req.CountryId)?.Color ?? "#6c757d";
                         int currentVote = approvalPlan?.Votes?.TryGetValue(req.CountryId, out int v) == true ? v : -1;
                         bool isMyRow    = isVotingState && req.CountryId == myCountryId;
                         <tr class="plan-approval-row">
@@ -42,7 +42,7 @@
                                             disabled="@_sendingVote"
                                             title="Disapprove"
                                             type="button"
-                                            @onclick="@(() => VoteOnPlanAsync(GameSessionState.SelectedPlanId, currentVote == 0 ? -1 : 0))">
+                                            @onclick="@(() => VoteOnPlanAsync(GameUIStateService.SelectedPlanId, currentVote == 0 ? -1 : 0))">
                                     </button>
                                 }
                                 else if (isVotingState && currentVote == 0)
@@ -68,7 +68,7 @@
                                             disabled="@_sendingVote"
                                             title="Approve"
                                             type="button"
-                                            @onclick="@(() => VoteOnPlanAsync(GameSessionState.SelectedPlanId, currentVote == 1 ? -1 : 1))">
+                                            @onclick="@(() => VoteOnPlanAsync(GameUIStateService.SelectedPlanId, currentVote == 1 ? -1 : 1))">
                                     </button>
                                 }
                                 else if (isVotingState && currentVote == 1)

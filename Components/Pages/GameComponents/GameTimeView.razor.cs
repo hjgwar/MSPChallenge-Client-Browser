@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
@@ -11,7 +11,7 @@ public partial class GameTimeView : IDisposable
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        GameSessionState.Changed += OnStateChanged;
+        GameSessionService.Changed += OnStateChanged;
     }
 
     private void OnStateChanged()
@@ -21,9 +21,9 @@ public partial class GameTimeView : IDisposable
 
     public async Task SetPlanViewModeAsync(PlanViewMode mode)
     {
-        if (MapJSModule is null || GameSessionState.SelectedPlan is null || mode == GameSessionState.PlanViewMode) return;
-        GameSessionState.PlanViewMode = mode;
-        GameSessionState.NotifyChanged();
+        if (MapJSModule is null || GameSessionService.SelectedPlan is null || mode == GameUIStateService.PlanViewMode) return;
+        GameUIStateService.PlanViewMode = mode;
+        GameSessionService.NotifyChanged();
 
         // Plan overlay: visible in AfterChanges and ChangesOnly; hidden in Original.
         // Hiding the overlay is what produces the "pre-plan world state" in Original mode —
@@ -34,7 +34,7 @@ public partial class GameTimeView : IDisposable
         // These are always shown when viewing a plan (auto-shown, mirroring Unity's
         // UpdateVisibleLayersToPlan which calls ShowLayer() for every plan layer).
         var planBaseLayerIds = new HashSet<string>(
-            GameSessionState.SelectedPlan.Layers
+            GameSessionService.SelectedPlan.Layers
                 .Where(l => !string.IsNullOrEmpty(l.OriginalLayerId))
                 .Select(l => l.OriginalLayerId),
             StringComparer.OrdinalIgnoreCase);
@@ -50,7 +50,7 @@ public partial class GameTimeView : IDisposable
         //                             Extra user-activated non-plan layers are hidden so the
         //                             player sees nothing but the plan's proposed changes.
         //                             Plan base layers are also hidden; the overlay covers them.
-        foreach (var layer in GameSessionState.LayerEntries.Where(l => !l.IsBaseLayer))
+        foreach (var layer in GameSessionService.LayerEntries.Where(l => !l.IsBaseLayer))
         {
             bool show = mode == PlanViewMode.ChangesOnly
                 ? layer.Visible && (!layer.IsToggleable || !layer.Editable)
@@ -65,19 +65,19 @@ public partial class GameTimeView : IDisposable
     {
         if (UserSessionService.IsAdmin)
         {
-            GameSessionState.TimeManagerOpen = !GameSessionState.TimeManagerOpen;
-            GameSessionState.NotifyChanged();
+            GameUIStateService.TimeManagerOpen = !GameUIStateService.TimeManagerOpen;
+            GameSessionService.NotifyChanged();
         }
     }
     
-    private double BarProgress => GameSessionState.TotalMonths > 0
-        ? Math.Clamp((double) GameSessionState.GameCurrentMonth / GameSessionState.TotalMonths * 100.0, 0, 100)
+    private double BarProgress => GameSessionService.TotalMonths > 0
+        ? Math.Clamp((double) GameSessionService.GameCurrentMonth / GameSessionService.TotalMonths * 100.0, 0, 100)
         : 0;
 
     private string BarNeedle() {
-        if (GameSessionState.SelectedPlan is not null) {
+        if (GameSessionService.SelectedPlan is not null) {
             double _planNeedlePct = Math.Clamp(
-                (double) GameSessionState.SelectedPlan.StartDate / GameSessionState.TotalMonths * 100.0, 0, 100
+                (double) GameSessionService.SelectedPlan.StartDate / GameSessionService.TotalMonths * 100.0, 0, 100
             );
             return _planNeedlePct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
         }
@@ -86,6 +86,6 @@ public partial class GameTimeView : IDisposable
 
     public void Dispose()
     {
-        GameSessionState.Changed -= OnStateChanged;
+        GameSessionService.Changed -= OnStateChanged;
     }
 }

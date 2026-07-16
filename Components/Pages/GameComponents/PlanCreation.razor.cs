@@ -1,4 +1,4 @@
-using MSPChallenge_Client_Browser.Services;
+﻿using MSPChallenge_Client_Browser.Services;
 using Microsoft.AspNetCore.Components;
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
@@ -24,8 +24,8 @@ public partial class PlanCreation : IDisposable
     }
         
     private DateTime CreatePlanEarliestStart =>
-        GameSessionState.GameStartYear > 0
-            ? new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(GameSessionState.GameCurrentMonth + 1)
+        GameSessionService.GameStartYear > 0
+            ? new DateTime(GameSessionService.GameStartYear, 1, 1).AddMonths(GameSessionService.GameCurrentMonth + 1)
             : DateTime.Now.AddMonths(1);
 
     private bool CreatePlanStartDateValid =>
@@ -56,8 +56,8 @@ public partial class PlanCreation : IDisposable
 
     private void ClosePanel()
     {
-        GameSessionState.CreatePlanOpen = false;
-        GameSessionState.NotifyChanged();
+        GameUIStateService.CreatePlanOpen = false;
+        GameSessionService.NotifyChanged();
     }
 
     public void Dispose()

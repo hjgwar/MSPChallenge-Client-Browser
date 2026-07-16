@@ -1,4 +1,4 @@
-@using MSPChallenge_Client_Browser.Utils.PlanCalculations
+﻿@using MSPChallenge_Client_Browser.Utils.PlanCalculations
 @inherits GameComponentBase
 <div class="plans-panel" id="plans-panel-float">
     <div class="plans-panel-header plans-panel-drag-handle">
@@ -7,13 +7,13 @@
     </div>
     <div class="plans-panel-content">
     @{
-        var _visiblePlans = GameSessionState.Plans
+        var _visiblePlans = GameSessionService.Plans
             .Where(p => UserSessionService.IsAdmin || p.StartDate != -1)
             .Where(p => UserSessionService.IsAdmin || p.State != PlanState.DESIGN || p.Country == UserSessionService.User.Country.Id)
             .GroupBy(p => p.State)
             .ToDictionary(g => g.Key, g => g.ToList());
     }
-    @if (!UserSessionService.IsAdmin && GameSessionState.Plans.Count == 0)
+    @if (!UserSessionService.IsAdmin && GameSessionService.Plans.Count == 0)
     {
         <div class="plans-status">Waiting for game data…</div>
     }
@@ -36,7 +36,7 @@
                     var _planDotColour = (plan.Country == 1 || plan.Country == 2)
                         ? "#ff69b4"
                         : _countryColours.GetValueOrDefault(plan.Country, "#6c757d");
-                    <div class="plan-row @((GameSessionState.SelectedPlanId == plan.PlanId) ? "plan-row--selected" : "")"
+                    <div class="plan-row @((GameUIStateService.SelectedPlanId == plan.PlanId) ? "plan-row--selected" : "")"
                         @onclick="@(() => SelectPlanAsync(plan))">
                         @if (plan.LockedByUserId != 0)
                         {
@@ -74,7 +74,7 @@
                                 </svg>
                             </span>
                         }
-                        <span class="plan-date">@GameSessionState.MonthToDate(plan.StartDate)</span>
+                        <span class="plan-date">@GameSessionService.MonthToDate(plan.StartDate)</span>
                     </div>
                 }
             }

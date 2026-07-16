@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
@@ -15,7 +15,7 @@ public partial class PlanPolicies : GameComponentBase
         0, string.Empty, string.Empty, Models.PlanState.DESIGN, 0, 0, 0,
         [], [], [], false, 0, 0, null, 0);
     
-    private bool _editMode => GameSessionState.EditMode;
+    private bool _editMode => GameUIStateService.EditMode;
     private HashSet<string> _editPolicyTypes => EditPolicyTypes;
     private bool _policyPickerOpen = false;
 

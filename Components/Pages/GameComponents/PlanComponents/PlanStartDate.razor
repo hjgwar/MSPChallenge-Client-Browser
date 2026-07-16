@@ -1,4 +1,4 @@
-@using MSPChallenge_Client_Browser.Utils
+﻿@using MSPChallenge_Client_Browser.Utils
 @inherits GameComponentBase
 
 <div class="plan-detail-info-row">
@@ -6,7 +6,7 @@
         <circle cx="8" cy="8" r="6.5"/>
         <polyline points="8,4.5 8,8 10.5,9.5"/>
     </svg>
-    @if (GameSessionState.EditMode)
+    @if (GameUIStateService.EditMode)
     {
         <div class="plan-edit-date-wrapper">
             <div class="plan-edit-date-row">
@@ -18,7 +18,7 @@
                     }
                 </select>
                 <select class="plan-edit-select @(!EditStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_editStartYear" @bind:after="OnYearChangedAsync" disabled="@EditSaving">
-                    @for (int y = EditEarliestStart.Year; y <= GameSessionState.GameEndYear; y++)
+                    @for (int y = EditEarliestStart.Year; y <= GameSessionService.GameEndYear; y++)
                     {
                         var _y = y;
                         <option value="@_y">@_y</option>
@@ -42,7 +42,7 @@
     else
     {
         <span>
-            @GameSessionState.MonthToDate(
+            @GameSessionService.MonthToDate(
                 Plan?.StartDate ?? 0
             )
             @(ConstructionTime > 0 

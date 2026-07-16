@@ -1,4 +1,4 @@
-@using System.Globalization;
+﻿@using System.Globalization;
 @inherits GameComponentBase
 <div class="plan-detail-panel">
     <div class="plan-detail-panel-title">
@@ -29,7 +29,7 @@
                                 }
                             </select>
                             <select class="plan-edit-select @(!CreatePlanStartDateValid ? "plan-edit-select--invalid" : "")" @bind="_createPlanStartYear" disabled="@_createPlanSaving">
-                                @for (int y = CreatePlanEarliestStart.Year; y <= (GameSessionState.GameEndYear > 0 ? GameSessionState.GameEndYear : GameSessionState.GameStartYear + 30); y++)
+                                @for (int y = CreatePlanEarliestStart.Year; y <= (GameSessionService.GameEndYear > 0 ? GameSessionService.GameEndYear : GameSessionService.GameStartYear + 30); y++)
                                 {
                                     <option value="@y">@y</option>
                                 }

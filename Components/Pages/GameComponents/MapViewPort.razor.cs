@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Utils.PlanCalculations;
@@ -25,9 +25,9 @@ public partial class MapViewPort
 
             // If a plan is currently selected, immediately project prior-plan changes onto
             // this layer so the user sees the correct world state without re-selecting the plan.
-            if (!skipProjection && GameSessionState.SelectedPlanId != 0)
+            if (!skipProjection && GameUIStateService.SelectedPlanId != 0)
             {
-                var viewedPlan = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
+                var viewedPlan = GameSessionService.Plans.FirstOrDefault(p => p.PlanId == GameUIStateService.SelectedPlanId);
                 if (viewedPlan is not null)
                     await ApplyPlanProjectionAsync(viewedPlan.StartDate, entry.LayerId, currentPlan: viewedPlan);
             }
@@ -37,23 +37,23 @@ public partial class MapViewPort
             await MapJSModule.InvokeVoidAsync("setLayerVisible", entry.LayerId, false);
         }
 
-        if (visible && !entry.IsBaseLayer && !GameSessionState.LegendOrderLayerIds.Contains(entry.LayerId))
-            GameSessionState.LegendOrderLayerIds.Add(entry.LayerId);
+        if (visible && !entry.IsBaseLayer && !GameUIStateService.LegendOrderLayerIds.Contains(entry.LayerId))
+            GameUIStateService.LegendOrderLayerIds.Add(entry.LayerId);
         else if (!visible)
-            GameSessionState.LegendOrderLayerIds.Remove(entry.LayerId);
+            GameUIStateService.LegendOrderLayerIds.Remove(entry.LayerId);
 
         await SyncZIndicesAsync();
-        GameSessionState.NotifyChanged();
+        GameSessionService.NotifyChanged();
     }
 
     private async Task EnsureLayerRenderedAsync(string layerId, bool visible)
     {
         if (MapJSModule is null) return;
 
-        var snapshot = GameSessionState.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
+        var snapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
         if (snapshot is null) return;
 
-        var entry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+        var entry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
         if (entry?.IsRaster == true)
         {
             if (snapshot.RasterImageData is not null && snapshot.RasterProjBounds is not null)
@@ -99,7 +99,7 @@ public partial class MapViewPort
         // Snapshot the Plans list: the WS background thread may call _plans.Add / _plans[i] = ...
         // via ApplyGameLatest while we iterate here.  Individual Plan / PlanLayerData /
         // PlanGeometryItem records are immutable once constructed, so no deeper copies are needed.
-        var relevantPlans = GameSessionState.Plans
+        var relevantPlans = GameSessionService.Plans
             .Where(p => p.StartDate < planStartDate && PlanStates.IsFinalisedPlanState(p.State))
             .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
             .ToList();
@@ -123,7 +123,7 @@ public partial class MapViewPort
                 foreach (var deletedId in planLayer.DeletedPersistentIds)
                     ids.Add(deletedId);
 
-                var geoType = GameSessionState.LayerEntries
+                var geoType = GameSessionService.LayerEntries
                     .FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
 
                 foreach (var geo in planLayer.Geometry)
@@ -175,7 +175,7 @@ public partial class MapViewPort
                 }));
     }
 
-    /// <summary>Assigns z-indices so that GameSessionState.LegendOrder[0] = bottom, last = top.</summary>
+    /// <summary>Assigns z-indices so that GameSessionService.LegendOrder[0] = bottom, last = top.</summary>
     public async Task SyncZIndicesAsync()
     {
         if (MapJSModule is null) return;
@@ -185,7 +185,7 @@ public partial class MapViewPort
         // entries from LegendOrderLayerIds mid-iteration, causing an
         // InvalidOperationException.  A snapshot keeps the iteration stable while
         // the live list remains free to be updated by other operations.
-        var snapshot = GameSessionState.LegendOrderLayerIds.ToList();
+        var snapshot = GameUIStateService.LegendOrderLayerIds.ToList();
 
         int i = 0;
         foreach (string layerId in snapshot)

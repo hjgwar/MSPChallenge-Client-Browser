@@ -3,7 +3,7 @@
 
 <div class="plan-detail-panel">
     <div class="plan-detail-panel-title">
-        @(GameSessionState.EditMode ? "EDIT PLAN" : "ACTIVE PLAN")
+        @(GameUIStateService.EditMode ? "EDIT PLAN" : "ACTIVE PLAN")
         <button class="panel-close-btn" title="Close" @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
     </div>
     <div class="plan-detail-header">
@@ -32,12 +32,12 @@
     <details class="plan-detail-section plan-detail-section--communication" open>
         <summary class="plan-detail-section-hdr">Communication</summary>
         <div class="plan-detail-section-body">
-            <PlanApproval />
+            <PlanApproval @ref="PlanApprovalInstance" OnSubPanelOpening="CloseAllSubPanels" />
             <PlanMessages @ref="PlanMessagesInstance" OnSubPanelOpening="CloseAllSubPanels" />
             <PlanIssues @ref="PlanIssuesInstance" Map="@Map" @bind-SelectedPlanIssues="_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
-    <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--policies-picker" : "")" open>
+    <details class="plan-detail-section @(GameUIStateService.EditMode ? "plan-detail-section--policies-picker" : "")" open>
         <summary class="plan-detail-section-hdr">Policies</summary>
         <div class="plan-detail-section-body">
             <PlanPolicies @ref="PlanPoliciesInstance" 
@@ -47,7 +47,7 @@
                           OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
-    <details class="plan-detail-section @(GameSessionState.EditMode ? "plan-detail-section--layers-picker" : "")" open>
+    <details class="plan-detail-section @(GameUIStateService.EditMode ? "plan-detail-section--layers-picker" : "")" open>
         <summary class="plan-detail-section-hdr">Data Layers</summary>
         <div class="plan-detail-section-body">
             <PlanLayers @ref="PlanLayersInstance" 
@@ -59,7 +59,7 @@
         </div>
     </details>
     </div>
-    @if (GameSessionState.EditMode)
+    @if (GameUIStateService.EditMode)
     {
         @if (!string.IsNullOrWhiteSpace(_editError))
         {

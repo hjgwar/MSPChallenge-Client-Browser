@@ -1,4 +1,4 @@
-using MSPChallenge_Client_Browser.Models;
+﻿using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
@@ -6,18 +6,18 @@ public partial class PlansList : GameComponentBase, IDisposable
 {
     private readonly Dictionary<int, string> _planIssueSeverity = [];
     
-    private Dictionary<int, string> _countryColours => GameSessionState.Countries
+    private Dictionary<int, string> _countryColours => GameSessionService.Countries
         .Where(c => c.Id > 0)
         .ToDictionary(c => c.Id, c => c.Color);
 
-    private Dictionary<int, string> _countryNames => GameSessionState.Countries
+    private Dictionary<int, string> _countryNames => GameSessionService.Countries
         .Where(c => c.Id > 0)
         .ToDictionary(c => c.Id, c => c.Name);
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        GameSessionState.Changed += OnStateChanged;
+        GameSessionService.Changed += OnStateChanged;
     }
 
     private void OnStateChanged()
@@ -27,39 +27,39 @@ public partial class PlansList : GameComponentBase, IDisposable
 
     private void SetPlansPanelOpen(bool open)
     {
-        GameSessionState.PlansPanelOpen = open;
-        GameSessionState.NotifyChanged();
+        GameUIStateService.PlansPanelOpen = open;
+        GameSessionService.NotifyChanged();
     }
 
     private async Task SelectPlanAsync(Plan plan)
     {
-        if (GameSessionState.SelectedPlanId == plan.PlanId)
+        if (GameUIStateService.SelectedPlanId == plan.PlanId)
         {
             // Toggling the same plan off
-            GameSessionState.SelectedPlanId = null;
-            GameSessionState.EditMode = false;
+            GameUIStateService.SelectedPlanId = null;
+            GameUIStateService.EditMode = false;
         }
         else
         {
             // If an existing plan is locked for editing, release the lock before switching.
-            if (GameSessionState.EditMode && GameSessionState.SelectedPlanId is > 0)
+            if (GameUIStateService.EditMode && GameUIStateService.SelectedPlanId is > 0)
             {
                 _ = ApiClient.PostFormAsync("Plan/Unlock",
                     new[]
                     {
-                        new KeyValuePair<string, string>("id", GameSessionState.SelectedPlanId.ToString()!),
+                        new KeyValuePair<string, string>("id", GameUIStateService.SelectedPlanId.ToString()!),
                         new KeyValuePair<string, string>("force_unlock", "0"),
                         new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
                     });
             }
-            GameSessionState.EditMode = false;
+            GameUIStateService.EditMode = false;
 
             // Selecting a plan dismisses the creation form (the two panels are mutually exclusive).
-            GameSessionState.CreatePlanOpen = false;
-            GameSessionState.SelectedPlanId = plan.PlanId;
+            GameUIStateService.CreatePlanOpen = false;
+            GameUIStateService.SelectedPlanId = plan.PlanId;
         }
 
-        GameSessionState.NotifyChanged();
+        GameSessionService.NotifyChanged();
         await Task.CompletedTask;
     }
 
@@ -85,6 +85,6 @@ public partial class PlansList : GameComponentBase, IDisposable
 
     public void Dispose()
     {
-        GameSessionState.Changed -= OnStateChanged;
+        GameSessionService.Changed -= OnStateChanged;
     }
 }

@@ -14,6 +14,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     public PlanNameDesc PlanNameDescInstance { get; set; } = null!;
     public PlanStartDate PlanStartDateInstance { get; set; } = null!;
     public PlanComponents.PlanState PlanStateInstance { get; set; } = null!;
+    public PlanApproval PlanApprovalInstance { get; set; } = null!;
     public PlanPolicies PlanPoliciesInstance { get; set; } = null!;
     public PlanLayers PlanLayersInstance { get; set; } = null!;
     public PlanMessages PlanMessagesInstance { get; set; } = null!;
@@ -26,6 +27,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     /// </summary>
     private void CloseAllSubPanels()
     {
+        PlanApprovalInstance?.CloseSubPanel();
         PlanMessagesInstance?.CloseSubPanel();
         PlanIssuesInstance?.CloseSubPanel();
         PlanStateInstance?.CloseSubPanel();
@@ -57,33 +59,33 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
     protected override void OnInitialized()
     {
-        GameSessionState.Changed += OnStateChanged;
+        GameSessionService.Changed += OnStateChanged;
         // If Game transitioned us into new-plan edit mode via PlanCreation, consume the
-        // pending seed values that were stored in GameSessionState.
+        // pending seed values that were stored in GameSessionService.
         ConsumePendingNewPlanSeed();
         UpdateDetailPlan();
     }
 
     private void ConsumePendingNewPlanSeed()
     {
-        if (GameSessionState.SelectedPlanId != 0 || !GameSessionState.EditMode) return;
-        if (GameSessionState.PendingNewPlanStartYear == 0) return; // no pending seed
+        if (GameUIStateService.SelectedPlanId != 0 || !GameUIStateService.EditMode) return;
+        if (GameUIStateService.PendingNewPlanStartYear == 0) return; // no pending seed
 
-        _editName        = GameSessionState.PendingNewPlanName;
-        _editDescription = GameSessionState.PendingNewPlanDescription;
-        _editStartYear   = GameSessionState.PendingNewPlanStartYear;
-        _editStartMonth  = GameSessionState.PendingNewPlanStartMonth;
+        _editName        = GameUIStateService.PendingNewPlanName;
+        _editDescription = GameUIStateService.PendingNewPlanDescription;
+        _editStartYear   = GameUIStateService.PendingNewPlanStartYear;
+        _editStartMonth  = GameUIStateService.PendingNewPlanStartMonth;
 
         // Clear so a later re-render doesn't re-apply stale values.
-        GameSessionState.PendingNewPlanName        = string.Empty;
-        GameSessionState.PendingNewPlanDescription = string.Empty;
-        GameSessionState.PendingNewPlanStartYear   = 0;
-        GameSessionState.PendingNewPlanStartMonth  = 1;
+        GameUIStateService.PendingNewPlanName        = string.Empty;
+        GameUIStateService.PendingNewPlanDescription = string.Empty;
+        GameUIStateService.PendingNewPlanStartYear   = 0;
+        GameUIStateService.PendingNewPlanStartMonth  = 1;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender || _lastDisplayedPlanId != GameSessionState.SelectedPlanId)
+        if (firstRender || _lastDisplayedPlanId != GameUIStateService.SelectedPlanId)
         {
             await DisplaySelectedPlanAsync();
         }
@@ -100,10 +102,10 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         //  • Just finished editing (_wasPreviouslyEditing && !EditMode) — refresh once
         //    so new/altered geometry from the save is shown on the map.
         //  • Routine WS ticks with same plan in view-mode — UI re-render only.
-        var needsMapRefresh = _lastDisplayedPlanId != GameSessionState.SelectedPlanId
-            || (_wasPreviouslyEditing && !GameSessionState.EditMode);
+        var needsMapRefresh = _lastDisplayedPlanId != GameUIStateService.SelectedPlanId
+            || (_wasPreviouslyEditing && !GameUIStateService.EditMode);
 
-        _wasPreviouslyEditing = GameSessionState.EditMode;
+        _wasPreviouslyEditing = GameUIStateService.EditMode;
 
         if (needsMapRefresh)
         {
@@ -119,24 +121,24 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     {
         _detailPlan = GetDetailPlan();
         _detailLayers = _detailPlan.Layers
-            .Select(l => GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
+            .Select(l => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
             .OfType<string>()
             .Distinct()
             .ToList();
         _detailDotColour = (_detailPlan.Country == 1 || _detailPlan.Country == 2)
             ? "#ff69b4"
-            : GameSessionState.Countries.FirstOrDefault(c => c.Id == _detailPlan.Country)?.Color ?? "#6c757d";
-        _detailCountryName = GameSessionState.Countries.FirstOrDefault(c => c.Id == _detailPlan.Country)?.Name ?? $"Country {_detailPlan.Country}";
+            : GameSessionService.Countries.FirstOrDefault(c => c.Id == _detailPlan.Country)?.Color ?? "#6c757d";
+        _detailCountryName = GameSessionService.Countries.FirstOrDefault(c => c.Id == _detailPlan.Country)?.Name ?? $"Country {_detailPlan.Country}";
     }
 
     private int GetConstructionTime()
     {
         // In edit mode, compute live from the selected layer set so that adding a layer
         // with a long AssemblyTime immediately tightens the earliest-start constraint.
-        if (GameSessionState.EditMode && _editPlanLayerIds.Count > 0)
+        if (GameUIStateService.EditMode && _editPlanLayerIds.Count > 0)
         {
             return _editPlanLayerIds
-                .Select(id => GameSessionState.LayerEntries
+                .Select(id => GameSessionService.LayerEntries
                     .FirstOrDefault(l => l.LayerId == id)?.AssemblyTime ?? 0)
                 .DefaultIfEmpty(0)
                 .Max();
@@ -166,14 +168,14 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
     private async Task ClosePlanDetailAsync()
     {
-        if (GameSessionState.EditMode)
+        if (GameUIStateService.EditMode)
             await CancelEditAsync();
-        GameSessionState.SelectedPlanId = null;
-        GameSessionState.NotifyChanged();
+        GameUIStateService.SelectedPlanId = null;
+        GameSessionService.NotifyChanged();
     }
 
     private bool CanEnterEditMode =>
-        GameSessionState.SelectedPlanId != 0 &&
+        GameUIStateService.SelectedPlanId != 0 &&
         _detailPlan is not null &&
         _detailPlan.State == Models.PlanState.DESIGN &&
         (UserSessionService.User.Country.Id <= 2 || _detailPlan.Country == UserSessionService.User.Country.Id);
@@ -182,7 +184,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     /// Called by Game when the player accepts the PlanCreation form.
     /// Seeds the edit fields from the creation form and enters edit mode for a new plan.
     /// This method is kept for direct-call scenarios; the normal path goes via
-    /// GameSessionState.Pending* fields consumed in OnInitialized.
+    /// GameSessionService.Pending* fields consumed in OnInitialized.
     /// </summary>
     public void StartNewPlanEdit(string name, string description, int startYear, int startMonth)
     {
@@ -194,13 +196,13 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         _editPolicyTypes.Clear();
         _editError       = null;
         _enterEditError  = null;
-        GameSessionState.SelectedPlanId = 0;
-        GameSessionState.EditMode = true;
-        GameSessionState.NotifyChanged();
+        GameUIStateService.SelectedPlanId = 0;
+        GameUIStateService.EditMode = true;
+        GameSessionService.NotifyChanged();
     }
 
     private DateTime EditEarliestStart =>
-        new DateTime(GameSessionState.GameStartYear, 1, 1).AddMonths(GameSessionState.GameCurrentMonth + Math.Max(GetConstructionTime(), 1));
+        new DateTime(GameSessionService.GameStartYear, 1, 1).AddMonths(GameSessionService.GameCurrentMonth + Math.Max(GetConstructionTime(), 1));
 
     private bool EditStartDateValid =>
         _editStartYear > EditEarliestStart.Year ||
@@ -208,7 +210,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
     private async Task EnterEditModeAsync()
     {
-        // Always fetch the latest plan from GameSessionState
+        // Always fetch the latest plan from GameSessionService
         _detailPlan = GetDetailPlan();
         if (_detailPlan is null)
         {
@@ -262,7 +264,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         _editError       = null;
         _enterEditError  = null;
 
-        var baseDate = new DateTime(GameSessionState.GameStartYear, 1, 1);
+        var baseDate = new DateTime(GameSessionService.GameStartYear, 1, 1);
         try
         {
             var d = baseDate.AddMonths(Math.Clamp(_detailPlan.StartDate, -120000, 120000));
@@ -271,17 +273,17 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         }
         catch
         {
-            _editStartYear  = GameSessionState.GameStartYear;
+            _editStartYear  = GameSessionService.GameStartYear;
             _editStartMonth = 1;
         }
 
-        GameSessionState.ToggleEditMode();
+        GameUIStateService.ToggleEditMode();
         StateHasChanged();
     }
 
     private async Task CancelEditAsync()
     {
-        GameSessionState.ToggleEditMode();
+        GameUIStateService.ToggleEditMode();
         _editSaving = true;
         StateHasChanged();
         try
@@ -289,7 +291,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
             await ApiClient.PostFormAsync("Plan/Unlock",
                 new[]
                 {
-                    new KeyValuePair<string, string>("id", GameSessionState.SelectedPlanId.ToString()!),
+                    new KeyValuePair<string, string>("id", GameUIStateService.SelectedPlanId.ToString()!),
                     new KeyValuePair<string, string>("force_unlock", "0"),
                     new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
                 });
@@ -305,7 +307,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
     private Plan GetDetailPlan()
     {
-        var plan = GameSessionState.SelectedPlan;
+        var plan = GameSessionService.SelectedPlan;
         if (plan != null) return plan;
         
         return new Plan(
@@ -314,7 +316,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
             _editDescription ?? string.Empty,
             Models.PlanState.DESIGN, // State
             UserSessionService.User.Country.Id,
-            (_editStartYear - GameSessionState.GameStartYear) * 12 + (_editStartMonth - 1),
+            (_editStartYear - GameSessionService.GameStartYear) * 12 + (_editStartMonth - 1),
             0, // ConstructionTime
             new List<string>(), // PolicyNames
             new List<string>(), // PolicyTypes
@@ -357,7 +359,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
         if (success)
         {
-            GameSessionState.ToggleEditMode();
+            GameUIStateService.ToggleEditMode();
         }
     }
 
@@ -377,7 +379,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     {
         if (Map?.MapJSModule is null) return;
 
-        var plan = GameSessionState.SelectedPlan;
+        var plan = GameSessionService.SelectedPlan;
         
         // If switching plans, fully clear the previous plan first to avoid concurrent operations
         if (_lastDisplayedPlanId.HasValue && (plan is null || _lastDisplayedPlanId != plan.PlanId))
@@ -403,7 +405,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
         foreach (var planLayer in plan.Layers)
         {
-            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
+            var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId);
             if (layerEntry is null) continue;
 
             var geometries = planLayer.Geometry
@@ -460,7 +462,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
         foreach (var layerId in referencedLayerIds)
         {
-            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+            var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
             if (layerEntry is null || layerEntry.IsBaseLayer) continue;
 
             // Only activate if not already visible
@@ -479,7 +481,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         // Deactivate layers that were activated by the plan
         foreach (var layerId in _planActivatedLayerIds.ToList())
         {
-            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+            var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
             if (layerEntry is not null)
             {
                 await Map.ToggleLayerInternalAsync(layerEntry, false, skipProjection: true);
@@ -491,7 +493,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
     public void Dispose()
     {
-        GameSessionState.Changed -= OnStateChanged;
+        GameSessionService.Changed -= OnStateChanged;
     }
 }
 

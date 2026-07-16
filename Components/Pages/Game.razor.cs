@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
@@ -17,7 +17,8 @@ public partial class Game : IAsyncDisposable
     [Inject] UserSessionService SessionState { get; set; } = null!;
     [Inject] MspApiClient ApiClient { get; set; } = null!;
     [Inject] WebSocketService WsService { get; set; } = null!;
-    [Inject] GameSessionState GameSessionState { get; set; } = null!;
+    [Inject] GameSessionService GameSessionService { get; set; } = null!;
+    [Inject] GameUIStateService GameUIStateService { get; set; } = null!;
 
     public SideBarPanelControl SideBarPanelController { get; set; } = null!;
     public GameTimeView GameTimeViewer { get; set; } = null!;
@@ -29,8 +30,8 @@ public partial class Game : IAsyncDisposable
     private DotNetObjectReference<Game>? _dotNetRef;
 
     // ── Aliases to shared session state ──────────────────────────────────────
-    private IReadOnlyList<Plan>       _plans        => GameSessionState.Plans;
-    private List<Layer>               _layerEntries => GameSessionState.LayerEntries;
+    private IReadOnlyList<Plan>       _plans        => GameSessionService.Plans;
+    private List<Layer>               _layerEntries => GameSessionService.LayerEntries;
     private bool   IsAdmin           => SessionState.User.Country.Id == 1 || SessionState.User.Country.Id == 2;
 
     // ── Loading & UI state ────────────────────────────────────────────────────
@@ -55,19 +56,19 @@ public partial class Game : IAsyncDisposable
 
     private void OpenEditModeFromCreation(PlanCreation creation)
     {
-        // Seed the pending values into GameSessionState so PlanDetails can read them
+        // Seed the pending values into GameSessionService so PlanDetails can read them
         // when it mounts. Setting EditMode=true and SelectedPlanId=0 here causes Blazor
         // to render PlanDetails on the next cycle; StartNewPlanEdit is then called on the
         // already-mounted instance via the NotifyChanged callback that PlanDetails subscribes to.
-        GameSessionState.CreatePlanOpen = false;
-        GameSessionState.SelectedPlanId = 0;
-        GameSessionState.EditMode = true;
+        GameUIStateService.CreatePlanOpen = false;
+        GameUIStateService.SelectedPlanId = 0;
+        GameUIStateService.EditMode = true;
         // Store the creation-form values so PlanDetails.OnStateChanged can pick them up.
-        GameSessionState.PendingNewPlanName        = creation._createPlanName ?? string.Empty;
-        GameSessionState.PendingNewPlanDescription = creation._createPlanDescription ?? string.Empty;
-        GameSessionState.PendingNewPlanStartYear   = creation._createPlanStartYear;
-        GameSessionState.PendingNewPlanStartMonth  = creation._createPlanStartMonth;
-        GameSessionState.NotifyChanged();
+        GameUIStateService.PendingNewPlanName        = creation._createPlanName ?? string.Empty;
+        GameUIStateService.PendingNewPlanDescription = creation._createPlanDescription ?? string.Empty;
+        GameUIStateService.PendingNewPlanStartYear   = creation._createPlanStartYear;
+        GameUIStateService.PendingNewPlanStartMonth  = creation._createPlanStartMonth;
+        GameSessionService.NotifyChanged();
     }
 
     private async Task EnsureRestrictionLayersVisibleAsync(string? sourceDisplayName, string? targetDisplayName)
@@ -110,10 +111,10 @@ public partial class Game : IAsyncDisposable
 
     protected override void OnInitialized()
     {
-        GameSessionState.Changed += OnGameSessionStateChanged;
+        GameSessionService.Changed += OnGameSessionServiceChanged;
     }
 
-    private void OnGameSessionStateChanged()
+    private void OnGameSessionServiceChanged()
     {
         InvokeAsync(StateHasChanged);
     }
@@ -133,13 +134,13 @@ public partial class Game : IAsyncDisposable
         await _mapModule.InvokeVoidAsync("initMap", "map", 54.5, 3.5, 6);
 
         // On warm return, restore saved camera immediately for instant visual feedback.
-        if (!isColdStart && GameSessionState.HasSavedMapView)
+        if (!isColdStart && GameUIStateService.HasSavedMapView)
         {
             await _mapModule.InvokeVoidAsync(
                 "setView",
-                GameSessionState.MapLat!.Value,
-                GameSessionState.MapLng!.Value,
-                GameSessionState.MapZoom!.Value,
+                GameUIStateService.MapLat!.Value,
+                GameUIStateService.MapLng!.Value,
+                GameUIStateService.MapZoom!.Value,
                 false);
         }
 
@@ -175,7 +176,7 @@ public partial class Game : IAsyncDisposable
     {
         try
         {
-            await GameSessionState.EnsureInitializedAsync(
+            await GameSessionService.EnsureInitializedAsync(
                 ApiClient,
                 SessionState,
                 async status =>
@@ -205,12 +206,12 @@ public partial class Game : IAsyncDisposable
         var baseLayer = _layerEntries.FirstOrDefault(e => e.IsBaseLayer);
         if (baseLayer is not null)
         {
-            var baseSnapshot = GameSessionState.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == baseLayer.LayerId);
+            var baseSnapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == baseLayer.LayerId);
             if (baseSnapshot is not null)
                 await EnsureLayerRenderedAsync(baseLayer.LayerId, visible: true);
         }
 
-        foreach (var snapshot in GameSessionState.MapLayerSnapshots)
+        foreach (var snapshot in GameSessionService.MapLayerSnapshots)
         {
             var entry = _layerEntries.FirstOrDefault(e => e.LayerId == snapshot.LayerId);
             if (entry?.IsBaseLayer == true) continue;  // Already materialized above.
@@ -238,7 +239,7 @@ public partial class Game : IAsyncDisposable
     {
         if (_mapModule is null) return;
 
-        var snapshot = GameSessionState.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
+        var snapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
         if (snapshot is null) return;
 
         var entry = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
@@ -279,13 +280,13 @@ public partial class Game : IAsyncDisposable
     public async Task ReorderLegend(int from, int to)
     {
         if (from == to || from < 0 || to < 0
-            || from >= GameSessionState.LegendOrderLayerIds.Count
-            || to   >= GameSessionState.LegendOrderLayerIds.Count) return;
-        var item = GameSessionState.LegendOrderLayerIds[from];
-        GameSessionState.LegendOrderLayerIds.RemoveAt(from);
-        GameSessionState.LegendOrderLayerIds.Insert(to, item);
+            || from >= GameUIStateService.LegendOrderLayerIds.Count
+            || to   >= GameUIStateService.LegendOrderLayerIds.Count) return;
+        var item = GameUIStateService.LegendOrderLayerIds[from];
+        GameUIStateService.LegendOrderLayerIds.RemoveAt(from);
+        GameUIStateService.LegendOrderLayerIds.Insert(to, item);
         await Map.SyncZIndicesAsync();
-        GameSessionState.NotifyChanged();
+        GameSessionService.NotifyChanged();
     }
 
     // ── Map Click Handler ──────────────────────────────────────────────────────
@@ -419,7 +420,7 @@ public partial class Game : IAsyncDisposable
                 _wsLog.RemoveAt(_wsLog.Count - 1);
         }
 
-        // Data parsing is handled by GameSessionState which also subscribes to MessageReceived.
+        // Data parsing is handled by GameSessionService which also subscribes to MessageReceived.
         // Plan selection after batch creation is handled by PlanDetailsSave component.
 
         InvokeAsync(StateHasChanged);
@@ -427,7 +428,7 @@ public partial class Game : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        GameSessionState.Changed -= OnGameSessionStateChanged;
+        GameSessionService.Changed -= OnGameSessionServiceChanged;
         WsService.MessageReceived -= OnWsMessageReceived;
         // GameWebSocketService lifetime is managed by DI (circuit scope); do not dispose here.
         if (_mapModule is not null)
@@ -444,7 +445,7 @@ public partial class Game : IAsyncDisposable
                     var zoom = viewState.TryGetProperty("zoom", out var zoomValue) && zoomValue.ValueKind == JsonValueKind.Number
                         ? zoomValue.GetDouble() : double.NaN;
                     if (!double.IsNaN(lat) && !double.IsNaN(lng) && !double.IsNaN(zoom))
-                        GameSessionState.SaveMapView(lat, lng, zoom);
+                        GameUIStateService.SaveMapView(lat, lng, zoom);
                 }
 
                 await _mapModule.InvokeVoidAsync("unregisterClickHandler");

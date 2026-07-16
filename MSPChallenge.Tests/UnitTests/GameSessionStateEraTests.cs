@@ -1,17 +1,17 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FluentAssertions;
 using MSPChallenge_Client_Browser.Services;
 using Xunit;
 
 namespace MSPChallenge.Tests.UnitTests;
 
-public class GameSessionStateEraTests
+public class GameSessionServiceEraTests
 {
-    private GameSessionState CreateTestState()
+    private GameSessionService CreateTestState()
     {
         // Use a real WebSocket service instance; no connection is established in unit tests.
         var ws = new WebSocketService();
-        return new GameSessionState(ws);
+        return new GameSessionService(ws, new GameUIStateService(null!, null!));
     }
 
     [Theory]

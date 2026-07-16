@@ -1,5 +1,5 @@
-@{
-    var _geoToolLayer = Parent != null ? Parent.GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == LayerId) : null;
+﻿@{
+    var _geoToolLayer = Parent != null ? Parent.GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == LayerId) : null;
     var _isMultiType  = _geoToolLayer?.IsMultiType ?? false;
 }
 <div class="geometry-tool-panel">

@@ -1,32 +1,32 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using MSPChallenge_Client_Browser.Services;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 public partial class TimeManager : IDisposable
 {
-    private string[] _eraTimeInputs = new string[GameSessionState.ERA_COUNT];
-    private bool[] _eraTimeEditing = new bool[GameSessionState.ERA_COUNT];
+    private string[] _eraTimeInputs = new string[GameSessionService.ERA_COUNT];
+    private bool[] _eraTimeEditing = new bool[GameSessionService.ERA_COUNT];
 
     private double _timelineProgress => CalculateTimelineProgress();
     
-    private bool CanPlay => GameSessionState.GameState?.ToUpperInvariant() != "PLAY" && GameSessionState.GameState?.ToUpperInvariant() != "FASTFORWARD";
+    private bool CanPlay => GameSessionService.GameState?.ToUpperInvariant() != "PLAY" && GameSessionService.GameState?.ToUpperInvariant() != "FASTFORWARD";
     
-    private bool CanPause => GameSessionState.GameState?.ToUpperInvariant() == "PLAY" || GameSessionState.GameState?.ToUpperInvariant() == "FASTFORWARD";
+    private bool CanPause => GameSessionService.GameState?.ToUpperInvariant() == "PLAY" || GameSessionService.GameState?.ToUpperInvariant() == "FASTFORWARD";
     
-    private bool CanFastForward => GameSessionState.GameState?.ToUpperInvariant() != "FASTFORWARD";
+    private bool CanFastForward => GameSessionService.GameState?.ToUpperInvariant() != "FASTFORWARD";
 
     protected override void OnInitialized()
     {
         // Subscribe to WebSocket state changes for immediate UI updates
-        GameSessionState.Changed += OnGameSessionStateChanged;
+        GameSessionService.Changed += OnGameSessionServiceChanged;
     }
 
     public void Dispose()
     {
-        GameSessionState.Changed -= OnGameSessionStateChanged;
+        GameSessionService.Changed -= OnGameSessionServiceChanged;
     }
 
-    private void OnGameSessionStateChanged()
+    private void OnGameSessionServiceChanged()
     {
         // Marshal back to Blazor UI thread and trigger re-render
         _ = InvokeAsync(StateHasChanged);
@@ -36,22 +36,22 @@ public partial class TimeManager : IDisposable
     {
         if (_eraTimeInputs[0] == null)
         {
-            // Initialize time inputs from GameSessionState
-            for (int i = 0; i < GameSessionState.ERA_COUNT; i++)
+            // Initialize time inputs from GameSessionService
+            for (int i = 0; i < GameSessionService.ERA_COUNT; i++)
             {
-                _eraTimeInputs[i] = FormatTimeLeftForInput(GameSessionState.EraRealTimes[i]);
+                _eraTimeInputs[i] = FormatTimeLeftForInput(GameSessionService.EraRealTimes[i]);
             }
         }
     }
 
     private string GetEraTimeDisplay(int eraIndex)
     {
-        var currentEra = GameSessionState.GetCurrentEra();
+        var currentEra = GameSessionService.GetCurrentEra();
         
         if (eraIndex == currentEra)
         {
             // Current era: show EraTimeLeft
-            return FormatTimeLeft(GameSessionState.EraTimeLeft);
+            return FormatTimeLeft(GameSessionService.EraTimeLeft);
         }
         else if (eraIndex < currentEra)
         {
@@ -61,13 +61,13 @@ public partial class TimeManager : IDisposable
         else
         {
             // Future era: show from EraRealTimes
-            return FormatTimeLeft(GameSessionState.EraRealTimes[eraIndex]);
+            return FormatTimeLeft(GameSessionService.EraRealTimes[eraIndex]);
         }
     }
 
     private bool IsEraEditable(int eraIndex)
     {
-        var currentEra = GameSessionState.GetCurrentEra();
+        var currentEra = GameSessionService.GetCurrentEra();
         // Current and future eras are editable, past eras are not
         return eraIndex >= currentEra;
     }
@@ -91,11 +91,11 @@ public partial class TimeManager : IDisposable
         if (IsEraEditable(eraIndex))
         {
             _eraTimeEditing[eraIndex] = true;
-            var currentEra = GameSessionState.GetCurrentEra();
+            var currentEra = GameSessionService.GetCurrentEra();
             // Current era uses EraTimeLeft, future eras use EraRealTimes
             var timeValue = eraIndex == currentEra 
-                ? GameSessionState.EraTimeLeft 
-                : GameSessionState.EraRealTimes[eraIndex];
+                ? GameSessionService.EraTimeLeft 
+                : GameSessionService.EraRealTimes[eraIndex];
             _eraTimeInputs[eraIndex] = FormatTimeLeftForInput(timeValue);
         }
     }
@@ -109,7 +109,7 @@ public partial class TimeManager : IDisposable
             // Parse the time input (format: H:MM:SS or HH:MM:SS)
             if (TryParseTimeInput(input, out var totalSeconds))
             {
-                var currentEra = GameSessionState.GetCurrentEra();
+                var currentEra = GameSessionService.GetCurrentEra();
                 
                 try
                 {
@@ -121,8 +121,8 @@ public partial class TimeManager : IDisposable
                     else
                     {
                         // Future era: update all era times via api/Game/FutureRealtime
-                        var newEraTimes = new int[GameSessionState.ERA_COUNT];
-                        Array.Copy(GameSessionState.EraRealTimes, newEraTimes, GameSessionState.ERA_COUNT);
+                        var newEraTimes = new int[GameSessionService.ERA_COUNT];
+                        Array.Copy(GameSessionService.EraRealTimes, newEraTimes, GameSessionService.ERA_COUNT);
                         newEraTimes[eraIndex] = totalSeconds;
                         var realtimeString = string.Join(",", newEraTimes);
                         await ApiClient.SetFutureRealtimeAsync(realtimeString);
@@ -159,11 +159,11 @@ public partial class TimeManager : IDisposable
 
     private double CalculateTimelineProgress()
     {
-        var endMonth = GameSessionState.GameEndMonth > 0 
-            ? GameSessionState.GameEndMonth 
-            : GameSessionState.GameEraTotalMonths * GameSessionState.ERA_COUNT;
+        var endMonth = GameSessionService.GameEndMonth > 0 
+            ? GameSessionService.GameEndMonth 
+            : GameSessionService.GameEraTotalMonths * GameSessionService.ERA_COUNT;
         if (endMonth <= 0) return 0;
-        return Math.Clamp((double)GameSessionState.GameCurrentMonth / endMonth * 100.0, 0, 100);
+        return Math.Clamp((double)GameSessionService.GameCurrentMonth / endMonth * 100.0, 0, 100);
     }
 
     private async Task OnSetGameStateAsync(string state)

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
@@ -15,8 +15,8 @@ public partial class PlanLayers : GameComponentBase, IDisposable
     [Parameter] public MapViewPort? Map { get; set; }
     [Parameter] public EventCallback OnSubPanelOpening { get; set; }
 
-    // Expose GameSessionState publicly for child components
-    public new GameSessionState GameSessionState => base.GameSessionState;
+    // Expose GameSessionService publicly for child components
+    public new GameSessionService GameSessionService => base.GameSessionService;
 
     private bool _layerPickerOpen = false;
 
@@ -57,7 +57,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
         {
             if (Plan == null) return [];
             return Plan.Layers
-                .Select(l => GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
+                .Select(l => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
                 .OfType<string>()
                 .Distinct()
                 .ToList();
@@ -95,7 +95,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
 
         await Map.MapJSModule.InvokeVoidAsync("startGeometryEdit", layerId, _dotNetRef);
 
-        var plan = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
+        var plan = GameSessionService.Plans.FirstOrDefault(p => p.PlanId == GameUIStateService.SelectedPlanId);
         var planLayer = plan?.Layers.FirstOrDefault(l => 
             string.Equals(l.OriginalLayerId, layerId, StringComparison.OrdinalIgnoreCase));
         if (planLayer?.DeletedPersistentIds != null)
@@ -104,13 +104,13 @@ public partial class PlanLayers : GameComponentBase, IDisposable
                 _deletedWorldStateIds.Add(deletedId);
         }
 
-        var isNewPlan = GameSessionState.SelectedPlanId == 0;
+        var isNewPlan = GameUIStateService.SelectedPlanId == 0;
         int startDate = isNewPlan 
-            ? (GameSessionState.GameStartYear > 0 ? (DateTime.UtcNow.Year - GameSessionState.GameStartYear) * 12 + DateTime.UtcNow.Month - 1 : 0)
+            ? (GameSessionService.GameStartYear > 0 ? (DateTime.UtcNow.Year - GameSessionService.GameStartYear) * 12 + DateTime.UtcNow.Month - 1 : 0)
             : (plan?.StartDate ?? 0);
 
-        var worldState = GameSessionState.GetProjectedLayerGeometries(layerId, startDate);
-        var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+        var worldState = GameSessionService.GetProjectedLayerGeometries(layerId, startDate);
+        var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
         var geoType = layerEntry?.GeoType ?? "polygon";
 
         var planOwnIds = plan?.Layers
@@ -176,7 +176,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
     public async Task SetGeometryModeCreateAsync()
     {
         if (Map?.MapJSModule is null || _geometryToolLayerId is null) return;
-        var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
+        var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
         _geometryToolCreate = true;
         _geometryToolSelectedFeatureId = null;
         await Map.MapJSModule.InvokeVoidAsync("startGeometryCreate",
@@ -233,7 +233,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
         _geometryToolTypeIndex = idx;
         if (_geometryToolCreate && Map?.MapJSModule is not null && _geometryToolLayerId is not null)
         {
-            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
+            var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
             await Map.MapJSModule.InvokeVoidAsync("startGeometryCreate",
                 _geometryToolLayerId, layerEntry?.GeoType ?? "polygon", idx, _dotNetRef);
         }
@@ -245,7 +245,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
         _geometryToolTypeIndex ^= 1 << bitIndex;
         if (_geometryToolCreate && Map?.MapJSModule is not null && _geometryToolLayerId is not null)
         {
-            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
+            var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
             await Map.MapJSModule.InvokeVoidAsync("startGeometryCreate",
                 _geometryToolLayerId, layerEntry?.GeoType ?? "polygon", _geometryToolTypeIndex, _dotNetRef);
         }
@@ -377,7 +377,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
     public async Task DeleteSelectedGeometryAsync()
     {
         if (_geometryToolSelectedFeatureId is null || _geometryToolLayerId is null || Map?.MapJSModule is null) return;
-        var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
+        var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == _geometryToolLayerId);
         var worldStateId = _geometryToolSelectedWorldStateId;
         var wasModified = worldStateId is not null 
             && !await Map.MapJSModule.InvokeAsync<bool>("isFeatureInOriginalState", _geometryToolSelectedFeatureId);
@@ -558,7 +558,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
         if (wasAdded)
         {
             EditPlanLayerIds.Add(layerId);
-            var layerEntry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
+            var layerEntry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
             if (layerEntry is not null && !layerEntry.Visible && Map is not null)
             {
                 await Map.ToggleLayerAsync(layerEntry, true);

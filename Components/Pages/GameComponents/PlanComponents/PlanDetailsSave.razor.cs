@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -96,14 +96,14 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
         // Once plan data arrives via Game/Latest, select the newly created plan
         if (_pendingSelectPlanId != 0)
         {
-            var newPlan = GameSessionState.Plans.FirstOrDefault(p => p.PlanId == _pendingSelectPlanId);
+            var newPlan = GameSessionService.Plans.FirstOrDefault(p => p.PlanId == _pendingSelectPlanId);
             if (newPlan is not null)
             {
-                GameSessionState.SelectedPlanId = _pendingSelectPlanId;
-                GameSessionState.NotifyChanged();
+                GameUIStateService.SelectedPlanId = _pendingSelectPlanId;
+                GameSessionService.NotifyChanged();
                 _pendingSelectPlanId = 0;
                 if (HostEnvironment.IsDevelopment())
-                    Console.WriteLine($"[PlanDetailsSave] Selected new plan {GameSessionState.SelectedPlanId}");
+                    Console.WriteLine($"[PlanDetailsSave] Selected new plan {GameUIStateService.SelectedPlanId}");
             }
         }
     }
@@ -130,13 +130,13 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
 
     public void ClearCaches()
     {
-        GameSessionState.ClearGeometryCaches();
+        GameSessionService.ClearGeometryCaches();
     }
 
     public async Task<bool> SavePlanAsync()
     {
-        var isNewPlan = GameSessionState.SelectedPlanId == 0;
-        var plan = isNewPlan ? null : GameSessionState.Plans.FirstOrDefault(p => p.PlanId == GameSessionState.SelectedPlanId);
+        var isNewPlan = GameUIStateService.SelectedPlanId == 0;
+        var plan = isNewPlan ? null : GameSessionService.Plans.FirstOrDefault(p => p.PlanId == GameUIStateService.SelectedPlanId);
         
         if (!isNewPlan && plan is null)
         {
@@ -150,7 +150,7 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
         {
             if (HostEnvironment.IsDevelopment())
             {
-                Console.WriteLine($"[SavePlanAsync] Starting - IsNewPlan: {isNewPlan}, PlanId: {GameSessionState.SelectedPlanId}, EditedLayer: {_geometryEditedLayerId ?? "(none)"}");
+                Console.WriteLine($"[SavePlanAsync] Starting - IsNewPlan: {isNewPlan}, PlanId: {GameUIStateService.SelectedPlanId}, EditedLayer: {_geometryEditedLayerId ?? "(none)"}");
             }
 
             var requests = new List<object>();
@@ -171,7 +171,7 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
             }
 
             // Helper: plan ID value (object: !Ref string for new, int for existing)
-            object planIdVal = isNewPlan ? (object)$"!Ref:{createPlanCallId}" : (object)GameSessionState.SelectedPlanId!.Value;
+            object planIdVal = isNewPlan ? (object)$"!Ref:{createPlanCallId}" : (object)GameUIStateService.SelectedPlanId!.Value;
 
             // ── Name, description, date (group 5) ─────────────────────────
             requests.Add(new
@@ -198,7 +198,7 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
             });
 
             // StartDate is stored as month-offset from game start year
-            var startMonthOffset = (EditStartYear - GameSessionState.GameStartYear) * 12 + EditStartMonth - 1;
+            var startMonthOffset = (EditStartYear - GameSessionService.GameStartYear) * 12 + EditStartMonth - 1;
             requests.Add(new
             {
                 call_id = callId++,
@@ -321,7 +321,7 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
 
                     // For new plans the world state is empty (plan.StartDate == 0 default), use offset
                     int planStartDate = plan?.StartDate ?? startMonthOffset;
-                    var worldState = GameSessionState.GetProjectedLayerGeometries(editedLayerId, planStartDate);
+                    var worldState = GameSessionService.GetProjectedLayerGeometries(editedLayerId, planStartDate);
                     var worldStateMap = new Dictionary<string, ParsedLayerGeometry>(StringComparer.OrdinalIgnoreCase);
                     foreach (var g in worldState) worldStateMap[g.FeatureId] = g;
 
@@ -579,7 +579,7 @@ public partial class PlanDetailsSave : GameComponentBase, IDisposable
                     "Plan/Unlock",
                     new[]
                     {
-                        new KeyValuePair<string, string>("id", GameSessionState.SelectedPlanId.ToString()!),
+                        new KeyValuePair<string, string>("id", GameUIStateService.SelectedPlanId.ToString()!),
                         new KeyValuePair<string, string>("force_unlock", "0"),
                         new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
                     });

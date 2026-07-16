@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 
@@ -10,7 +10,7 @@ public partial class MapLegend : IDisposable
 
     protected override void OnInitialized()
     {
-        GameSessionState.Changed += OnStateChanged;
+        GameSessionService.Changed += OnStateChanged;
     }
 
     private void OnStateChanged()
@@ -20,6 +20,6 @@ public partial class MapLegend : IDisposable
 
     public void Dispose()
     {
-        GameSessionState.Changed -= OnStateChanged;
+        GameSessionService.Changed -= OnStateChanged;
     }
 }
