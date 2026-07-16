@@ -3,6 +3,12 @@ html, body {
     font-size: 13px;
 }
 
+div.modal-confirmation {
+    z-index: 99999;
+    opacity: unset !important;
+    padding-top: 100px;
+}
+
 .map-viewport {
     position: fixed;
     left: 0;

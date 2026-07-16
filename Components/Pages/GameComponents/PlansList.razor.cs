@@ -1,9 +1,11 @@
-﻿using MSPChallenge_Client_Browser.Models;
+﻿using BlazorBootstrap;
+using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public partial class PlansList : GameComponentBase, IDisposable
 {
+    private ConfirmDialog dialog;
     private readonly Dictionary<int, string> _planIssueSeverity = [];
     
     private Dictionary<int, string> _countryColours => GameSessionService.Countries
@@ -66,7 +68,11 @@ public partial class PlansList : GameComponentBase, IDisposable
     private async Task ForceUnlockPlanAsync(int planId)
     {
         if (!UserSessionService.IsAdmin) return;
-
+        var confirmation = await dialog.ShowAsync(
+            title: "Are you sure you want to force unlock this plan?",
+            message1: "This will unlock the plan for editing. It might be locked because someone else is currently editing it.",
+            message2: "Do you want to proceed?");
+        if (!confirmation) return;
         try
         {
             await ApiClient.PostFormAsync("Plan/Unlock",
