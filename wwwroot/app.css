@@ -3,12 +3,6 @@ html, body {
     font-size: 13px;
 }
 
-div.modal-confirmation {
-    z-index: 99999;
-    opacity: unset !important;
-    padding-top: 100px;
-}
-
 .map-viewport {
     position: fixed;
     left: 0;
@@ -386,7 +380,7 @@ div.modal-confirmation {
     position: fixed;
     left: 58px;
     top: 1rem;
-    z-index: 9000;
+    z-index: 2000;
     display: block;
     overflow-y: auto;
     max-height: calc(100vh - 2rem);
@@ -546,7 +540,7 @@ div.modal-confirmation {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    z-index: 9600;
+    z-index: 2010;
     width: 340px;
     height: 50vh;
     min-height: 120px;
@@ -1043,7 +1037,7 @@ div.modal-confirmation {
 /* Map properties popup – bottom-right floating card */
 .map-popup {
     position: fixed;
-    z-index: 9100;
+    z-index: 2000;
     background: rgba(33, 37, 41, 0.65);
     color: #f8f9fa;
     border-radius: 0.5rem;
