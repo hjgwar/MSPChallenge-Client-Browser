@@ -12,22 +12,23 @@ public static class PlanStates
         if (currentState == PlanState.IMPLEMENTED)
             return [];
 
-        if (currentState == PlanState.ARCHIVED)
+        if (currentState == PlanState.DELETED)
             return [PlanState.DESIGN];
 
         if (hasErrors)
-            return [PlanState.DESIGN, PlanState.ARCHIVED];
+            return [PlanState.DESIGN, PlanState.DELETED];
 
         var states = new List<PlanState> { PlanState.DESIGN, PlanState.CONSULTATION, PlanState.APPROVAL };
         if (!requiresApproval)
             states.Add(PlanState.APPROVED);
-        states.Add(PlanState.ARCHIVED);
+        states.Add(PlanState.DELETED);
         return states;
     }
 
     public static string PlanStateLabel(PlanState? state) => state?.ToString().ToUpperInvariant() switch
     {
         "APPROVAL" => "AWAITING APPROVAL",
+        "DELETED" => "ARCHIVED",
         _          => state?.ToString().ToUpperInvariant() ?? string.Empty,
     };
 
@@ -38,13 +39,13 @@ public static class PlanStates
         "APPROVAL"      => 2,
         "APPROVED"      => 3,
         "IMPLEMENTED"   => 4,
-        "ARCHIVED"      => 5,
+        "DELETED"      => 5,
         _               => 6,
     };
 
     public static readonly PlanState[] OrderedPlanStates =
     [
-        PlanState.DESIGN, PlanState.CONSULTATION, PlanState.APPROVAL, PlanState.APPROVED, PlanState.IMPLEMENTED, PlanState.ARCHIVED
+        PlanState.DESIGN, PlanState.CONSULTATION, PlanState.APPROVAL, PlanState.APPROVED, PlanState.IMPLEMENTED, PlanState.DELETED
     ];
 
     public static bool IsFinalisedPlanState(PlanState state) =>
@@ -56,5 +57,5 @@ public static class PlanStates
     public static bool IsApprovalCompleteState(PlanState state) =>
         state.Equals(PlanState.APPROVED) ||
         state.Equals(PlanState.IMPLEMENTED) ||
-        state.Equals(PlanState.ARCHIVED);
+        state.Equals(PlanState.DELETED);
 }

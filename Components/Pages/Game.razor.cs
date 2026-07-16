@@ -273,6 +273,21 @@ public partial class Game : IAsyncDisposable
         }
     }
 
+    // ── Legend reorder (called from JS via _dotNetRef) ────────────────────────
+
+    [JSInvokable]
+    public async Task ReorderLegend(int from, int to)
+    {
+        if (from == to || from < 0 || to < 0
+            || from >= GameSessionState.LegendOrderLayerIds.Count
+            || to   >= GameSessionState.LegendOrderLayerIds.Count) return;
+        var item = GameSessionState.LegendOrderLayerIds[from];
+        GameSessionState.LegendOrderLayerIds.RemoveAt(from);
+        GameSessionState.LegendOrderLayerIds.Insert(to, item);
+        await Map.SyncZIndicesAsync();
+        GameSessionState.NotifyChanged();
+    }
+
     // ── Map Click Handler ──────────────────────────────────────────────────────
 
     [JSInvokable]

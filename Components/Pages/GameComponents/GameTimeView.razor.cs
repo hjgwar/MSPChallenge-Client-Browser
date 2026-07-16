@@ -8,8 +8,6 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 public partial class GameTimeView : IDisposable
 {
     [Parameter] public IJSObjectReference MapJSModule { get; set; } = null!;
-    public bool TimeManagerVisible { get; private set; } = false;
-
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -27,22 +25,49 @@ public partial class GameTimeView : IDisposable
         GameSessionState.PlanViewMode = mode;
         GameSessionState.NotifyChanged();
 
-        // Overlay is hidden only in Original mode.
+        // Plan overlay: visible in AfterChanges and ChangesOnly; hidden in Original.
+        // Hiding the overlay is what produces the "pre-plan world state" in Original mode —
+        // layer visibility itself does NOT change between Original and AfterChanges.
         await MapJSModule.InvokeVoidAsync("setPlanOverlayVisible", mode != PlanViewMode.Original);
 
-        // Referenced base layers are hidden only in ChangesOnly mode.
-        bool showBase = mode != PlanViewMode.ChangesOnly;
-        foreach (var planLayer in GameSessionState.SelectedPlan.Layers)
-            if (!string.IsNullOrEmpty(planLayer.OriginalLayerId))
-                await MapJSModule.InvokeVoidAsync("setLayerVisible", planLayer.OriginalLayerId, showBase);
-        
+        // Plan's own base layers — the map layers whose geometry this plan proposes to change.
+        // These are always shown when viewing a plan (auto-shown, mirroring Unity's
+        // UpdateVisibleLayersToPlan which calls ShowLayer() for every plan layer).
+        var planBaseLayerIds = new HashSet<string>(
+            GameSessionState.SelectedPlan.Layers
+                .Where(l => !string.IsNullOrEmpty(l.OriginalLayerId))
+                .Select(l => l.OriginalLayerId),
+            StringComparer.OrdinalIgnoreCase);
+
+        // IsBaseLayer (_PLAYAREA) layers are infrastructure — never touched.
+        // For every other layer the target visibility depends on the mode:
+        //
+        //   AfterChanges / Original : honour the user's Visible preference PLUS auto-show
+        //                             plan layers (matching Unity's UpdateVisibleLayersToPlan).
+        //                             The only difference between these two modes is the overlay.
+        //
+        //   ChangesOnly             : show non-toggleable (always-on) layers only.
+        //                             Extra user-activated non-plan layers are hidden so the
+        //                             player sees nothing but the plan's proposed changes.
+        //                             Plan base layers are also hidden; the overlay covers them.
+        foreach (var layer in GameSessionState.LayerEntries.Where(l => !l.IsBaseLayer))
+        {
+            bool show = mode == PlanViewMode.ChangesOnly
+                ? layer.Visible && (!layer.IsToggleable || !layer.Editable)
+                : layer.Visible || planBaseLayerIds.Contains(layer.LayerId);
+            await MapJSModule.InvokeVoidAsync("setLayerVisible", layer.LayerId, show);
+        }
+
         StateHasChanged();
     }
 
     public void ToggleTimeManager()
     {
         if (UserSessionService.IsAdmin)
-            TimeManagerVisible = !TimeManagerVisible;
+        {
+            GameSessionState.TimeManagerOpen = !GameSessionState.TimeManagerOpen;
+            GameSessionState.NotifyChanged();
+        }
     }
     
     private double BarProgress => GameSessionState.TotalMonths > 0

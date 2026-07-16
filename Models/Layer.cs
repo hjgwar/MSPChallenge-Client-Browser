@@ -9,9 +9,9 @@ public sealed class Layer
     public string Subcategory { get; init; } = "";
     public string Tooltip     { get; init; } = "";
     public string? MediaUrl   { get; init; }
-    public bool   IsBaseLayer  { get; init; }
-    public bool   IsToggleable { get; init; }
-    public bool   Visible     { get; set; }
+    public bool   IsBaseLayer   { get; init; }
+    public bool   IsToggleable  { get; init; }
+    public bool   Visible        { get; set; }
     public int    Depth       { get; init; }
     public IReadOnlyList<TypeDef> TypeDefs { get; init; } = [];
     public IReadOnlyDictionary<string, string> PropertyDisplayNames { get; init; } = new Dictionary<string, string>();

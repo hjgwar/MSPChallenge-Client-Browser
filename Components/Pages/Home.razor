@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 
 <PageTitle>MSP Challenge</PageTitle>
@@ -95,12 +95,14 @@ else
                 <form @onsubmit="ConnectAsync">
                     <div class="mb-3">
                         <label for="country" class="form-label">Country</label>
-                        <select id="country" class="form-select" @bind="selectedCountry">
+                        <select id="country" class="form-select" @bind="selectedCountryId">
                             <option value="">-- Select a country --</option>
                             @foreach (var country in countries)
                             {
-                                <option value="@country.Key">@country.Key</option>
+                                <option value="@country.Id">@country.Name</option>
                             }
+                            <option value="1">Admin</option>
+                            <option value="2">Region Manager</option>
                         </select>
                     </div>
 
@@ -118,7 +120,7 @@ else
                     }
 
                     <button type="submit" class="btn btn-primary"
-                            disabled="@(isConnecting || string.IsNullOrWhiteSpace(selectedCountry) || string.IsNullOrWhiteSpace(username) || (NeedsPassword && string.IsNullOrWhiteSpace(password)))">
+                            disabled="@(isConnecting || string.IsNullOrWhiteSpace(selectedCountryId) || string.IsNullOrWhiteSpace(username) || (NeedsPassword && string.IsNullOrWhiteSpace(password)))">
                         @(isConnecting ? "Connecting..." : "Connect")
                     </button>
                     <button type="button" class="btn btn-secondary" @onclick="CancelJoin">

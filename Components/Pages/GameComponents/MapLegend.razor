@@ -5,11 +5,13 @@
         <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
     <div class="legend-panel-content">
-    @foreach (string layerId in GameSessionState.LegendOrderLayerIds)
+    @for (int i = 0; i < GameSessionState.LegendOrderLayerIds.Count; i++)
     {
+        var layerId = GameSessionState.LegendOrderLayerIds[i];
         Layer? entry = GameSessionState.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
         if (entry is null) continue;
-        <div class="legend-layer" draggable="true" data-legend-idx="@layerId">
+        var idx = i; // capture for lambda
+        <div class="legend-layer" draggable="true" data-legend-idx="@idx">
             <div class="legend-layer-header">
                 <span class="legend-drag-handle" title="Drag to reorder">
                     <svg viewBox="0 0 8 12" width="10" height="14" fill="currentColor" xmlns="http://www.w3.org/2000/svg">

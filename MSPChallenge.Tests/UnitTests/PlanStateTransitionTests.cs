@@ -11,10 +11,10 @@ namespace MSPChallenge.Tests.UnitTests;
 public class PlanStateTransitionTests
 {
     [Theory(Skip = "PlanStateTransitions service not yet extracted from UI components")]
-    [InlineData("DESIGN", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "ARCHIVED" })]
-    [InlineData("CONSULTATION", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "ARCHIVED" })]
-    [InlineData("APPROVAL", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "ARCHIVED" })]
-    [InlineData("APPROVED", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "ARCHIVED" })]
+    [InlineData("DESIGN", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "DELETED" })]
+    [InlineData("CONSULTATION", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "DELETED" })]
+    [InlineData("APPROVAL", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "DELETED" })]
+    [InlineData("APPROVED", false, false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "DELETED" })]
     [InlineData("IMPLEMENTED", false, false, new string[] { })]
     public void GetAvailablePlanStates_ForGivenState_ReturnsValidTransitions(
         string currentState, bool requiresApproval, bool hasErrors, string[] expectedStates)
@@ -30,8 +30,8 @@ public class PlanStateTransitionTests
 
 
     [Theory(Skip = "PlanStateTransitions service not yet extracted from UI components")]
-    [InlineData(true, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "ARCHIVED" })]
-    [InlineData(false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "ARCHIVED" })]
+    [InlineData(true, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "DELETED" })]
+    [InlineData(false, new[] { "DESIGN", "CONSULTATION", "APPROVAL", "APPROVED", "DELETED" })]
     public void GetAvailablePlanStates_RespectsRequiresApproval(
         bool requiresApproval, string[] expectedStates)
     {
@@ -43,20 +43,20 @@ public class PlanStateTransitionTests
     }
 
     [Fact(Skip = "PlanStateTransitions service not yet extracted from UI components")]
-    public void GetAvailablePlanStates_WhenPlanHasErrors_ReturnsDesignAndArchivedOnly()
+    public void GetAvailablePlanStates_WhenPlanHasErrors_ReturnsDesignAndDeletedOnly()
     {
         // Act
         // var result = PlanStateTransitions.GetAvailablePlanStates("CONSULTATION", false, true);
 
         // Assert
-        // result.Should().BeEquivalentTo(new[] { "DESIGN", "ARCHIVED" });
+        // result.Should().BeEquivalentTo(new[] { "DESIGN", "DELETED" });
     }
 
     [Fact(Skip = "PlanStateTransitions service not yet extracted from UI components")]
-    public void GetAvailablePlanStates_ForArchivedState_ReturnsOnlyDesign()
+    public void GetAvailablePlanStates_ForDeletedState_ReturnsOnlyDesign()
     {
         // Act
-        // var result = PlanStateTransitions.GetAvailablePlanStates("ARCHIVED", false, false);
+        // var result = PlanStateTransitions.GetAvailablePlanStates("DELETED", false, false);
 
         // Assert
         // result.Should().ContainSingle().Which.Should().Be("DESIGN");

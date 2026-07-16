@@ -30,7 +30,12 @@ public sealed class GameSessionState : IDisposable
     public List<string> LegendOrderLayerIds { get; } = new();
     public IReadOnlyList<Country> Countries = []; 
     /// <summary>EEZ polygon geometries keyed by country ID. Used for approval calculation.</summary>
-    public IReadOnlyList<EezPolygon> EezPolygons   { get; private set; } = [];
+    public IReadOnlyList<EezPolygon> EezPolygons { get; private set; } = [];
+    /// <summary>
+    /// ID of the EEZ layer, seeded from Home when the player connects.
+    /// Used by LoadGameConfigAsync to call Layer/Get without re-fetching Layer/MetaByName.
+    /// </summary>
+    public string? EezLayerId { get; set; }
     public string WikiBaseUrl   { get; set; } = "";
     public int    GameStartYear { get; set; } = 2000;
     public int    GameEndMonth  { get; set; } = 0;
@@ -38,11 +43,12 @@ public sealed class GameSessionState : IDisposable
     public int    GameEraTotalMonths { get; set; } = 120;
 
     // ── UI state persisted across page navigation (same circuit) ──────────────
-    public bool LayerPanelOpen { get; set; } = true;
-    public bool LegendPanelOpen { get; set; } = true;
+    public bool LayerPanelOpen      { get; set; } = true;
+    public bool LegendPanelOpen     { get; set; } = true;
     public bool OnlineUsersPanelOpen { get; set; } = false;
-    public bool PlansPanelOpen { get; set; } = false;
-    public bool CreatePlanOpen { get; set; } = false;
+    public bool PlansPanelOpen      { get; set; } = false;
+    public bool CreatePlanOpen      { get; set; } = false;
+    public bool TimeManagerOpen     { get; set; } = false;
     public int? SelectedPlanId { get; set; } = null;
     public PlanViewMode PlanViewMode { get; set; } = PlanViewMode.AfterChanges;
     public bool EditMode { get; set; } = false;
@@ -356,7 +362,13 @@ public sealed class GameSessionState : IDisposable
                 : 0;
             var payloadCount = ConversionUtils.GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
             var msgCount = Math.Max(storedCount, payloadCount);
-            var entry = new Plan(id, name, description, Enum.Parse<PlanState>(state), country, startdate, constructionTime, policyNames, policyTypes, planLayers,
+            // Use TryParse with ignoreCase so servers that send lowercase state strings
+            // (e.g. "approved", "implemented") are handled correctly. Skip plan entries
+            // with a missing or unrecognised state to prevent an exception from aborting
+            // all remaining plan processing in this WS message.
+            if (!Enum.TryParse<PlanState>(state, ignoreCase: true, out var planState))
+                continue;
+            var entry = new Plan(id, name, description, planState, country, startdate, constructionTime, policyNames, policyTypes, planLayers,
                 requiresApproval, msgCount, IssueCount: 0, Votes: votes, LockedByUserId: lockedByUserId);
             var idx = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)
@@ -655,81 +667,51 @@ public sealed class GameSessionState : IDisposable
         // Unity-compatible source of restrictions.
         await LoadPlanRestrictionsAsync(apiClient, baseAddress, sessionId);
 
-        // Country colors/names + EEZ polygons
-        if (configPayload.TryGetProperty("countries", out var countriesEl))
+        // EEZ polygon geometry — Countries and EezLayerId are both seeded from Home before
+        // the Game page opens, so no Layer/MetaByName call is needed here.
+        // Reconstruct the typeIndex→countryId mapping from the ordered Countries list.
+        // Because Home strips Admin/RegionManager sentinels before seeding, the list index
+        // matches the layer_type array position exactly.
+        if (!string.IsNullOrWhiteSpace(EezLayerId) && Countries.Count > 0)
         {
-            var countriesLayerName = countriesEl.GetString();
-            if (!string.IsNullOrWhiteSpace(countriesLayerName))
+            var typeIndexToCountry = Countries
+                .Select((c, i) => (i, c.Id))
+                .ToDictionary(x => x.i, x => x.Id);
+
+            try
             {
-                var metaRoot2 = await apiClient.PostFormAsync(
-                    $"{baseAddress}/{sessionId}/api/Layer/MetaByName",
-                    new[] { new KeyValuePair<string, string>("name", countriesLayerName) });
-                var metaPayload2 = ConversionUtils.GetPayload(metaRoot2);
-
-                // Build typeIndex → countryId mapping from layer_type
-                var typeIndexToCountry = new Dictionary<int, int>();
-                if (metaPayload2.TryGetProperty("layer_type", out var layerTypes) && layerTypes.ValueKind == JsonValueKind.Array)
+                var geoRoot = await apiClient.PostFormAsync(
+                    $"{baseAddress}/{sessionId}/api/Layer/Get",
+                    new[] { new KeyValuePair<string, string>("layer_id", EezLayerId) });
+                var geoPayload = ConversionUtils.GetPayload(geoRoot);
+                if (geoPayload.ValueKind == JsonValueKind.Array)
                 {
-                    var ltIndex = 0;
-                    foreach (var lt in layerTypes.EnumerateArray())
+                    var eezList = new List<EezPolygon>();
+                    foreach (var feat in geoPayload.EnumerateArray())
                     {
-                        if (lt.TryGetProperty("value", out var ltVal) && ltVal.ValueKind == JsonValueKind.Number)
+                        var typeIdx = 0;
+                        if (feat.TryGetProperty("type", out var tEl))
                         {
-                            var cid = ltVal.GetInt32();
-                            typeIndexToCountry[ltIndex] = cid;
-                            if (lt.TryGetProperty("polygonColor", out var ltCol) && lt.TryGetProperty("displayName", out var ltDn))
-                            {
-                                var col = ltCol.GetString();
-                                var dn = ltDn.GetString();
-                                Countries = Countries.Append(new Country(cid, dn ?? "", col ?? "")).ToList();
-                            }
+                            if (tEl.ValueKind == JsonValueKind.Number) typeIdx = tEl.GetInt32();
+                            else if (tEl.ValueKind == JsonValueKind.String) int.TryParse(tEl.GetString(), out typeIdx);
                         }
-                        ltIndex++;
-                    }
-                }
+                        if (!typeIndexToCountry.TryGetValue(typeIdx, out var countryId)) continue;
+                        if (!feat.TryGetProperty("geometry", out var geomEl) || geomEl.ValueKind != JsonValueKind.Array) continue;
 
-                // Load EEZ polygon geometry
-                var eezLayerId = metaPayload2.TryGetProperty("layer_id", out var lIdEl)
-                    ? (lIdEl.ValueKind == JsonValueKind.Number ? lIdEl.GetInt32().ToString() : lIdEl.GetString())
-                    : null;
-                if (!string.IsNullOrWhiteSpace(eezLayerId) && typeIndexToCountry.Count > 0)
-                {
-                    try
-                    {
-                        var geoRoot = await apiClient.PostFormAsync(
-                            $"{baseAddress}/{sessionId}/api/Layer/Get",
-                            new[] { new KeyValuePair<string, string>("layer_id", eezLayerId) });
-                        var geoPayload = ConversionUtils.GetPayload(geoRoot);
-                        if (geoPayload.ValueKind == JsonValueKind.Array)
+                        var pts = new List<double[]>();
+                        foreach (var pt in geomEl.EnumerateArray())
                         {
-                            var eezList = new List<EezPolygon>();
-                            foreach (var feat in geoPayload.EnumerateArray())
-                            {
-                                var typeIdx = 0;
-                                if (feat.TryGetProperty("type", out var tEl))
-                                {
-                                    if (tEl.ValueKind == JsonValueKind.Number) typeIdx = tEl.GetInt32();
-                                    else if (tEl.ValueKind == JsonValueKind.String) int.TryParse(tEl.GetString(), out typeIdx);
-                                }
-                                if (!typeIndexToCountry.TryGetValue(typeIdx, out var countryId)) continue;
-                                if (!feat.TryGetProperty("geometry", out var geomEl) || geomEl.ValueKind != JsonValueKind.Array) continue;
-
-                                var pts = new List<double[]>();
-                                foreach (var pt in geomEl.EnumerateArray())
-                                {
-                                    if (pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() >= 2
-                                        && pt[0].ValueKind == JsonValueKind.Number && pt[1].ValueKind == JsonValueKind.Number)
-                                        pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
-                                }
-                                if (pts.Count >= 3)
-                                    eezList.Add(new EezPolygon(countryId, pts));
-                            }
-                            EezPolygons = eezList;
+                            if (pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() >= 2
+                                && pt[0].ValueKind == JsonValueKind.Number && pt[1].ValueKind == JsonValueKind.Number)
+                                pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
                         }
+                        if (pts.Count >= 3)
+                            eezList.Add(new EezPolygon(countryId, pts));
                     }
-                    catch { /* EEZ geometry is optional; skip on any error */ }
+                    EezPolygons = eezList;
                 }
             }
+            catch { /* EEZ geometry is optional; skip on any error */ }
         }
 
         if (reportStatus is not null)
@@ -1022,10 +1004,10 @@ public sealed class GameSessionState : IDisposable
             Subcategory = subcategory,
             Tooltip = tooltip,
             MediaUrl = layerMediaUrl,
-            IsBaseLayer = isBase,
-            IsToggleable = toggleable,
-            Visible = visible,
-            Depth = depth,
+            IsBaseLayer   = isBase,
+            IsToggleable  = toggleable,
+            Visible       = visible,
+            Depth         = depth,
             TypeDefs = typeDefs,
             PropertyDisplayNames = propDisplayNames,
             IsRaster = string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase),

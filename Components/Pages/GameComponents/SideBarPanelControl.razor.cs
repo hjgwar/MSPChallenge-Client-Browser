@@ -4,13 +4,22 @@ using MSPChallenge_Client_Browser.Services;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
-public partial class SideBarPanelControl
+public partial class SideBarPanelControl : IDisposable
 {
     [Inject] private NavigationManager NavigationManager { get; set; } = null!;
     [Inject] private UserSessionService UserSessionService { get; set; } = null!;
     [Inject] private GameSessionState GameSessionState { get; set; } = null!;
     [Inject] private MspApiClient ApiClient { get; set; } = null!;
-    
+
+    protected override void OnInitialized()
+        => GameSessionState.Changed += OnStateChanged;
+
+    public void Dispose()
+        => GameSessionState.Changed -= OnStateChanged;
+
+    private void OnStateChanged()
+        => InvokeAsync(StateHasChanged);
+
     public void ToggleOnlineUsersPanel()
     {
         GameSessionState.OnlineUsersPanelOpen = !GameSessionState.OnlineUsersPanelOpen;
@@ -73,8 +82,7 @@ public partial class SideBarPanelControl
     /// <summary>Inline style for the users sidebar button: tinted with the country colour.</summary>
     private string CountryBtnStyle()
     {
-        string hex = GameSessionState.Countries.FirstOrDefault(c => c.Id == UserSessionService.User.Country.Id)?.Color ?? "";
-        string rgba = ConversionUtils.HexToRGB(hex, GameSessionState.OnlineUsersPanelOpen ? 0.40 : 0.20);
+        string rgba = ConversionUtils.HexToRGB(UserSessionService.User.Country.Color, GameSessionState.OnlineUsersPanelOpen ? 0.40 : 0.20);
         return $"background:{rgba};color:#fff;";
     }
 }

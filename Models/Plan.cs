@@ -57,7 +57,7 @@ public sealed record PlanMessage(
 
 public enum PlanViewMode { AfterChanges, Original, ChangesOnly }
 
-public enum PlanState { DESIGN, CONSULTATION, APPROVAL, APPROVED, IMPLEMENTED, ARCHIVED }
+public enum PlanState { DESIGN, CONSULTATION, APPROVAL, APPROVED, IMPLEMENTED, DELETED }
 
 public sealed record PlanApprovalRequirement(
     int                   CountryId,

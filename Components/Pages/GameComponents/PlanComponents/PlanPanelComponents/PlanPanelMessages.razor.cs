@@ -1,14 +1,20 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents.PlanPanelComponents;
 
 public partial class PlanPanelMessages : GameComponentBase
 {
+    [Inject] private IJSRuntime JS { get; set; } = null!;
+
     [Parameter] public IReadOnlyList<PlanMessage>? Messages { get; set; }
     [Parameter] public EventCallback OnTogglePanel { get; set; }
+
+    private ElementReference _messageBody;
+    private int _lastScrolledMessageCount = -1;
 
     private string _planMessageDraft = string.Empty;
     private string? _planMessageSendError;
@@ -20,6 +26,17 @@ public partial class PlanPanelMessages : GameComponentBase
         GameSessionState.SelectedPlanId != 0 &&
         !_sendingPlanMessage &&
         !string.IsNullOrWhiteSpace(_planMessageDraft);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        int count = SelectedPlanMessages.Count;
+        if (firstRender || count != _lastScrolledMessageCount)
+        {
+            _lastScrolledMessageCount = count;
+            try { await JS.InvokeVoidAsync("scrollElementToBottom", _messageBody); }
+            catch { /* element may not be mounted yet */ }
+        }
+    }
 
     private async Task TogglePlanMessagesPanel()
     {
