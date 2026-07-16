@@ -1,5 +1,6 @@
 html, body {
     font-family: 'Cabin', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 13px;
 }
 
 .map-viewport {
@@ -24,13 +25,13 @@ html, body {
     border-radius: 0.375rem;
     max-width: 90vw;
     text-align: center;
-    font-size: 0.875rem;
+    
 }
 
 .map-error-detail {
     margin-top: 0.5rem;
     text-align: left;
-    font-size: 0.75rem;
+    
     white-space: pre-wrap;
     word-break: break-word;
     max-height: 40vh;
@@ -57,7 +58,7 @@ html, body {
     display: flex;
     flex-direction: column;
     font-family: 'Consolas', 'SFMono-Regular', monospace;
-    font-size: 0.7rem;
+    
 }
 
 .ws-console-header {
@@ -72,14 +73,14 @@ html, body {
 .ws-console-title {
     font-weight: 600;
     color: #74c0fc;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
-    font-size: 0.65rem;
+    
 }
 
 .ws-console-count {
     color: #6c757d;
-    font-size: 0.65rem;
+    
     flex: 1;
 }
 
@@ -87,7 +88,7 @@ html, body {
     background: none;
     border: 1px solid rgba(255,255,255,0.15);
     color: #6c757d;
-    font-size: 0.65rem;
+    
     padding: 1px 6px;
     border-radius: 3px;
     cursor: pointer;
@@ -100,7 +101,7 @@ html, body {
 }
 
 .ws-copy-confirm {
-    font-size: 0.65rem;
+    
     color: #6fcf97;
     font-style: italic;
 }
@@ -112,7 +113,7 @@ html, body {
     background: rgba(30,30,30,0.85);
     border: 1px solid rgba(255,255,255,0.15);
     color: #6c757d;
-    font-size: 0.65rem;
+    
     font-family: inherit;
     padding: 2px 8px;
     border-radius: 3px;
@@ -196,8 +197,8 @@ html, body {
 }
 
 .ws-detail-label {
-    font-size: 0.62rem;
-    text-transform: uppercase;
+    
+    
     letter-spacing: 0.06em;
     color: #74c0fc;
     flex: 1;
@@ -210,7 +211,7 @@ html, body {
     flex: 1;
     color: #e9ecef;
     white-space: pre;
-    font-size: 0.68rem;
+    
     line-height: 1.45;
 }
 
@@ -280,7 +281,7 @@ html, body {
 .splash-tagline {
     font-size: clamp(0.65rem, 1.4vw, 0.8rem);
     letter-spacing: 0.3em;
-    text-transform: uppercase;
+    
     color: rgba(255, 255, 255, 0.42);
     margin-top: -0.25rem;
 }
@@ -308,7 +309,7 @@ html, body {
 }
 
 .splash-status {
-    font-size: 0.72rem;
+    
     letter-spacing: 0.1em;
     color: rgba(255, 255, 255, 0.28);
 }
@@ -321,14 +322,14 @@ html, body {
     width: 44px;
     height: 100vh;
     z-index: 9100;
-    background: rgba(22, 27, 34, 0.92);
+    background: rgba(22, 27, 34, 0.65);
     backdrop-filter: blur(6px);
     box-shadow: 2px 0 10px rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 0.5rem 0;
-    gap: 0.25rem;
+    gap: 0.8rem;
 }
 
 .sidebar-btn {
@@ -336,7 +337,7 @@ html, body {
     height: 34px;
     border: none;
     background: none;
-    color: #6c757d;
+    color: white;
     border-radius: 0.375rem;
     cursor: pointer;
     display: flex;
@@ -353,24 +354,23 @@ html, body {
 }
 
 .sidebar-btn:hover {
-    background: rgba(255,255,255,0.1);
-    color: #dee2e6;
+    background: grey;
+    color: white;
 }
 
 .sidebar-btn--active {
     background: rgba(116, 192, 252, 0.15);
-    color: #74c0fc;
+    color: #f7a02b;
 }
 
 .sidebar-btn--active:hover {
-    background: rgba(116, 192, 252, 0.25);
-    color: #a5d8ff;
+    background: grey;
+    color: white;
 }
 
 .sidebar-separator {
     width: 26px;
-    height: 1px;
-    background: rgba(255,255,255,0.12);
+    height: 10px;
     margin: 0.2rem 0;
     flex-shrink: 0;
 }
@@ -378,7 +378,7 @@ html, body {
 /* Container for panels that float to the right of the sidebar */
 .map-sidebar-panels {
     position: fixed;
-    left: 48px;
+    left: 58px;
     top: 1rem;
     z-index: 9000;
     display: block;
@@ -418,14 +418,6 @@ html, body {
     width: 295px;
     z-index: 9000;
     pointer-events: none;
-}
-
-/* Shared text baseline for all panels */
-.layer-panel,
-.legend-panel,
-.users-panel,
-.plans-panel {
-    font-size: 0.8125rem;
 }
 
 /* Online users panel */
@@ -468,8 +460,7 @@ html, body {
 
 .users-panel-title {
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
     flex: 1;
@@ -498,26 +489,7 @@ html, body {
     height: 12px;
 }
 
-.panel-close-btn {
-    background: none;
-    border: none;
-    color: #adb5bd;
-    cursor: pointer;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-left: 0.25rem;
-}
 
-.panel-close-btn:hover {
-    color: #dee2e6;
-    background: rgba(255,255,255,0.08);
-}
 
 .user-row {
     display: flex;
@@ -544,7 +516,7 @@ html, body {
 
 .users-status {
     color: #adb5bd;
-    font-size: 0.75rem;
+    
     padding: 0.2rem 0;
 }
 
@@ -558,7 +530,7 @@ html, body {
     gap: 0.4rem;
     padding: 0.25rem 0.75rem 0.4rem;
     border-bottom: 1px solid rgba(255,255,255,0.08);
-    font-size: 0.75rem;
+    
     color: #adb5bd;
 }
 
@@ -625,15 +597,15 @@ html, body {
 
 .plans-panel-title {
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
+    
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
     flex: 1;
 }
 
 .plans-panel-count {
-    font-size: 0.7rem;
+    
     background: rgba(255,255,255,0.12);
     color: #adb5bd;
     border-radius: 9px;
@@ -695,16 +667,16 @@ html, body {
 
 .plan-date {
     flex-shrink: 0;
-    font-size: 0.7rem;
+    
     color: #adb5bd;
     white-space: nowrap;
 }
 
 .plan-state {
     flex-shrink: 0;
-    font-size: 0.68rem;
+    
     font-weight: 600;
-    text-transform: uppercase;
+    
     letter-spacing: 0.04em;
     padding: 0.1rem 0.35rem;
     border-radius: 3px;
@@ -719,7 +691,7 @@ html, body {
 
 .plans-status {
     color: #adb5bd;
-    font-size: 0.75rem;
+    
     padding: 0.2rem 0;
 }
 
@@ -731,8 +703,8 @@ html, body {
     cursor: pointer;
     user-select: none;
     font-weight: 600;
-    font-size: 0.7rem;
-    text-transform: uppercase;
+    
+    
     letter-spacing: 0.05em;
     color: #adb5bd;
     padding: 0.15rem 0;
@@ -745,7 +717,7 @@ html, body {
 .plan-group-header::-webkit-details-marker { display: none; }
 .plan-group-header::before {
     content: '\25BC';
-    font-size: 0.55rem;
+    
     transition: transform 0.15s;
 }
 .plan-group[open] > .plan-group-header::before { transform: rotate(0deg); }
@@ -753,7 +725,7 @@ html, body {
 
 .plan-group-count {
     margin-left: auto;
-    font-size: 0.68rem;
+    
     background: rgba(255,255,255,0.10);
     color: #adb5bd;
     border-radius: 8px;
@@ -767,7 +739,7 @@ html, body {
 
 .plans-empty-state {
     padding: 0.15rem 0.6rem 0.25rem;
-    font-size: 0.68rem;
+    
     color: #adb5bd;
     font-style: italic;
 }
@@ -794,8 +766,7 @@ html, body {
 
 .layer-panel-title {
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
     margin-bottom: 0.4rem;
@@ -822,14 +793,13 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.78rem;
     padding: 0.2rem 0.45rem;
     margin-bottom: 0.4rem;
     outline: none;
 }
 
 .layer-search::placeholder {
-    color: #6c757d;
+    font-style: italic;
 }
 
 .layer-search:focus {
@@ -876,8 +846,7 @@ html, body {
     cursor: pointer;
     user-select: none;
     font-weight: 600;
-    font-size: 0.7rem;
-    text-transform: uppercase;
+    
     letter-spacing: 0.05em;
     color: #adb5bd;
     padding: 0.15rem 0;
@@ -889,7 +858,7 @@ html, body {
 
 .layer-cat-header::before {
     content: '\25BC';
-    font-size: 0.55rem;
+    
     transition: transform 0.15s;
 }
 
@@ -898,14 +867,13 @@ html, body {
 
 .layer-sub-header {
     font-weight: 500;
-    font-size: 0.68rem;
     color: #adb5bd;
     padding-left: 0.5rem;
 }
 
 .layer-sub-header::before {
     content: '\25B8';
-    font-size: 0.55rem;
+    
     transition: transform 0.15s;
 }
 
@@ -935,8 +903,7 @@ html, body {
 
 .legend-panel-title {
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
     margin-bottom: 0.35rem;
@@ -1014,7 +981,6 @@ html, body {
     background: none;
     border: none;
     color: #adb5bd;
-    font-size: 0.75rem;
     line-height: 1;
     padding: 4px 6px;
     border-radius: 3px;
@@ -1031,7 +997,7 @@ html, body {
 .info-icon-link {
     flex-shrink: 0;
     color: #74c0fc;
-    font-size: 0.95rem;
+    
     line-height: 1;
     text-decoration: none;
     opacity: 0.6;
@@ -1081,7 +1047,6 @@ html, body {
     flex-direction: column;
     box-shadow: 0 4px 16px rgba(0,0,0,0.5);
     backdrop-filter: blur(4px);
-    font-size: 0.8125rem;
     overflow: hidden;
 }
 
@@ -1096,8 +1061,7 @@ html, body {
 
 .map-popup-title {
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
+    
     letter-spacing: 0.05em;
     color: #adb5bd;
     flex: 1;
@@ -1111,7 +1075,6 @@ html, body {
     background: none;
     border: none;
     color: #adb5bd;
-    font-size: 0.65rem;
     line-height: 1;
     padding: 2px 4px;
     border-radius: 3px;
@@ -1212,15 +1175,13 @@ html, body {
 }
 
 .game-bar-plan-time-label {
-    font-size: 0.72rem;
     font-weight: 600;
     color: #adb5bd;
-    text-transform: uppercase;
+    
     letter-spacing: 0.05em;
 }
 
 .game-bar-plan-time-date {
-    font-size: 0.88rem;
     font-weight: 700;
     color: #FFD700;
     letter-spacing: 0.02em;
@@ -1244,9 +1205,8 @@ html, body {
     border-radius: 0.35rem;
     color: #adb5bd;
     cursor: pointer;
-    font-size: 0.59rem;
     line-height: 1;
-    text-transform: uppercase;
+    
     letter-spacing: 0.04em;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
     white-space: nowrap;
@@ -1292,7 +1252,6 @@ html, body {
 }
 
 .game-bar-date {
-    font-size: 0.85rem;
     font-weight: 600;
     color: #f8f9fa;
     text-align: center;
@@ -1306,7 +1265,6 @@ html, body {
 }
 
 .game-bar-year {
-    font-size: 0.68rem;
     color: #adb5bd;
     flex-shrink: 0;
 }
@@ -1359,15 +1317,13 @@ html, body {
 }
 
 .game-bar-state-label {
-    font-size: 0.72rem;
     font-weight: 600;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
 }
 
 .game-bar-timeleft {
-    font-size: 0.82rem;
     font-weight: 600;
     color: #f8f9fa;
     font-variant-numeric: tabular-nums;
@@ -1403,7 +1359,6 @@ html, body {
     color: #f8f9fa;
     border-radius: 0.5rem;
     box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    font-size: 0.8125rem;
     display: flex;
     flex-direction: column;
     overflow: visible;
@@ -1442,8 +1397,7 @@ html, body {
     align-items: center;
     justify-content: space-between;
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
     padding: 0.4rem 0.55rem 0.3rem 0.75rem;
@@ -1471,7 +1425,6 @@ html, body {
 
 .plan-detail-title {
     font-weight: 600;
-    font-size: 0.875rem;
     color: #f8f9fa;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1488,7 +1441,6 @@ html, body {
     display: flex;
     align-items: flex-start;
     gap: 0.2rem;
-    font-size: 0.72rem;
     color: #adb5bd;
     line-height: 1.35;
 }
@@ -1550,9 +1502,9 @@ html, body {
     align-items: center;
     justify-content: space-between;
     padding: 0.32rem 0.75rem;
-    font-size: 0.7rem;
+    
     font-weight: 600;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
     background: rgba(255,255,255,0.055);
@@ -1565,13 +1517,13 @@ html, body {
 
 .plan-detail-section[open] > .plan-detail-section-hdr::after {
     content: '▲';
-    font-size: 0.55rem;
+    
     opacity: 0.6;
 }
 
 .plan-detail-section:not([open]) > .plan-detail-section-hdr::after {
     content: '▼';
-    font-size: 0.55rem;
+    
     opacity: 0.6;
 }
 
@@ -1653,7 +1605,7 @@ html, body {
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: 0.35rem;
     color: #f8f9fa;
-    font-size: 0.8rem;
+    
     padding: 0.3rem 0.5rem;
     cursor: pointer;
     text-align: left;
@@ -1701,7 +1653,7 @@ html, body {
     display: block;
     width: 100%;
     padding: 0.3rem 0.55rem;
-    font-size: 0.8rem;
+    
     color: #ced4da;
     background: transparent;
     border: none;
@@ -1731,7 +1683,7 @@ html, body {
     padding: 0.3rem 0;
     border-radius: 0.35rem;
     border: none;
-    font-size: 0.9rem;
+    
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.12s;
@@ -1784,7 +1736,7 @@ html, body {
 
 .plan-approval-country {
     flex: 1;
-    font-size: 0.8rem;
+    
     font-weight: 500;
     color: #e9ecef;
 }
@@ -1796,7 +1748,7 @@ html, body {
 }
 
 .plan-approval-th {
-    font-size: 0.68rem;
+    
     color: #ced4da;
     font-weight: 600;
     text-align: center;
@@ -1819,7 +1771,7 @@ html, body {
 }
 
 .plan-approval-td--name {
-    font-size: 0.78rem;
+    
     color: #e9ecef;
     white-space: nowrap;
     padding-right: 0.5rem !important;
@@ -1888,7 +1840,7 @@ html, body {
     padding: 0;
     list-style: disc;
     color: #adb5bd;
-    font-size: 0.72rem;
+    
     line-height: 1.45;
 }
 
@@ -1942,10 +1894,10 @@ html, body {
 .plan-message-panel-title {
     flex: 1;
     text-align: left;
-    font-size: 0.75rem;
+    
     font-weight: 600;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
+    
     color: #adb5bd;
 }
 
@@ -1963,7 +1915,7 @@ html, body {
 
 .plan-message-empty {
     color: #adb5bd;
-    font-size: 0.76rem;
+    
     padding: 0.2rem 0.15rem;
 }
 
@@ -2019,10 +1971,10 @@ html, body {
     min-width: 3.75rem;
     border-radius: 999px;
     padding: 0.05rem 0.35rem;
-    font-size: 0.62rem;
+    
     font-weight: 700;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
+    
 }
 
 .plan-issue-severity--info {
@@ -2043,7 +1995,7 @@ html, body {
 .plan-issue-layers {
     margin-top: 0.2rem;
     color: #5c636a;
-    font-size: 0.66rem;
+    
     line-height: 1.25;
 }
 
@@ -2052,7 +2004,7 @@ html, body {
     align-items: baseline;
     gap: 0.35rem;
     margin-bottom: 0.1rem;
-    font-size: 0.66rem;
+    
     line-height: 1.2;
 }
 
@@ -2073,7 +2025,7 @@ html, body {
 }
 
 .plan-message-text {
-    font-size: 0.78rem;
+    
     line-height: 1.35;
     word-break: break-word;
     white-space: pre-wrap;
@@ -2095,7 +2047,7 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.78rem;
+    
     padding: 0.2rem 0.45rem;
     outline: none;
     font: inherit;
@@ -2122,7 +2074,7 @@ html, body {
     border-radius: 0.35rem;
     padding: 0.4rem 0.75rem;
     font: inherit;
-    font-size: 0.8rem;
+    
     font-weight: 500;
     color: #dee2e6;
     background: rgba(255,255,255,0.07);
@@ -2148,7 +2100,7 @@ html, body {
 
 .plan-message-send-error {
     color: #ff8787;
-    font-size: 0.7rem;
+    
     padding: 0 0.55rem 0.35rem;
 }
 
@@ -2172,7 +2124,7 @@ html, body {
     align-items: center;
     gap: 0.45rem;
     color: #dee2e6;
-    font-size: 0.8rem;
+    
     line-height: 1.35;
 }
 
@@ -2218,7 +2170,7 @@ html, body {
 }
 
 .time-manager-title {
-    font-size: 1rem;
+    
     font-weight: 600;
     color: #f8f9fa;
 }
@@ -2257,7 +2209,7 @@ html, body {
 }
 
 .time-manager-section-title {
-    font-size: 0.8rem;
+    
     color: #adb5bd;
     font-weight: 500;
 }
@@ -2274,7 +2226,7 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     text-align: center;
-    font-size: 0.85rem;
+    
     font-weight: 600;
     color: #f8f9fa;
     font-family: 'Courier New', monospace;
@@ -2298,7 +2250,7 @@ html, body {
     border-radius: 2px;
     color: #f8f9fa;
     font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
+    
     font-weight: 600;
     text-align: center;
     padding: 0.2rem;
@@ -2319,7 +2271,7 @@ html, body {
 .time-manager-timeline-years {
     display: flex;
     justify-content: space-between;
-    font-size: 0.75rem;
+    
     color: #adb5bd;
     padding: 0 0.2rem;
 }
@@ -2392,7 +2344,7 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.35rem;
     color: #dee2e6;
-    font-size: 0.8rem;
+    
     font-weight: 500;
     cursor: pointer;
     text-align: center;
@@ -2430,7 +2382,7 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.8rem;
+    
     padding: 0.3rem 0.45rem;
     font-family: inherit;
     outline: none;
@@ -2474,7 +2426,7 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.78rem;
+    
     padding: 0.28rem 0.4rem;
     font-family: inherit;
     outline: none;
@@ -2503,7 +2455,7 @@ html, body {
 
 .plan-edit-date-hint {
     display: block;
-    font-size: 0.72rem;
+    
     color: #868e96;
     margin-top: 0.1rem;
 }
@@ -2522,7 +2474,7 @@ html, body {
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: 0.3rem;
     color: #ced4da;
-    font-size: 0.78rem;
+    
     font-family: inherit;
     text-align: center;
     cursor: pointer;
@@ -2543,13 +2495,13 @@ html, body {
 /* Error message */
 .plan-edit-error {
     margin: 0.3rem 0.75rem 0;
-    font-size: 0.75rem;
+    
     color: #ff8080;
 }
 
 .plan-edit-status {
     margin: 0.3rem 0.75rem 0;
-    font-size: 0.75rem;
+    
     color: #adb5bd;
     text-align: center;
 }
@@ -2597,8 +2549,8 @@ html, body {
 }
 
 .geometry-tool-section-title {
-    font-size: 0.68rem;
-    text-transform: uppercase;
+    
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
     margin-bottom: 0.35rem;
@@ -2609,7 +2561,7 @@ html, body {
     align-items: center;
     gap: 0.45rem;
     padding: 0.22rem 0.2rem;
-    font-size: 0.82rem;
+    
     color: #c9d1d9;
     cursor: pointer;
     border-radius: 0.25rem;
@@ -2646,7 +2598,7 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 0.35rem;
     color: #c9d1d9;
-    font-size: 0.68rem;
+    
     font-family: inherit;
     cursor: pointer;
     transition: background 0.12s, color 0.12s;
@@ -2720,7 +2672,7 @@ html, body {
     flex: 1;
     padding: 0.4rem 0;
     border-radius: 0.35rem;
-    font-size: 0.8rem;
+    
     font-family: inherit;
     font-weight: 500;
     cursor: pointer;
@@ -2770,11 +2722,11 @@ html, body {
 }
 
 .create-plan-label {
-    font-size: 0.72rem;
+    
     font-weight: 600;
     letter-spacing: 0.02em;
     color: #adb5bd;
-    text-transform: uppercase;
+    
 }
 
 .create-plan-optional {
@@ -2913,7 +2865,7 @@ button.plan-lock-icon:hover {
 }
 
 .plan-policy-name {
-    font-size: 0.8rem;
+    
     color: #dee2e6;
 }
 
@@ -2931,7 +2883,7 @@ button.plan-lock-icon:hover {
     left: 50%;
     transform: translateX(-50%);
     color: rgba(180,210,230,0.55);
-    font-size: 0.78rem;
+    
     pointer-events: none;
     white-space: nowrap;
     letter-spacing: 0.02em;
@@ -2945,7 +2897,7 @@ button.plan-lock-icon:hover {
     border: 1px solid rgba(116,185,214,0.3);
     border-radius: 6px;
     color: #74b9d6;
-    font-size: 0.8rem;
+    
     padding: 0.4rem 0.85rem;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
@@ -2968,7 +2920,7 @@ button.plan-lock-icon:hover {
     gap: 1rem;
     background: #07141e;
     color: #74b9d6;
-    font-size: 1rem;
+    
 }
 
 .dep-no-data p { margin: 0; color: #aed6ea; }

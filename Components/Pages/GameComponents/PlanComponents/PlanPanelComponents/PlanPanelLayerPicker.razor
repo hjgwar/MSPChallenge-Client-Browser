@@ -1,9 +1,9 @@
-<div class="plan-message-panel plan-layer-picker-panel">
-    <div class="plan-message-panel-header">
-        <span class="plan-message-panel-title">Layer Picker</span>
+<div class="panel plan-message-panel plan-layer-picker-panel">
+    <div class="panel-title plan-message-panel-header">
+        <span style="flex: 1">Layer Picker</span>
         <button class="panel-close-btn" type="button" title="Close" @onclick="ToggleLayerPickerAsync">&#10005;</button>
     </div>
-    <div class="plan-message-panel-body plan-layer-picker-body">
+    <div class="plan-content plan-message-panel-body plan-layer-picker-body">
         @if (AvailableLayers.Count == 0)
         {
             <div class="plan-message-empty">No editable layers available.</div>

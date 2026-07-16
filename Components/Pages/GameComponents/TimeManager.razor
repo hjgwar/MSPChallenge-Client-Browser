@@ -1,9 +1,9 @@
 ﻿@inherits GameComponentBase
-<div class="time-manager-overlay">
+<div class="panel time-manager-overlay">
     <div class="time-manager-container">
         <div class="time-manager-panel" @onclick:stopPropagation="true">
-            <div class="time-manager-header">
-                <div class="time-manager-title">Time Manager</div>
+            <div class="panel-title time-manager-header">
+                <span style="flex: 1">Time Manager</span>
                 <button class="time-manager-close" @onclick="OnCloseThisPanel" title="Close">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
                         <line x1="18" y1="6" x2="6" y2="18"/>
@@ -11,7 +11,7 @@
                     </svg>
                 </button>
             </div>
-            <div class="time-manager-content">
+            <div class="panel-content time-manager-content">
                 <div class="time-manager-section">
                     <div class="time-manager-section-title">Remaining planning time</div>
                     <div class="time-manager-time-display">

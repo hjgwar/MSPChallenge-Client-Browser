@@ -1,11 +1,11 @@
 ﻿@using MSPChallenge_Client_Browser.Utils.PlanCalculations
 @inherits GameComponentBase
-<div class="plans-panel" id="plans-panel-float">
-    <div class="plans-panel-header plans-panel-drag-handle">
-        <span class="plans-panel-title">Plans</span>
+<div class="panel plans-panel" id="plans-panel-float">
+    <div class="panel-title plans-panel-header plans-panel-drag-handle">
+        <span style="flex: 1">Plans</span>
         <button class="panel-close-btn" title="Close" @onclick="@(() => SetPlansPanelOpen(false))">&#10005;</button>
     </div>
-    <div class="plans-panel-content">
+    <div class="panel-content plans-panel-content">
     @{
         var _visiblePlans = GameSessionService.Plans
             .Where(p => UserSessionService.IsAdmin || p.StartDate != -1)

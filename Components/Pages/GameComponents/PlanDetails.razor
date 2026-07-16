@@ -1,9 +1,9 @@
 @inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents
 
-<div class="plan-detail-panel">
-    <div class="plan-detail-panel-title">
-        @(GameUIStateService.EditMode ? "EDIT PLAN" : "ACTIVE PLAN")
+<div class="panel plan-detail-panel">
+    <div class="panel-title plan-detail-panel-title">
+        <span style="flex: 1">@(GameUIStateService.EditMode ? "Edit Plan" : "Active Plan")</span>
         <button class="panel-close-btn" title="Close" @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
     </div>
     <div class="plan-detail-header">

@@ -27,8 +27,12 @@ public static class PlanStates
 
     public static string PlanStateLabel(PlanState? state) => state?.ToString().ToUpperInvariant() switch
     {
-        "APPROVAL" => "AWAITING APPROVAL",
-        "DELETED" => "ARCHIVED",
+        "DESIGN"       => "Design",
+        "CONSULTATION" => "Consultation",
+        "APPROVAL" => "Awaiting Approval",
+        "APPROVED"     => "Approved",
+        "IMPLEMENTED"  => "Implemented",
+        "DELETED" => "Archived",
         _          => state?.ToString().ToUpperInvariant() ?? string.Empty,
     };
 
