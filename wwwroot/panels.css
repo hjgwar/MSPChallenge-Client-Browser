@@ -1,42 +1,100 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design tokens — single source of truth for the glassmorphism UI system.
+   This file is loaded BEFORE app.css, so all custom properties are available
+   throughout the entire stylesheet cascade.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+    /* Glass surface */
+    --glass-bg:           rgba(33, 37, 41, 0.65);
+    --glass-bg-dark:      rgba(22, 27, 34, 0.65);   /* sidebar variant */
+    --glass-bg-title:     rgba(245, 245, 245, 0.85);   /* panel title bar */
+    --glass-blur:         blur(6px);
+    --glass-shadow:       0 2px 10px rgba(0, 0, 0, 0.45);
+    --glass-shadow-lg:    0 4px 24px rgba(0, 0, 0, 0.60);
+    --glass-radius:       0.5rem 0.5rem 0 0;  /* top corners only */
+    --glass-border:       1px solid rgba(255, 255, 255, 0.08);
+    --glass-sep:          1px solid rgba(255, 255, 255, 0.12);
+    --glass-sep-faint:    1px solid rgba(255, 255, 255, 0.07);
+
+    /* Connector arrow used by absolutely-positioned side-panels */
+    --panel-arrow-bg:     rgba(33, 37, 41, 0.65);
+    --panel-arrow-border: rgba(255, 255, 255, 0.08);
+
+    /* Typography */
+    --ui-text:            #f8f9fa;
+    --ui-text-secondary:  #dee2e6;
+    --ui-text-muted:      #adb5bd;
+    --ui-text-dim:        #6c757d;
+    --ui-text-title:      #037c7c;
+
+    /* Accent colours */
+    --accent-blue:        #74c0fc;
+    --accent-gold:        #FFD700;
+    --accent-green:       #69db7c;
+    --accent-red:         #ff8080;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   .panel — glass panel shell.
+   Every floating / side panel in the game UI gets this class.
+   Specific panel classes in app.css add positioning, sizing and other
+   component-specific overrides — no !important needed.
+   ═══════════════════════════════════════════════════════════════════════════ */
 .panel {
-    padding: 0 !important;
-    margin-bottom: 20px;
+    background:              var(--glass-bg);
+    backdrop-filter:         var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius:           var(--glass-radius);
+    box-shadow:              var(--glass-shadow);
+    color:                   var(--ui-text);
+    border:                  var(--glass-border);
+    display:                 flex;
+    flex-direction:          column;
+    overflow:                hidden;
 }
 
+/* ── Header bar ──────────────────────────────────────────────────────────── */
 .panel-title {
-    text-transform: none !important;
-    text-align: center !important;
-    font-weight: 600 !important;
-    padding: 0.3rem !important;
-    color: #037c7c !important;
-    background-color: #f5f5f5 !important;
-    border-radius: 0.5rem 0.5rem 0 0 !important;
+    display:        flex;
+    background:     var(--glass-bg-title);
+    border-radius:  var(--glass-radius);
+    align-items:    center;
+    padding:        0.35rem 0.55rem 0.3rem 0.75rem;
+    border-bottom:  var(--glass-sep);
+    flex-shrink:    0;
+    gap:            0.4rem;
+    font-weight:    600;
+    letter-spacing: 0.06em;
+    color:          var(--ui-text-title);
+    text-align:     center;
 }
 
-.panel-content-header {
-    text-transform: none !important;
-}
-
+/* ── Scrollable body ─────────────────────────────────────────────────────── */
 .panel-content {
-    padding: 0.65rem !important;
+    flex:             1;
+    min-height:       0;
+    overflow-y:       auto;
+    scrollbar-gutter: stable both-edges;
+    box-sizing:       border-box;
+    padding:          0.5rem 0.65rem;
 }
 
+/* ── Close / dismiss button ──────────────────────────────────────────────── */
 .panel-close-btn {
-    background: none;
-    border: none;
-    color: #037c7c;
-    cursor: pointer;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
+    background:      none;
+    border:          none;
+    color:           var(--ui-text-title);
+    cursor:          pointer;
+    padding:         2px 5px;
+    border-radius:   3px;
+    font-size:       0.75rem;
+    line-height:     1;
+    display:         flex;
+    align-items:     center;
     justify-content: center;
-    flex-shrink: 0;
-    margin-left: 0.25rem;
+    flex-shrink:     0;
+    margin-left:     0.25rem;
 }
-
 .panel-close-btn:hover {
-    background: rgba(255,255,255,0.08);
+    background: rgba(255, 255, 255, 0.08);
 }

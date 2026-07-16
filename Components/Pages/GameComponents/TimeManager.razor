@@ -1,7 +1,7 @@
-﻿@inherits GameComponentBase
-<div class="panel time-manager-overlay">
+@inherits GameComponentBase
+<div class="time-manager-overlay">
     <div class="time-manager-container">
-        <div class="time-manager-panel" @onclick:stopPropagation="true">
+        <div class="panel time-manager-panel" @onclick:stopPropagation="true">
             <div class="panel-title time-manager-header">
                 <span style="flex: 1">Time Manager</span>
                 <button class="time-manager-close" @onclick="OnCloseThisPanel" title="Close">

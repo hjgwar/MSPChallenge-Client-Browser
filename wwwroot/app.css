@@ -1,4 +1,4 @@
-html, body {
+﻿html, body {
     font-family: 'Cabin', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-size: 13px;
 }
@@ -45,7 +45,7 @@ html, body {
     border-radius: 0.25rem;
 }
 
-/* ── Dev WebSocket console bar ──────────────────────────────────────────── */
+/* â”€â”€ Dev WebSocket console bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ws-console {
     position: fixed;
     bottom: 0;
@@ -219,7 +219,7 @@ html, body {
     line-height: 1.45;
 }
 
-/* ── Full-screen splash / loading overlay ───────────────────────────────── */
+/* â”€â”€ Full-screen splash / loading overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .splash-overlay {
     position: fixed;
     inset: 0;
@@ -318,7 +318,7 @@ html, body {
     color: rgba(255, 255, 255, 0.28);
 }
 
-/* ── Left-edge icon sidebar ─────────────────────────────────────────────── */
+/* â”€â”€ Left-edge icon sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .map-sidebar {
     position: fixed;
     left: 0;
@@ -326,8 +326,8 @@ html, body {
     width: 44px;
     height: 100vh;
     z-index: 9100;
-    background: rgba(22, 27, 34, 0.65);
-    backdrop-filter: blur(6px);
+    background: var(--glass-bg-dark);
+    backdrop-filter: var(--glass-blur);
     box-shadow: 2px 0 10px rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
@@ -414,7 +414,7 @@ html, body {
     pointer-events: auto;
 }
 
-/* Plan detail / create-plan panels — fixed to bottom-right, grow upward */
+/* Plan detail / create-plan panels â€” fixed to bottom-right, grow upward */
 .map-plan-panels {
     position: fixed;
     bottom: 0.75rem;
@@ -426,48 +426,12 @@ html, body {
 
 /* Online users panel */
 .users-panel {
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
     width: 100%;
     box-sizing: border-box;
     height: 15vh;
     min-height: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: vertical;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
     margin-bottom: 0.5rem;
-}
-
-.users-panel-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.4rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    flex-shrink: 0;
-}
-
-.users-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
-}
-
-.users-panel-title {
-    font-weight: 600;
-    
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    flex: 1;
 }
 
 .users-refresh-btn {
@@ -538,7 +502,7 @@ html, body {
     color: #adb5bd;
 }
 
-/* Plans panel — free-floating, centred by default, draggable via header */
+/* Plans panel â€” free-floating, centred by default, draggable via header */
 .plans-panel {
     position: fixed;
     top: 50%;
@@ -551,16 +515,7 @@ html, body {
     min-width: 240px;
     max-height: 80vh;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: both;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     box-shadow: 0 4px 24px rgba(0,0,0,0.60);
 }
 
@@ -576,36 +531,6 @@ html, body {
 
 .plans-panel-drag-handle:active {
     cursor: grabbing;
-}
-
-.plans-panel-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.4rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    flex-shrink: 0;
-}
-
-.plans-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
-}
-
-.plans-panel-title {
-    font-weight: 600;
-    
-    
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    flex: 1;
 }
 
 .plans-panel-count {
@@ -750,44 +675,12 @@ html, body {
 
 /* Layer selection panel */
 .layer-panel {
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
     width: 100%;
     box-sizing: border-box;
     height: 45vh;
     min-height: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: vertical;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
     margin-bottom: 0.5rem;
-}
-
-.layer-panel-title {
-    font-weight: 600;
-    
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    margin-bottom: 0.4rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.layer-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
 }
 
 .layer-search {
@@ -886,45 +779,13 @@ html, body {
 /* Tooltip on hover */
 
 
-/* Legend panel – sits below the layer panel inside .map-panel-stack */
+/* Legend panel â€“ sits below the layer panel inside .map-panel-stack */
 .legend-panel {
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
     width: 100%;
     box-sizing: border-box;
     height: 30vh;
     min-height: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: vertical;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-}
-
-.legend-panel-title {
-    font-weight: 600;
-    
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    margin-bottom: 0.35rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.legend-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
 }
 
 .legend-layer {
@@ -997,7 +858,7 @@ html, body {
     color: #ff6b6b;
 }
 
-/* ⓘ wiki info link — used in layer panel rows and legend rows/headers */
+/* â“˜ wiki info link â€” used in layer panel rows and legend rows/headers */
 .info-icon-link {
     flex-shrink: 0;
     color: #74c0fc;
@@ -1038,20 +899,12 @@ html, body {
     white-space: nowrap;
 }
 
-/* Map properties popup – bottom-right floating card */
+/* Map properties popup â€“ bottom-right floating card */
 .map-popup {
     position: fixed;
     z-index: 2000;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
     width: 260px;
     max-height: 60vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    backdrop-filter: blur(4px);
-    overflow: hidden;
 }
 
 .map-popup-header {
@@ -1131,17 +984,10 @@ html, body {
     border-top: 1px solid rgba(255,255,255,0.06);
 }
 
-/* ── Game state bar ──────────────────────────────────────────────────────── */
+/* â”€â”€ Game state bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .game-bar {
-    display: flex;
-    flex-direction: column;
     gap: 0;
-    background: rgba(33, 37, 41, 0.65);
-    backdrop-filter: blur(4px);
-    border-radius: 0.5rem;
     padding: 0.45rem 0.9rem 0.45rem 0.65rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    color: #f8f9fa;
     flex-shrink: 0;
     user-select: none;
 }
@@ -1354,22 +1200,21 @@ html, body {
     background: rgba(255, 255, 255, 0.08);
 }
 
-/* ── Plan detail panel ───────────────────────────────────────────────────── */
+/* â”€â”€ Plan detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .plan-detail-panel {
     background: transparent; /* ::before provides background + blur */
+    backdrop-filter: none;     /* ::before handles blur; don't create backdrop root here */
+    -webkit-backdrop-filter: none;
+    border: none;              /* visual chrome comes from ::before */
+    box-shadow: none;
     position: relative;
     isolation: isolate;      /* stacking context without backdrop root */
     pointer-events: none;    /* pass map pan/zoom events through the panel body */
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    display: flex;
-    flex-direction: column;
     overflow: visible;
     max-height: 80vh;
 }
 
-/* Blurred background layer — sits behind all content but does NOT make
+/* Blurred background layer â€” sits behind all content but does NOT make
    plan-detail-panel a backdrop root, so child panels blur the map correctly. */
 .plan-detail-panel::before {
     content: '';
@@ -1401,9 +1246,7 @@ html, body {
     align-items: center;
     justify-content: space-between;
     font-weight: 600;
-    
     letter-spacing: 0.06em;
-    color: #adb5bd;
     padding: 0.4rem 0.55rem 0.3rem 0.75rem;
     border-bottom: 1px solid rgba(255,255,255,0.12);
     border-radius: 0.5rem 0.5rem 0 0;
@@ -1520,13 +1363,13 @@ html, body {
 .plan-detail-section-hdr::-webkit-details-marker { display: none; }
 
 .plan-detail-section[open] > .plan-detail-section-hdr::after {
-    content: '▲';
+    content: 'â–²';
     
     opacity: 0.6;
 }
 
 .plan-detail-section:not([open]) > .plan-detail-section-hdr::after {
-    content: '▼';
+    content: 'â–¼';
     
     opacity: 0.6;
 }
@@ -1553,7 +1396,7 @@ html, body {
     overflow: visible;
 }
 
-/* Plan state row — clickable info-row variant */
+/* Plan state row â€” clickable info-row variant */
 .plan-detail-section--state {
     overflow: visible;
 }
@@ -1718,7 +1561,7 @@ html, body {
     background: rgba(40, 167, 69, 0.4);
 }
 
-/* Approval panel — same floating style as messages / issues */
+/* Approval panel â€” same floating style as messages / issues */
 .plan-approval-panel {
     max-height: 40vh;
 }
@@ -1858,15 +1701,6 @@ html, body {
     bottom: -0.25rem;
     width: 320px;
     max-width: min(320px, calc(100vw - 5rem));
-    display: flex;
-    flex-direction: column;
-    border-radius: 0.5rem;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     overflow: visible;
     z-index: 9650;
 }
@@ -2043,7 +1877,7 @@ html, body {
     background: rgba(255,255,255,0.02);
 }
 
-/* ── Common input textbox style ──────────────────────────────────────────── */
+/* â”€â”€ Common input textbox style â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .app-input {
     width: 100%;
     box-sizing: border-box;
@@ -2139,7 +1973,7 @@ html, body {
     color: #adb5bd;
 }
 
-/* ── Time Manager ─────────────────────────────────────────────────── */
+/* â”€â”€ Time Manager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .time-manager-overlay {
     position: fixed;
     top: 0;
@@ -2155,12 +1989,8 @@ html, body {
 
 .time-manager-panel {
     width: 520px;
-    background: linear-gradient(135deg, #3e4c4f 0%, #2d3639 100%);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    display: flex;
-    flex-direction: column;
 }
 
 .time-manager-header {
@@ -2377,7 +2207,7 @@ html, body {
     box-sizing: border-box;
 }
 
-/* ── Plan edit mode inputs ──────────────────────────────────────────────── */
+/* â”€â”€ Plan edit mode inputs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .plan-edit-input,
 .plan-edit-textarea {
     width: 100%;
@@ -2468,7 +2298,7 @@ html, body {
     color: #ff8080;
 }
 
-/* "Add or remove …" button inside sections */
+/* "Add or remove â€¦" button inside sections */
 .plan-edit-add-btn {
     display: block;
     width: 100%;
@@ -2510,7 +2340,7 @@ html, body {
     text-align: center;
 }
 
-/* ── Geometry Tool Panel ─────────────────────────────────────────────────────── */
+/* â”€â”€ Geometry Tool Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .geometry-tool-panel {
     position: absolute;
     right: calc(100% + var(--right-panel-gap) + var(--panel-connector-protrusion));
@@ -2519,15 +2349,6 @@ html, body {
     width: 240px;
     max-width: min(240px, calc(100vw - 5rem));
     max-height: 60vh;
-    display: flex;
-    flex-direction: column;
-    border-radius: 0.5rem;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     overflow: visible;
     z-index: 9650;
     pointer-events: auto;
@@ -2711,7 +2532,7 @@ html, body {
     border-color: rgba(40,167,69,0.5);
 }
 
-/* ── Create plan form ───────────────────────────────────────────────── */
+/* â”€â”€ Create plan form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .create-plan-form {
     display: flex;
     flex-direction: column;
@@ -2738,7 +2559,7 @@ html, body {
     text-transform: none;
     opacity: 0.7;
 }
- ───────────────────────────────────────────── */
+ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .plan-lock-icon,
 .plan-row-indicator {
     flex-shrink: 0;
@@ -2765,7 +2586,7 @@ button.plan-lock-icon:hover {
     filter: brightness(1.4);
 }
 
-/* ── Policy row (wrapper giving absolute-panel a position:relative anchor) */
+/* â”€â”€ Policy row (wrapper giving absolute-panel a position:relative anchor) */
 .plan-detail-policy-row {
     position: relative;
     overflow: visible;
@@ -2793,7 +2614,7 @@ button.plan-lock-icon:hover {
     overflow: visible;
 }
 
-/* Scrollable list of selected layer names — keeps the section from growing unbounded */
+/* Scrollable list of selected layer names â€” keeps the section from growing unbounded */
 .plan-detail-layers-list {
     max-height: 4rem;
     overflow-y: auto;
@@ -2803,7 +2624,7 @@ button.plan-lock-icon:hover {
     pointer-events: auto;
 }
 
-/* ── Policy picker panel ────────────────────────────────────────────────── */
+/* â”€â”€ Policy picker panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .plan-policy-picker-body {
     padding: 0.35rem 0.55rem 0.5rem;
     display: flex;
@@ -2811,7 +2632,7 @@ button.plan-lock-icon:hover {
     gap: 0.12rem;
 }
 
-/* ── Layer picker panel (same positioning as other side panels) ─────────── */
+/* â”€â”€ Layer picker panel (same positioning as other side panels) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .plan-layer-picker-panel {
     /* wider than policy picker to fit layer names with category tree */
     width: 340px;
@@ -2873,7 +2694,7 @@ button.plan-lock-icon:hover {
     color: #dee2e6;
 }
 
-/* ── Dependencies page ────────────────────────────────────────────────────── */
+/* â”€â”€ Dependencies page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .dep-graph {
     position: fixed;
     inset: 0;
