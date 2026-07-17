@@ -4,7 +4,7 @@
 
 <PageTitle>MSP Challenge</PageTitle>
 
-@if (_isLoading || _loadingFading)
+@if (!GameSessionService.IsGameDataLoaded && (_isLoading || _loadingFading))
 {
     <GameLoading IsFading="@_loadingFading" LoadingStatus="@_loadingStatus" />
 }

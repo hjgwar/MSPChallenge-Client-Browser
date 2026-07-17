@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
@@ -12,7 +12,6 @@ namespace MSPChallenge_Client_Browser.Components.Pages;
 public partial class Game : IAsyncDisposable
 {
     [Inject] NavigationManager NavigationManager { get; set; } = null!;
-    [Inject] IJSRuntime JS { get; set; } = null!;
     [Inject] IHostEnvironment HostEnvironment { get; set; } = null!;
     [Inject] UserSessionService SessionState { get; set; } = null!;
     [Inject] MspApiClient ApiClient { get; set; } = null!;
@@ -127,11 +126,12 @@ public partial class Game : IAsyncDisposable
         // Capture cold-start status before async work so warm returns can skip map refit.
         var isColdStart = _isLoading;
 
-        Map.MapJSModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
-        _mapModule = Map.MapJSModule;
+        // Wait for MapViewPort to import map.js in its own OnAfterRenderAsync.
+        await Map.WhenReady;
+        _mapModule = Map.MapJSModule!;
 
-        // Default view centred on North Sea – will be replaced once _PLAYAREA bounds are known
-        await _mapModule.InvokeVoidAsync("initMap", "map", 54.5, 3.5, 6);
+        // initMap sets an EPSG:3035 placeholder view that is replaced immediately below.
+        await _mapModule.InvokeVoidAsync("initMap", "map");
 
         // On warm return, restore saved camera immediately for instant visual feedback.
         if (!isColdStart && GameUIStateService.HasSavedMapView)

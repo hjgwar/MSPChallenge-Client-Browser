@@ -24,17 +24,14 @@ public sealed partial class GameSessionService
         DependencyLinks = [];
         _restrictions.Clear();
 
-        var baseAddress = userSessionService.GameServerAddress.TrimEnd('/');
-        var sessionId = userSessionService.SessionId;
-
         if (reportStatus is not null)
             await reportStatus("Loading game settings…");
 
         // 1) Policy and simulation settings (currently fetched for completeness)
-        await apiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/PolicySimSettings");
+        await apiClient.GetAsync("Game/PolicySimSettings");
 
         // 2) Global game config
-        var configRoot = await apiClient.GetAsync($"{baseAddress}/{sessionId}/api/Game/Config");
+        var configRoot = await apiClient.GetAsync("Game/Config");
         var configPayload = ConversionUtils.GetPayload(configRoot);
 
         if (configPayload.TryGetProperty("wiki_base_url", out var wbuProp))
@@ -173,7 +170,7 @@ public sealed partial class GameSessionService
         }
 
         // Unity-compatible source of restrictions.
-        await LoadPlanRestrictionsAsync(apiClient, baseAddress, sessionId);
+        await LoadPlanRestrictionsAsync(apiClient);
 
         // EEZ polygon geometry — Countries and EezLayerId are both seeded from Home before
         // the Game page opens, so no Layer/MetaByName call is needed here.
@@ -185,8 +182,7 @@ public sealed partial class GameSessionService
 
             try
             {
-                var geoRoot = await apiClient.PostFormAsync(
-                    $"{baseAddress}/{sessionId}/api/Layer/Get",
+                var geoRoot = await apiClient.PostFormAsync("Layer/Get",
                     new[] { new KeyValuePair<string, string>("layer_id", EezLayerId) });
                 var geoPayload = ConversionUtils.GetPayload(geoRoot);
                 if (geoPayload.ValueKind == JsonValueKind.Array)
@@ -222,8 +218,7 @@ public sealed partial class GameSessionService
         if (reportStatus is not null)
             await reportStatus("Loading map layers…");
 
-        var metaRoot = await apiClient.PostFormAsync(
-            $"{baseAddress}/{sessionId}/api/Game/Meta",
+        var metaRoot = await apiClient.PostFormAsync("Game/Meta",
             new[] { new KeyValuePair<string, string>("user", userSessionService.User.Country.Id.ToString()) });
         var metaPayload = ConversionUtils.GetPayload(metaRoot);
         if (metaPayload.ValueKind != JsonValueKind.Array) return;
@@ -240,7 +235,7 @@ public sealed partial class GameSessionService
             if (reportStatus is not null)
                 await reportStatus($"Loading {loaded + 1} / {total}: {name}");
 
-            var snapshot = await BuildLayerSnapshotAsync(apiClient, baseAddress, sessionId, layer);
+            var snapshot = await BuildLayerSnapshotAsync(apiClient, layer);
             if (snapshot is not null)
                 MapLayerSnapshots.Add(snapshot);
 
@@ -266,11 +261,8 @@ public sealed partial class GameSessionService
         }
     }
 
-
     private async Task<MapLayerSnapshot?> BuildLayerSnapshotAsync(
         MspApiClient apiClient,
-        string baseAddress,
-        int sessionId,
         JsonElement layer)
     {
         var layerId   = layer.TryGetProperty("layer_id",   out var id) ? id.ToString()     : null;
@@ -394,8 +386,7 @@ public sealed partial class GameSessionService
 
         if (string.Equals(geoType, "raster", StringComparison.OrdinalIgnoreCase))
         {
-            var rasterRoot = await apiClient.PostFormAsync(
-                $"{baseAddress}/{sessionId}/api/Layer/GetRaster",
+            var rasterRoot = await apiClient.PostFormAsync("Layer/GetRaster",
                 new[] { new KeyValuePair<string, string>("layer_name", layerName) });
             var rasterPayload = ConversionUtils.GetPayload(rasterRoot);
 
@@ -454,8 +445,7 @@ public sealed partial class GameSessionService
         }
         else
         {
-            var geoRoot = await apiClient.PostFormAsync(
-                $"{baseAddress}/{sessionId}/api/Layer/Get",
+            var geoRoot = await apiClient.PostFormAsync("Layer/Get",
                 new[] { new KeyValuePair<string, string>("layer_id", layerId) });
             var geoPayload = ConversionUtils.GetPayload(geoRoot);
 
@@ -515,25 +505,15 @@ public sealed partial class GameSessionService
         return string.IsNullOrWhiteSpace(page) ? null : $"{WikiBaseUrl}/{page}";
     }
 
-    private async Task LoadPlanRestrictionsAsync(MspApiClient apiClient, string baseAddress, int sessionId)
+    private async Task LoadPlanRestrictionsAsync(MspApiClient apiClient)
     {
         _restrictions.Clear();
-        var url = $"{baseAddress}/{sessionId}/api/Plan/Restrictions";
-
         try
         {
-            var root = await apiClient.GetAsync(url);
+            var root = await apiClient.GetAsync("Plan/Restrictions");
             ParseRestrictions(root, clearExisting: true);
         }
-        catch (MspApiException)
-        {
-            try
-            {
-                var root = await apiClient.PostFormAsync(url, []);
-                ParseRestrictions(root, clearExisting: true);
-            }
-            catch { }
-        }
+        catch { }
     }
 
     private void ParseRestrictions(JsonElement root, bool clearExisting)

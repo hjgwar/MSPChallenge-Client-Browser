@@ -32,16 +32,13 @@ function decodeToOffscreenCanvas(dataUrl) {
 // ── Public exports ───────────────────────────────────────────────────────────
 
 /**
- * Initialise the OpenLayers map with an EPSG:3035 view.
+ * Initialise the OpenLayers map bound to the given element.
+ * The view starts at a neutral EPSG:3035 centre and is immediately
+ * overridden by fitToPlayArea() (cold start) or setView() (warm return).
  * @param {string} elementId - id of the container div
- * @param {number} lat       - initial centre latitude (WGS84)
- * @param {number} lng       - initial centre longitude (WGS84)
- * @param {number} zoom      - initial zoom level
  */
-export function initMap(elementId, lat, lng, zoom) {
+export function initMap(elementId) {
     if (map) { map.setTarget(null); map = null; }
-
-    const center = ol.proj.transform([lng, lat], 'EPSG:4326', 'EPSG:3035');
 
     map = new ol.Map({
         target: elementId,
@@ -49,8 +46,12 @@ export function initMap(elementId, lat, lng, zoom) {
         layers: [],
         view: new ol.View({
             projection: 'EPSG:3035',
-            center,
-            zoom
+            // Neutral centre of the EPSG:3035 suggested extent.
+            // This placeholder is always overridden within the same render cycle:
+            //   cold start  → fitToPlayArea()  fits to the _PLAYAREA layer extent
+            //   warm return → setView()        restores the saved camera position
+            center: [4321000, 3210000],
+            zoom: 4
         })
     });
 }

@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Utils.PlanCalculations;
@@ -7,8 +8,22 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public partial class MapViewPort
 {
-    public required IJSObjectReference MapJSModule;
-    
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    public IJSObjectReference? MapJSModule;
+
+    private readonly TaskCompletionSource _readyTcs = new();
+    /// <summary>Resolves once <see cref="MapJSModule"/> has been imported and is ready to use.</summary>
+    public Task WhenReady => _readyTcs.Task;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        MapJSModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
+        _readyTcs.SetResult();
+    }
+
     // Public method for UI components
     public Task ToggleLayerAsync(Layer entry, bool visible) 
         => ToggleLayerInternalAsync(entry, visible, skipProjection: false);
