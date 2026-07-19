@@ -22,8 +22,6 @@ public partial class PlanIssues : GameComponentBase, IDisposable
     public void CloseSubPanel()
     {
         _planIssuesOpen = false;
-        if (Map?.MapJSModule is not null)
-            _ = Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
         StateHasChanged();
     }
 
@@ -33,12 +31,10 @@ public partial class PlanIssues : GameComponentBase, IDisposable
         {
             await OnSubPanelOpening.InvokeAsync();
             _planIssuesOpen = true;
-            await ShowIssueMarkersOnMapAsync();
         }
         else
         {
             _planIssuesOpen = false;
-            await ClearIssueMarkersFromMapAsync();
         }
         StateHasChanged();
     }
@@ -57,19 +53,6 @@ public partial class PlanIssues : GameComponentBase, IDisposable
         await Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
     }
 
-    // Fingerprint of the last plan we calculated issues for.
-    // Format: "{planId}:{startDate}:{totalGeometryCount}"
-    // Only changes when relevant plan data changes, so we avoid recalculating on every WS heartbeat.
-    private string _lastIssuePlanFingerprint = string.Empty;
-
-    private string GetPlanFingerprint()
-    {
-        var plan = GameSessionService.SelectedPlan;
-        if (plan is null) return string.Empty;
-        var totalGeometry = plan.Layers.Sum(l => l.Geometry.Count);
-        return $"{plan.PlanId}:{plan.StartDate}:{totalGeometry}";
-    }
-
     protected override void OnInitialized()
     {
         GameSessionService.Changed += OnStateChanged;
@@ -80,22 +63,23 @@ public partial class PlanIssues : GameComponentBase, IDisposable
 
     private void OnStateChanged()
     {
-        var fingerprint = GetPlanFingerprint();
-        if (fingerprint == _lastIssuePlanFingerprint) return;
         _ = InvokeAsync(async () =>
         {
             await CalculatePlanIssues();
-            // If the issues panel is open, refresh the map markers with updated locations.
-            if (_planIssuesOpen)
+            if (GameSessionService.SelectedPlan is null)
+            {
+                await ClearIssueMarkersFromMapAsync();
+            }
+            else
+            {
                 await ShowIssueMarkersOnMapAsync();
+            }
             StateHasChanged();
         });
     }
 
     private async Task CalculatePlanIssues()
     {
-        _lastIssuePlanFingerprint = GetPlanFingerprint();
-
         if (GameSessionService.SelectedPlan is null)
         {
             SelectedPlanIssues = [];

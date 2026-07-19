@@ -389,6 +389,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         // If switching plans, fully clear the previous plan first to avoid concurrent operations
         if (_lastDisplayedPlanId.HasValue && (plan is null || _lastDisplayedPlanId != plan.PlanId))
         {
+            await Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
             await DeactivatePlanLayersAsync();
             await Map.MapJSModule.InvokeVoidAsync("clearPlanOverlay");
             _lastDisplayedPlanId = null;

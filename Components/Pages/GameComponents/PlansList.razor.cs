@@ -46,11 +46,15 @@ public partial class PlansList : GameComponentBase, IDisposable
             // If an existing plan is locked for editing, release the lock before switching.
             if (GameUIStateService.EditMode && GameUIStateService.SelectedPlanId is > 0)
             {
+                var confirmation = await forceUnlockDialog.ShowAsync(
+                    title: "Are you sure you want to switch to another plan?",
+                    message1: "You are currently already editing a plan. You will lose any unsaved changes if you switch to another plan.",
+                    message2: "Do you want to proceed?");
+                if (!confirmation) return;
                 _ = ApiClient.PostFormAsync("Plan/Unlock",
                     new[]
                     {
                         new KeyValuePair<string, string>("id", GameUIStateService.SelectedPlanId.ToString()!),
-                        new KeyValuePair<string, string>("force_unlock", "0"),
                         new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
                     });
             }
