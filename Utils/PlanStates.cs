@@ -18,9 +18,11 @@ public static class PlanStates
         if (hasErrors)
             return [PlanState.DESIGN, PlanState.DELETED];
 
-        var states = new List<PlanState> { PlanState.DESIGN, PlanState.CONSULTATION, PlanState.APPROVAL };
+        var states = new List<PlanState> { PlanState.DESIGN, PlanState.CONSULTATION };
         if (!requiresApproval)
             states.Add(PlanState.APPROVED);
+        else
+            states.Add(PlanState.APPROVAL);
         states.Add(PlanState.DELETED);
         return states;
     }
@@ -29,11 +31,11 @@ public static class PlanStates
     {
         "DESIGN"       => "Design",
         "CONSULTATION" => "Consultation",
-        "APPROVAL" => "Awaiting Approval",
+        "APPROVAL"     => "Request Approval",
         "APPROVED"     => "Approved",
         "IMPLEMENTED"  => "Implemented",
-        "DELETED" => "Archived",
-        _          => state?.ToString().ToUpperInvariant() ?? string.Empty,
+        "DELETED"      => "Archived",
+        _              => state?.ToString().ToUpperInvariant() ?? string.Empty,
     };
 
     public static int PlanStatePriority(PlanState state) => state.ToString().ToUpperInvariant() switch
@@ -43,7 +45,7 @@ public static class PlanStates
         "APPROVAL"      => 2,
         "APPROVED"      => 3,
         "IMPLEMENTED"   => 4,
-        "DELETED"      => 5,
+        "DELETED"       => 5,
         _               => 6,
     };
 

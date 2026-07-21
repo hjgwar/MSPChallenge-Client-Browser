@@ -66,11 +66,8 @@ public partial class PlanIssues : GameComponentBase, IDisposable
         _ = InvokeAsync(async () =>
         {
             await CalculatePlanIssues();
-            if (GameSessionService.SelectedPlan is null)
-            {
-                await ClearIssueMarkersFromMapAsync();
-            }
-            else
+            await ClearIssueMarkersFromMapAsync();
+            if (GameSessionService.SelectedPlan is not null)
             {
                 await ShowIssueMarkersOnMapAsync();
             }

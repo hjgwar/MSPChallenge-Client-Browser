@@ -37,6 +37,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     }
 
     private List<PlanRestrictionIssue> _selectedPlanIssues = [];
+    private bool _selectedPlanApprovalRequired = false;
     private Plan _detailPlan = null!;
     private List<string> _detailLayers = [];
     private string _detailDotColour = "#6c757d";
@@ -171,6 +172,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     {
         if (GameUIStateService.EditMode)
             await CancelEditAsync();
+        CloseAllSubPanels();
         GameUIStateService.SelectedPlanId = null;
         GameSessionService.NotifyChanged();
     }
@@ -351,7 +353,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
             StateHasChanged();
             return;
         }
-
+        CloseAllSubPanels();
         // Pass geometry state from PlanLayers → PlanDetailsSave before saving.
         // PlanDetailsSave needs the map JS module to call getOverlayFeaturesJson,
         // the edited layer ID to know which overlay to read, and the set of

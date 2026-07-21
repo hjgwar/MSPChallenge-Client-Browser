@@ -26,13 +26,13 @@
                            ConstructionTime="@GetConstructionTime()"
                            StartMonthChanged="@OnStartMonthChanged"
                            StartYearChanged="@OnStartYearChanged" />
-            <PlanState @ref="PlanStateInstance" Plan="@_detailPlan" SelectedPlanIssues="@_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
+            <PlanState @ref="PlanStateInstance" Plan="@_detailPlan" SelectedPlanApprovalRequired="_selectedPlanApprovalRequired" SelectedPlanIssues="@_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
     <details class="plan-detail-section plan-detail-section--communication" open>
         <summary class="plan-detail-section-hdr">Communication</summary>
         <div class="plan-detail-section-body">
-            <PlanApproval @ref="PlanApprovalInstance" OnSubPanelOpening="CloseAllSubPanels" />
+            <PlanApproval @ref="PlanApprovalInstance" @bind-SelectedPlanApprovalRequired="_selectedPlanApprovalRequired" OnSubPanelOpening="CloseAllSubPanels" />
             <PlanMessages @ref="PlanMessagesInstance" OnSubPanelOpening="CloseAllSubPanels" />
             <PlanIssues @ref="PlanIssuesInstance" Map="@Map" @bind-SelectedPlanIssues="_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
         </div>

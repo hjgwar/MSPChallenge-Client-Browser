@@ -7,6 +7,7 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanCompon
 public partial class PlanPanelState
 {
     [Parameter] public IReadOnlyList<PlanRestrictionIssue> SelectedPlanIssues { get; set; } = [];
+    [Parameter] public bool SelectedPlanApprovalRequired { get; set; } = false;
     [Parameter] public Models.PlanState? PlanStatePending { get; set; }
     [Parameter] public bool PlanStateSending { get; set; }
     [Parameter] public EventCallback<Models.PlanState> PlanStatePendingChanged { get; set; }
@@ -20,6 +21,6 @@ public partial class PlanPanelState
         bool hasErrors = SelectedPlanIssues.Any(
             i => i.Severity.Equals("ERROR", StringComparison.OrdinalIgnoreCase));
 
-        return PlanStates.GetAvailablePlanStates(plan.State, plan.RequiresApproval, hasErrors);
+        return PlanStates.GetAvailablePlanStates(plan.State, SelectedPlanApprovalRequired, hasErrors);
     }
 }
