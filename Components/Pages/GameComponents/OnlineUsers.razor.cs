@@ -35,7 +35,7 @@ public partial class OnlineUsers : IDisposable
                         ? (c.ValueKind == JsonValueKind.Number ? c.GetInt32()
                         : int.TryParse(c.GetString(), out var parsed) ? parsed : 0)
                         : 0;
-                    var col  = GameSessionService.Countries.FirstOrDefault(c => c.Id == cid, new Country(cid, "Unknown", "#6c757d")).Color;
+                    var col  = GameSessionService.Countries.FirstOrDefault(c => c.Id == cid, new Country(cid, "Unknown", "#FF69B4")).Color;
                     list.Add(new User(i, name, new Country(cid, "Unknown", col)));
                     i++;
                 }

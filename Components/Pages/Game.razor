@@ -2,6 +2,8 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents
 
+<NavigationLock ConfirmExternalNavigation="true" />
+
 <PageTitle>MSP Challenge</PageTitle>
 
 @if (!GameSessionService.IsGameDataLoaded && (_isLoading || _loadingFading))

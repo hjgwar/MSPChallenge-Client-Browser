@@ -134,8 +134,7 @@ public partial class Home
 
         try
         {
-            var baseAddress = UserSessionService.GameServerAddress.TrimEnd('/');
-            var root = await ApiClient.GetAsync($"{baseAddress}/{UserSessionService.SessionId}/api/Game/Config");
+            var root = await ApiClient.GetAsync("Game/Config");
 
             var payload = root.ValueKind == JsonValueKind.Object &&
                           root.TryGetProperty("payload", out var p)
@@ -153,11 +152,9 @@ public partial class Home
             if (payload.TryGetProperty("countries", out var countriesEl) &&
                 countriesEl.ValueKind == JsonValueKind.String)
             {
-                var layerName = countriesEl.GetString()!;
-                var metaUrl = $"{baseAddress}/{UserSessionService.SessionId}/api/Layer/MetaByName";
-                var metaRoot = await ApiClient.PostFormAsync(metaUrl, new[]
+                var metaRoot = await ApiClient.PostFormAsync("Layer/MetaByName", new[]
                 {
-                    new KeyValuePair<string, string>("name", layerName)
+                    new KeyValuePair<string, string>("name", countriesEl.GetString()!)
                 });
 
                 var metaPayload = metaRoot.ValueKind == JsonValueKind.Object &&
@@ -247,8 +244,7 @@ public partial class Home
 
         try
         {
-            var baseAddress = UserSessionService.GameServerAddress.TrimEnd('/');
-            var url = $"{baseAddress}/{UserSessionService.SessionId}/api/User/RequestSession";
+            var url = "User/RequestSession";
 
             var fields = new List<KeyValuePair<string, string>>
             {

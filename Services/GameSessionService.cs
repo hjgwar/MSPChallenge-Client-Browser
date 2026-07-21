@@ -12,16 +12,19 @@ namespace MSPChallenge_Client_Browser.Services;
 /// this class's <see cref="Changed"/> event so components only subscribe once.
 /// Loading logic lives in the companion partial class <c>GameSessionService.Loader.cs</c>.
 /// </summary>
-public sealed partial class GameSessionService : IDisposable
+public sealed partial class GameSessionService : IAsyncDisposable
 {
+    private readonly MspApiClient        _apiClient;
     private readonly WebSocketService    _ws;
     private readonly GameUIStateService  _uiState;
     private readonly SemaphoreSlim       _initGate = new(1, 1);
 
-    public GameSessionService(WebSocketService ws, GameUIStateService uiState)
+    public GameSessionService(MspApiClient apiClient, WebSocketService ws, GameUIStateService uiState)
     {
+        ArgumentNullException.ThrowIfNull(apiClient);
         ArgumentNullException.ThrowIfNull(ws);
         ArgumentNullException.ThrowIfNull(uiState);
+        _apiClient = apiClient;
         _ws      = ws;
         _uiState = uiState;
         _ws.MessageReceived += OnWsMessage;
@@ -432,6 +435,7 @@ public sealed partial class GameSessionService : IDisposable
         AvailablePolicies = [];
 
         _uiState.Reset();
+        await _apiClient.LogOff();
 
         IsGameDataLoaded = false;
     }
@@ -591,8 +595,9 @@ public sealed partial class GameSessionService : IDisposable
     }
 
     // ── Disposal ───────────────────────────────────────────────────────────────
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        //await _apiClient.LogOff();
         _ws.MessageReceived -= OnWsMessage;
         _initGate.Dispose();
     }
