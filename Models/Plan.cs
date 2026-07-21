@@ -2,7 +2,7 @@ namespace MSPChallenge_Client_Browser.Models;
 
 /// <summary>A single plan received via the Game/Latest WebSocket message.</summary>
 public sealed record Plan(
-    int    PlanId = 0,
+    int PlanId = 0,
     string Name = "",
     string Description = "",
     PlanState State = PlanState.DESIGN,

@@ -122,12 +122,11 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     private void UpdateDetailPlan()
     {
         _detailPlan = GetDetailPlan();
-        if (_detailPlan.Layers is not null)
-            _detailLayers = _detailPlan.Layers
-                .Select(l => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
-                .OfType<string>()
-                .Distinct()
-                .ToList();
+        _detailLayers = _detailPlan.Layers
+            .Select(l => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
+            .OfType<string>()
+            .Distinct()
+            .ToList();
         _detailDotColour = (_detailPlan.Country == 1 || _detailPlan.Country == 2)
             ? "#ff69b4"
             : GameSessionService.Countries.FirstOrDefault(c => c.Id == _detailPlan.Country)?.Color ?? "#6c757d";
@@ -293,6 +292,13 @@ public partial class PlanDetails : GameComponentBase, IDisposable
             message2: "Do you want to proceed?");
         if (!confirmation) return;
         GameUIStateService.ToggleEditMode();
+        if (GameUIStateService.SelectedPlanId == 0) // new plan
+        {
+            GameUIStateService.SelectedPlanId = null;
+            StateHasChanged();
+            return;
+        }
+        
         _editSaving = true;
         StateHasChanged();
         try
@@ -320,6 +326,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         
         return new Plan(
             Name: _editName ?? string.Empty,
+            Description: _editDescription ?? string.Empty,
             Country: UserSessionService.User.Country.Id,
             StartDate: (_editStartYear - GameSessionService.GameStartYear) * 12 + (_editStartMonth - 1),
             Layers: _editPlanLayerIds.Select(id =>
