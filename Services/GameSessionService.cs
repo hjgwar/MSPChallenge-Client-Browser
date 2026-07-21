@@ -284,12 +284,6 @@ public sealed partial class GameSessionService : IDisposable
                 }
             }
 
-            var requiresApproval = false;
-            if (p.TryGetProperty("approval_required", out var arEl))
-                requiresApproval = arEl.ValueKind == JsonValueKind.True
-                    || (arEl.ValueKind == JsonValueKind.Number && arEl.GetInt32() != 0)
-                    || (arEl.ValueKind == JsonValueKind.String && arEl.GetString() is "1" or "true");
-
             Dictionary<int, int>? votes = null;
             if (p.TryGetProperty("votes", out var votesEl) && votesEl.ValueKind == JsonValueKind.Array)
             {
@@ -332,9 +326,20 @@ public sealed partial class GameSessionService : IDisposable
             if (!Enum.TryParse<PlanState>(state, ignoreCase: true, out var planState))
                 continue;
 
-            var entry = new Plan(id, name, description, planState, country, startdate, constructionTime,
-                policyNames, policyTypes, planLayers, requiresApproval, msgCount,
-                IssueCount: 0, Votes: votes, LockedByUserId: lockedByUserId);
+            var entry = new Plan(
+                PlanId: id,
+                Name: name,
+                Description: description,
+                State: planState,
+                Country: country,
+                StartDate: startdate,
+                ConstructionTime: constructionTime,
+                PolicyNames: policyNames,
+                PolicyTypes: policyTypes,
+                Layers: planLayers,
+                MessageCount: msgCount,
+                Votes: votes,
+                LockedByUserId: lockedByUserId);
 
             var idx = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)

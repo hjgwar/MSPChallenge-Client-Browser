@@ -2,21 +2,25 @@ namespace MSPChallenge_Client_Browser.Models;
 
 /// <summary>A single plan received via the Game/Latest WebSocket message.</summary>
 public sealed record Plan(
-    int    PlanId,
-    string Name,
-    string Description,
-    PlanState State,
-    int    Country,
-    int    StartDate,
-    int    ConstructionTime,
-    IReadOnlyList<string>        PolicyNames,
-    IReadOnlyList<string>        PolicyTypes,
-    IReadOnlyList<PlanLayerData> Layers,
-    bool RequiresApproval = false,
-    int  MessageCount     = 0,
-    int  IssueCount       = 0,
+    int    PlanId = 0,
+    string Name = "",
+    string Description = "",
+    PlanState State = PlanState.DESIGN,
+    int Country = 0,
+    int StartDate = 0,
+    int ConstructionTime = 0,
+    IReadOnlyList<string>? PolicyNames = null,
+    IReadOnlyList<string>? PolicyTypes = null,
+    IReadOnlyList<PlanLayerData>? Layers = null,
+    int MessageCount = 0,
     IReadOnlyDictionary<int, int>? Votes = null,
-    int  LockedByUserId = 0);
+    int LockedByUserId = 0)
+{
+    public IReadOnlyList<string> PolicyNames { get; init; } = PolicyNames ?? [];
+    public IReadOnlyList<string> PolicyTypes { get; init; } = PolicyTypes ?? [];
+    public IReadOnlyList<PlanLayerData> Layers { get; init; } = Layers ?? [];
+    public IReadOnlyDictionary<int, int> Votes { get; init; } = Votes ?? new Dictionary<int, int>();
+};
 
 /// <summary>A layer within a plan, containing geometry items.</summary>
 public sealed record PlanLayerData(

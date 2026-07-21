@@ -122,11 +122,12 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     private void UpdateDetailPlan()
     {
         _detailPlan = GetDetailPlan();
-        _detailLayers = _detailPlan.Layers
-            .Select(l => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
-            .OfType<string>()
-            .Distinct()
-            .ToList();
+        if (_detailPlan.Layers is not null)
+            _detailLayers = _detailPlan.Layers
+                .Select(l => GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.DisplayName)
+                .OfType<string>()
+                .Distinct()
+                .ToList();
         _detailDotColour = (_detailPlan.Country == 1 || _detailPlan.Country == 2)
             ? "#ff69b4"
             : GameSessionService.Countries.FirstOrDefault(c => c.Id == _detailPlan.Country)?.Color ?? "#6c757d";
@@ -318,29 +319,18 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         if (plan != null) return plan;
         
         return new Plan(
-            0, // PlanId (new/unsaved)
-            _editName ?? string.Empty,
-            _editDescription ?? string.Empty,
-            Models.PlanState.DESIGN, // State
-            UserSessionService.User.Country.Id,
-            (_editStartYear - GameSessionService.GameStartYear) * 12 + (_editStartMonth - 1),
-            0, // ConstructionTime
-            new List<string>(), // PolicyNames
-            new List<string>(), // PolicyTypes
-            _editPlanLayerIds.Select(id =>
+            Name: _editName ?? string.Empty,
+            Country: UserSessionService.User.Country.Id,
+            StartDate: (_editStartYear - GameSessionService.GameStartYear) * 12 + (_editStartMonth - 1),
+            Layers: _editPlanLayerIds.Select(id =>
                 new PlanLayerData(
-                    id, // LayerId
-                    id, // OriginalLayerId
-                    string.Empty, // State
-                    new List<PlanGeometryItem>(), // Geometry
-                    new List<string>() // DeletedPersistentIds
+                    LayerId: id,
+                    OriginalLayerId: id,
+                    State: string.Empty,
+                    Geometry: new List<PlanGeometryItem>(),
+                    DeletedPersistentIds: new List<string>()
                 )
-            ).ToList(),
-            false, // RequiresApproval
-            0, // MessageCount
-            0, // IssueCount
-            null, // Votes
-            0 // LockedByUserId
+            ).ToList()
         );
     }
 

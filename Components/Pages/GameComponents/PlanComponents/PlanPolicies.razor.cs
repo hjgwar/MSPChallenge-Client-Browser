@@ -11,9 +11,7 @@ public partial class PlanPolicies : GameComponentBase
     [Parameter] public EventCallback<HashSet<string>> EditPolicyTypesChanged { get; set; }
     [Parameter] public EventCallback OnSubPanelOpening { get; set; }
 
-    private Plan _detailPlan => Plan ?? new Plan(
-        0, string.Empty, string.Empty, Models.PlanState.DESIGN, 0, 0, 0,
-        [], [], [], false, 0, 0, null, 0);
+    private Plan _detailPlan => Plan ?? new Plan();
     
     private bool _editMode => GameUIStateService.EditMode;
     private HashSet<string> _editPolicyTypes => EditPolicyTypes;
