@@ -11,9 +11,12 @@ public partial class Home
     [Inject] private MspApiClient ApiClient { get; set; } = null!;
     [Inject] private UserSessionService UserSessionService { get; set; } = null!;
     [Inject] private GameSessionService GameSessionService { get; set; } = null!;
+    [Inject] private IConfiguration Configuration { get; set; } = null!;
+
+    private const string DefaultServerAddress = "server.mspchallenge.info";
 
     // ── Server & session selection state ──
-    private string serverAddress = "server.mspchallenge.info";
+    private string serverAddress = DefaultServerAddress;
     private bool isLoading;
     private string? errorMessage;
     private string? serverDescription;
@@ -39,6 +42,14 @@ public partial class Home
 
     protected override async Task OnInitializedAsync()
     {
+        // Allow overriding the default target server via the TARGET_SERVER_ADDRESS
+        // environment variable (e.g. set in the Docker container).
+        var targetServerAddress = Configuration["TARGET_SERVER_ADDRESS"];
+        if (!string.IsNullOrWhiteSpace(targetServerAddress))
+        {
+            serverAddress = targetServerAddress.Trim();
+        }
+
         await FetchGameListAsync();
     }
 
