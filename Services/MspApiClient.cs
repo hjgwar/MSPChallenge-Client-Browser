@@ -12,6 +12,7 @@ public class MspApiClient
     private readonly IHttpClientFactory _factory;
     private readonly IConfiguration _configuration;
     private readonly UserSessionService _userSessionService;
+    private HttpClient? _client;
 
     public MspApiClient(IHttpClientFactory factory, IConfiguration configuration, UserSessionService userSessionService)
     {
@@ -23,51 +24,30 @@ public class MspApiClient
     /// <summary>GET a URL and return the parsed JSON root element.</summary>
     public async Task<JsonElement> GetAsync(string endPoint )
     {
-        var client = CreateClient();
+        CreateClient();
         var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
-        var response = await client.GetAsync(url);
+        var response = await _client.GetAsync(url);
         return await ReadJsonAsync(response);
     }
 
     /// <summary>POST form-encoded key/value pairs and return the parsed JSON root element.</summary>
     public async Task<JsonElement> PostFormAsync(string endPoint, IEnumerable<KeyValuePair<string, string>> fields)
     {
-        var client = CreateClient();
+        CreateClient();
         var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
-        var response = await client.PostAsync(url, new FormUrlEncodedContent(fields));
+        var response = await _client.PostAsync(url, new FormUrlEncodedContent(fields));
         return await ReadJsonAsync(response);
     }
 
     /// <summary>POST a JSON-serialisable object and return the parsed JSON root element.</summary>
     public async Task<JsonElement> PostJsonAsync(string endPoint, object body)
     {
-        var client = CreateClient();
+        CreateClient();
         var json = JsonSerializer.Serialize(body);
         var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
         var url = IsAbsoluteUrl(endPoint) ? endPoint : CompleteApiUrl(endPoint);
-        var response = await client.PostAsync(url, content);
+        var response = await _client.PostAsync(url, content);
         return await ReadJsonAsync(response);
-    }
-
-    /// <summary>Set the game simulation state (PLAY, PAUSE, FASTFORWARD).</summary>
-    public async Task<JsonElement> SetGameStateAsync(string state)
-    {
-        var fields = new[] { new KeyValuePair<string, string>("state", state) };
-        return await PostFormAsync("Game/State", fields);
-    }
-
-    /// <summary>Set current era real time (seconds remaining in current era).</summary>
-    public async Task<JsonElement> SetRealtimeAsync(int realtimeSeconds)
-    {
-        var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeSeconds.ToString()) };
-        return await PostFormAsync("Game/Realtime", fields);
-    }
-
-    /// <summary>Set future era real times (comma-separated seconds for all 4 eras).</summary>
-    public async Task<JsonElement> SetFutureRealtimeAsync(string realtimeCommaSeparated)
-    {
-        var fields = new[] { new KeyValuePair<string, string>("realtime", realtimeCommaSeparated) };
-        return await PostFormAsync("Game/FutureRealtime", fields);
     }
 
     // -------------------------------------------------------------------------
@@ -82,17 +62,23 @@ public class MspApiClient
         return $"{_userSessionService.GameServerAddress.TrimEnd('/')}/{_userSessionService.SessionId}/api/{endPoint.TrimStart('/')}";
     }
 
-    private HttpClient CreateClient()
+    private void CreateClient()
     {
-        var client = _factory.CreateClient();
-        var clientVersion = _configuration["MspClientVersion"] ?? "6.0.0";
-        client.DefaultRequestHeaders.TryAddWithoutValidation("Msp-Client-Version", clientVersion);
-
-        if (!string.IsNullOrEmpty(_userSessionService.ApiAccessToken))
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", _userSessionService.ApiAccessToken);
-
-        return client;
+        if (_client is not null)
+        {
+            if (_client.DefaultRequestHeaders.Authorization is not null) return;
+            if (!string.IsNullOrEmpty(_userSessionService.ApiAccessToken))
+            {
+                _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                    "Bearer", _userSessionService.ApiAccessToken
+                );
+            }
+            return;
+        }
+        _client = _factory.CreateClient();
+        _client.DefaultRequestHeaders.TryAddWithoutValidation(
+            "Msp-Client-Version", _configuration["MspClientVersion"] ?? "6.0.0"
+        );
     }
 
     private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
@@ -118,6 +104,15 @@ public class MspApiClient
 
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.Clone();
+    }
+
+    public async Task LogOff()
+    {
+        await PostFormAsync("User/CloseSession", new[]
+        {
+            new KeyValuePair<string, string>("session_id", _userSessionService.SessionId.ToString())
+        });
+        _client = null;
     }
 }
 

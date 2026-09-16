@@ -1,8 +1,8 @@
 @if (IsVisible)
 {
-    <div class="map-popup" style="left:@(X)px;top:@(Y)px">
-        <div class="map-popup-header">
-            <span class="map-popup-title">@LayerName</span>
+    <div class="panel map-popup" style="left:@(X)px;top:@(Y)px">
+        <div class="panel-title map-popup-header">
+            <span style="flex: 1">@LayerName</span>
             <button class="map-popup-close" @onclick="ClosePopupAsync">&#10005;</button>
         </div>
         <div class="map-popup-body">

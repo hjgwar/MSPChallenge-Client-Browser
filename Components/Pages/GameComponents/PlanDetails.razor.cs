@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BlazorBootstrap;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents;
@@ -10,7 +11,6 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 public partial class PlanDetails : GameComponentBase, IDisposable
 {
     [Parameter] public MapViewPort? Map { get; set; }
-    
     public PlanNameDesc PlanNameDescInstance { get; set; } = null!;
     public PlanStartDate PlanStartDateInstance { get; set; } = null!;
     public PlanComponents.PlanState PlanStateInstance { get; set; } = null!;
@@ -20,6 +20,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     public PlanMessages PlanMessagesInstance { get; set; } = null!;
     public PlanIssues PlanIssuesInstance { get; set; } = null!;
     public PlanDetailsSave PlanDetailsSaveInstance { get; set; } = null!;
+    private ConfirmDialog cancelDialog = null!;
 
     /// <summary>
     /// Closes all sub-panels. Wired to OnSubPanelOpening on every child component that
@@ -36,6 +37,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     }
 
     private List<PlanRestrictionIssue> _selectedPlanIssues = [];
+    private bool _selectedPlanApprovalRequired = false;
     private Plan _detailPlan = null!;
     private List<string> _detailLayers = [];
     private string _detailDotColour = "#6c757d";
@@ -170,6 +172,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     {
         if (GameUIStateService.EditMode)
             await CancelEditAsync();
+        CloseAllSubPanels();
         GameUIStateService.SelectedPlanId = null;
         GameSessionService.NotifyChanged();
     }
@@ -283,7 +286,19 @@ public partial class PlanDetails : GameComponentBase, IDisposable
 
     private async Task CancelEditAsync()
     {
+        var confirmation = await cancelDialog.ShowAsync(
+            title: "Are you sure you want to cancel editing this plan?",
+            message1: "This will undo any edits you made to the plan, and unlock it again.",
+            message2: "Do you want to proceed?");
+        if (!confirmation) return;
         GameUIStateService.ToggleEditMode();
+        if (GameUIStateService.SelectedPlanId == 0) // new plan
+        {
+            GameUIStateService.SelectedPlanId = null;
+            StateHasChanged();
+            return;
+        }
+        
         _editSaving = true;
         StateHasChanged();
         try
@@ -292,7 +307,6 @@ public partial class PlanDetails : GameComponentBase, IDisposable
                 new[]
                 {
                     new KeyValuePair<string, string>("id", GameUIStateService.SelectedPlanId.ToString()!),
-                    new KeyValuePair<string, string>("force_unlock", "0"),
                     new KeyValuePair<string, string>("user", UserSessionService.User.Id.ToString()),
                 });
         }
@@ -311,29 +325,19 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         if (plan != null) return plan;
         
         return new Plan(
-            0, // PlanId (new/unsaved)
-            _editName ?? string.Empty,
-            _editDescription ?? string.Empty,
-            Models.PlanState.DESIGN, // State
-            UserSessionService.User.Country.Id,
-            (_editStartYear - GameSessionService.GameStartYear) * 12 + (_editStartMonth - 1),
-            0, // ConstructionTime
-            new List<string>(), // PolicyNames
-            new List<string>(), // PolicyTypes
-            _editPlanLayerIds.Select(id =>
+            Name: _editName ?? string.Empty,
+            Description: _editDescription ?? string.Empty,
+            Country: UserSessionService.User.Country.Id,
+            StartDate: (_editStartYear - GameSessionService.GameStartYear) * 12 + (_editStartMonth - 1),
+            Layers: _editPlanLayerIds.Select(id =>
                 new PlanLayerData(
-                    id, // LayerId
-                    id, // OriginalLayerId
-                    string.Empty, // State
-                    new List<PlanGeometryItem>(), // Geometry
-                    new List<string>() // DeletedPersistentIds
+                    LayerId: id,
+                    OriginalLayerId: id,
+                    State: string.Empty,
+                    Geometry: new List<PlanGeometryItem>(),
+                    DeletedPersistentIds: new List<string>()
                 )
-            ).ToList(),
-            false, // RequiresApproval
-            0, // MessageCount
-            0, // IssueCount
-            null, // Votes
-            0 // LockedByUserId
+            ).ToList()
         );
     }
 
@@ -346,7 +350,7 @@ public partial class PlanDetails : GameComponentBase, IDisposable
             StateHasChanged();
             return;
         }
-
+        CloseAllSubPanels();
         // Pass geometry state from PlanLayers → PlanDetailsSave before saving.
         // PlanDetailsSave needs the map JS module to call getOverlayFeaturesJson,
         // the edited layer ID to know which overlay to read, and the set of
@@ -384,6 +388,10 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         // If switching plans, fully clear the previous plan first to avoid concurrent operations
         if (_lastDisplayedPlanId.HasValue && (plan is null || _lastDisplayedPlanId != plan.PlanId))
         {
+            await Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
+            // Undo the previous plan's applyPlanProjection ghost features/hidden flags on base
+            // layers before the new plan (re)applies its own — otherwise they pile up forever.
+            await Map.MapJSModule.InvokeVoidAsync("clearPlanProjection");
             await DeactivatePlanLayersAsync();
             await Map.MapJSModule.InvokeVoidAsync("clearPlanOverlay");
             _lastDisplayedPlanId = null;

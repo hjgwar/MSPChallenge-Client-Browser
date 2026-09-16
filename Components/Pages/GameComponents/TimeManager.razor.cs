@@ -2,7 +2,7 @@
 using MSPChallenge_Client_Browser.Services;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
-public partial class TimeManager : IDisposable
+public partial class TimeManager : GameComponentBase, IDisposable
 {
     private string[] _eraTimeInputs = new string[GameSessionService.ERA_COUNT];
     private bool[] _eraTimeEditing = new bool[GameSessionService.ERA_COUNT];
@@ -116,7 +116,8 @@ public partial class TimeManager : IDisposable
                     if (eraIndex == currentEra)
                     {
                         // Current era: set current era time via api/Game/Realtime
-                        await ApiClient.SetRealtimeAsync(totalSeconds);
+                        var fields = new[] { new KeyValuePair<string, string>("realtime", totalSeconds.ToString()) };
+                        await ApiClient.PostFormAsync("Game/Realtime", fields);
                     }
                     else
                     {
@@ -124,8 +125,8 @@ public partial class TimeManager : IDisposable
                         var newEraTimes = new int[GameSessionService.ERA_COUNT];
                         Array.Copy(GameSessionService.EraRealTimes, newEraTimes, GameSessionService.ERA_COUNT);
                         newEraTimes[eraIndex] = totalSeconds;
-                        var realtimeString = string.Join(",", newEraTimes);
-                        await ApiClient.SetFutureRealtimeAsync(realtimeString);
+                        var fields = new[] { new KeyValuePair<string, string>("realtime", string.Join(",", newEraTimes)) };
+                        await ApiClient.PostFormAsync("Game/FutureRealtime", fields);
                     }
                 }
                 catch (Exception ex)
@@ -170,7 +171,8 @@ public partial class TimeManager : IDisposable
     {
         try
         {
-            await ApiClient.SetGameStateAsync(state);
+            var fields = new[] { new KeyValuePair<string, string>("state", state) };
+            await ApiClient.PostFormAsync("Game/State", fields);
             // State will be updated via WebSocket, no need to manually update here
         }
         catch (Exception ex)

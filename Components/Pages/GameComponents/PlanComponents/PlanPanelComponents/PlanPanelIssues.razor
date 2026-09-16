@@ -1,10 +1,10 @@
 @inherits GameComponentBase
-<div class="plan-message-panel plan-issues-panel">
-    <div class="plan-message-panel-header">
-        <span class="plan-message-panel-title">Issues</span>
+<div class="panel plan-message-panel plan-issues-panel">
+    <div class="panel-title plan-message-panel-header">
+        <span style="flex: 1">Issues</span>
         <button class="panel-close-btn" type="button" title="Close" @onclick="OnClose">&#10005;</button>
     </div>
-    <div class="plan-message-panel-body">
+    <div class="panel-content plan-message-panel-body">
         @if (SelectedPlanIssues.Count == 0)
         {
             <div class="plan-message-empty">No issues found for this plan geometry.</div>

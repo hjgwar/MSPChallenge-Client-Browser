@@ -1,7 +1,7 @@
 @inherits GameComponentBase
-<div class="users-panel">
-    <div class="users-panel-header">
-        <span class="users-panel-title">Online Users</span>
+<div class="panel users-panel">
+    <div class="panel-title users-panel-header">
+        <span style="flex: 1">Online Users</span>
         <button class="users-refresh-btn" title="Refresh" @onclick="LoadUsersAsync" disabled="@_usersLoading">
             <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M13.65 2.35A8 8 0 1 0 15 8h-1.5a6.5 6.5 0 1 1-1.17-3.73L10 7h5V2l-1.35 0.35z"/>
@@ -9,11 +9,11 @@
         </button>
         <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
-    <div class="users-panel-content">
-    <div class="users-my-country">
-        <span class="user-dot" style="background:@UserSessionService.User.Country.Color;"></span>
-        <span>Your country: <strong>@UserSessionService.User.Country.Name</strong></span>
-    </div>
+    <div class="panel-content users-panel-content">
+        <div class="users-my-country">
+            <span class="user-dot" style="background:@UserSessionService.User.Country.Color;"></span>
+            <span>Your country: <strong>@UserSessionService.User.Country.Name</strong></span>
+        </div>
     @if (_usersLoading)
     {
         <div class="users-status">Loading…</div>

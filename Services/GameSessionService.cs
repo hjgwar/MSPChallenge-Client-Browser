@@ -12,16 +12,19 @@ namespace MSPChallenge_Client_Browser.Services;
 /// this class's <see cref="Changed"/> event so components only subscribe once.
 /// Loading logic lives in the companion partial class <c>GameSessionService.Loader.cs</c>.
 /// </summary>
-public sealed partial class GameSessionService : IDisposable
+public sealed partial class GameSessionService : IAsyncDisposable
 {
+    private readonly MspApiClient        _apiClient;
     private readonly WebSocketService    _ws;
     private readonly GameUIStateService  _uiState;
     private readonly SemaphoreSlim       _initGate = new(1, 1);
 
-    public GameSessionService(WebSocketService ws, GameUIStateService uiState)
+    public GameSessionService(MspApiClient apiClient, WebSocketService ws, GameUIStateService uiState)
     {
+        ArgumentNullException.ThrowIfNull(apiClient);
         ArgumentNullException.ThrowIfNull(ws);
         ArgumentNullException.ThrowIfNull(uiState);
+        _apiClient = apiClient;
         _ws      = ws;
         _uiState = uiState;
         _ws.MessageReceived += OnWsMessage;
@@ -284,12 +287,6 @@ public sealed partial class GameSessionService : IDisposable
                 }
             }
 
-            var requiresApproval = false;
-            if (p.TryGetProperty("approval_required", out var arEl))
-                requiresApproval = arEl.ValueKind == JsonValueKind.True
-                    || (arEl.ValueKind == JsonValueKind.Number && arEl.GetInt32() != 0)
-                    || (arEl.ValueKind == JsonValueKind.String && arEl.GetString() is "1" or "true");
-
             Dictionary<int, int>? votes = null;
             if (p.TryGetProperty("votes", out var votesEl) && votesEl.ValueKind == JsonValueKind.Array)
             {
@@ -332,9 +329,20 @@ public sealed partial class GameSessionService : IDisposable
             if (!Enum.TryParse<PlanState>(state, ignoreCase: true, out var planState))
                 continue;
 
-            var entry = new Plan(id, name, description, planState, country, startdate, constructionTime,
-                policyNames, policyTypes, planLayers, requiresApproval, msgCount,
-                IssueCount: 0, Votes: votes, LockedByUserId: lockedByUserId);
+            var entry = new Plan(
+                PlanId: id,
+                Name: name,
+                Description: description,
+                State: planState,
+                Country: country,
+                StartDate: startdate,
+                ConstructionTime: constructionTime,
+                PolicyNames: policyNames,
+                PolicyTypes: policyTypes,
+                Layers: planLayers,
+                MessageCount: msgCount,
+                Votes: votes,
+                LockedByUserId: lockedByUserId);
 
             var idx = _plans.FindIndex(e => e.PlanId == id);
             if (idx >= 0)
@@ -342,6 +350,9 @@ public sealed partial class GameSessionService : IDisposable
             else
                 _plans.Add(entry);
         }
+
+        // Plan data changed — any cached geometry/finalised-plan projection may now be stale.
+        ClearGeometryCaches();
 
         _plans.Sort((a, b) =>
         {
@@ -427,6 +438,7 @@ public sealed partial class GameSessionService : IDisposable
         AvailablePolicies = [];
 
         _uiState.Reset();
+        await _apiClient.LogOff();
 
         IsGameDataLoaded = false;
     }
@@ -462,6 +474,7 @@ public sealed partial class GameSessionService : IDisposable
     // ── Geometry caches for plan calculations ──────────────────────────────────
     private readonly Dictionary<string, List<ParsedLayerGeometry>> _parsedLayerGeometryCache   = [];
     private readonly Dictionary<string, List<ParsedLayerGeometry>> _projectedGeometryCache     = [];
+    private readonly Dictionary<int, PlanProjection> _finalizedPlanProjectionCache = [];
 
     /// <summary>
     /// Parses and caches layer geometry from MapLayerSnapshots.
@@ -578,16 +591,66 @@ public sealed partial class GameSessionService : IDisposable
         return projected;
     }
 
+    /// <summary>
+    /// Returns the aggregated hide/add projection contributed by every finalised plan that started
+    /// before <paramref name="cutoffMonth"/>, across all layers those plans touch. Used to render
+    /// prior plans' world-state impact when a later plan is selected on the map.
+    /// Cached per cutoff month; invalidated whenever plan data changes (see <see cref="ApplyGameLatest"/>).
+    /// </summary>
+    public PlanProjection GetFinalizedPlansProjection(int cutoffMonth)
+    {
+        if (_finalizedPlanProjectionCache.TryGetValue(cutoffMonth, out var cached))
+            return cached;
+
+        var hidden = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var added  = new List<PlanProjectionFeature>();
+
+        var relevantPlans = _plans
+            .Where(p => p.StartDate < cutoffMonth && Utils.PlanCalculations.PlanStates.IsFinalisedPlanState(p.State))
+            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId);
+
+        foreach (var plan in relevantPlans)
+        {
+            foreach (var planLayer in plan.Layers)
+            {
+                if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
+
+                if (!hidden.TryGetValue(planLayer.OriginalLayerId, out var ids))
+                    hidden[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var deletedId in planLayer.DeletedPersistentIds)
+                    ids.Add(deletedId);
+
+                var geoType = LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
+
+                foreach (var geo in planLayer.Geometry)
+                {
+                    if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
+                        ids.Add(geo.PersistentId);
+
+                    if (geo.Coordinates.Count > 0)
+                        added.Add(new PlanProjectionFeature(planLayer.OriginalLayerId, geoType, geo.Id, geo.TypeIndex, geo.Coordinates));
+                }
+            }
+        }
+
+        var projection = new PlanProjection(hidden, added);
+        _finalizedPlanProjectionCache[cutoffMonth] = projection;
+        return projection;
+    }
+
     /// <summary>Clears geometry caches. Call when layer data is updated to force re-parsing.</summary>
     public void ClearGeometryCaches()
     {
         _parsedLayerGeometryCache.Clear();
         _projectedGeometryCache.Clear();
+        _finalizedPlanProjectionCache.Clear();
     }
 
     // ── Disposal ───────────────────────────────────────────────────────────────
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        //await _apiClient.LogOff();
         _ws.MessageReceived -= OnWsMessage;
         _initGate.Dispose();
     }

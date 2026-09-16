@@ -1,10 +1,10 @@
 ﻿@inherits GameComponentBase
-<div class="legend-panel">
-    <div class="legend-panel-title">
+<div class="panel legend-panel">
+    <div class="panel-title legend-panel-title">
         <span style="flex:1">Legend</span>
         <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
-    <div class="legend-panel-content">
+    <div class="panel-content legend-panel-content">
     @for (int i = 0; i < GameUIStateService.LegendOrderLayerIds.Count; i++)
     {
         var layerId = GameUIStateService.LegendOrderLayerIds[i];

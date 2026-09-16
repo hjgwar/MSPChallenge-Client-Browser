@@ -7,6 +7,8 @@ namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanCompon
 
 public partial class PlanApproval : GameComponentBase, IDisposable
 {
+    [Parameter] public bool SelectedPlanApprovalRequired { get; set; } = false;
+    [Parameter] public EventCallback<bool> SelectedPlanApprovalRequiredChanged { get; set; }
     private List<PlanApprovalRequirement> _approvalRequired = [];
     private readonly Dictionary<string, List<ParsedGeometry>> _parsedLayerGeometryCache = [];
     [Parameter] public EventCallback OnSubPanelOpening { get; set; }
@@ -32,14 +34,14 @@ public partial class PlanApproval : GameComponentBase, IDisposable
     protected override void OnInitialized()
     {
         GameSessionService.Changed += OnStateChanged;
-        CalculateApproval();
+        _ = CalculateApproval();
     }
 
     private void OnStateChanged()
     {
         // Recalculate whenever the server sends updated plan data — covers the
         // initial load as well as updates that arrive after a plan edit is saved.
-        CalculateApproval();
+        _ = CalculateApproval();
         InvokeAsync(StateHasChanged);
     }
 
@@ -53,7 +55,7 @@ public partial class PlanApproval : GameComponentBase, IDisposable
     /// based on the approval type defined per layer_type (AllCountries / EEZ / NotDependent)
     /// and ownership of removed geometry derived from EEZ polygon intersection.
     /// </summary>
-    private void CalculateApproval()
+    private async Task CalculateApproval()
     {
         if (GameSessionService.SelectedPlan is null) return;
 
@@ -165,6 +167,8 @@ public partial class PlanApproval : GameComponentBase, IDisposable
             var name = country?.Name ?? $"Country {kvp.Key}";
             _approvalRequired.Add(new PlanApprovalRequirement(kvp.Key, name, kvp.Value));
         }
+        SelectedPlanApprovalRequired = _approvalRequired.Count > 0;
+        await SelectedPlanApprovalRequiredChanged.InvokeAsync(SelectedPlanApprovalRequired);
     }
 
     // ── Geometry parsing ──────────────────────────────────────────────────────

@@ -2,9 +2,9 @@
     var _geoToolLayer = Parent != null ? Parent.GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == LayerId) : null;
     var _isMultiType  = _geoToolLayer?.IsMultiType ?? false;
 }
-<div class="geometry-tool-panel">
-    <div class="plan-message-panel-header">
-        <span class="plan-message-panel-title">Geometry Tool</span>
+<div class="panel geometry-tool-panel">
+    <div class="panel-title plan-message-panel-header">
+        <span style="flex: 1">Geometry Tool</span>
         <button class="panel-close-btn" title="Close" type="button"
                 @onclick="CloseGeometryToolAsync">&#10005;</button>
     </div>

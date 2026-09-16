@@ -16,4 +16,8 @@
     <Content Remove="MSPChallenge.Tests\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Blazor.Bootstrap" Version="3.5.0" />
+  </ItemGroup>
+
 </Project>

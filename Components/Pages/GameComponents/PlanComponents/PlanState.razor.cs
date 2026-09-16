@@ -7,6 +7,7 @@ public partial class PlanState : GameComponentBase
 {
     [Parameter] public Plan? Plan { get; set; }
     [Parameter] public IReadOnlyList<PlanRestrictionIssue> SelectedPlanIssues { get; set; } = [];
+    [Parameter] public bool SelectedPlanApprovalRequired { get; set; } = false;
     [Parameter] public EventCallback OnSubPanelOpening { get; set; }
 
     private bool _planStateOpen = false;

@@ -12,21 +12,11 @@ namespace MSPChallenge_Client_Browser.Services;
 /// 1. Call <see cref="ConnectAndSubscribeAsync"/> once after all layers are loaded.
 /// 2. Subscribe to <see cref="MessageReceived"/> to react to incoming messages.
 ///    The event fires on a background thread — use InvokeAsync when updating Blazor state.
-/// 3. Stored messages are available via <see cref="GameLatestMessages"/>,
-///    <see cref="ExecuteBatchMessages"/>, and <see cref="ImmersiveSessionsMessages"/>.
+///    Messages are not retained after dispatch; subscribers must capture what they need.
 /// </para>
 /// </summary>
 public sealed class WebSocketService : IAsyncDisposable
 {
-    // ── Stored messages by type ────────────────────────────────────────────────
-    private readonly List<WsMessage> _gameLatest        = new();
-    private readonly List<WsMessage> _executeBatch      = new();
-    private readonly List<WsMessage> _immersiveSessions = new();
-
-    public IReadOnlyList<WsMessage> GameLatestMessages        => _gameLatest;
-    public IReadOnlyList<WsMessage> ExecuteBatchMessages      => _executeBatch;
-    public IReadOnlyList<WsMessage> ImmersiveSessionsMessages => _immersiveSessions;
-
     // ── Connection state ───────────────────────────────────────────────────────
     private ClientWebSocket?            _ws;
     private CancellationTokenSource     _cts = new();
@@ -135,24 +125,9 @@ public sealed class WebSocketService : IAsyncDisposable
 
             var msg = new WsMessage(headerName, payload, raw, DateTime.UtcNow);
 
-            switch (headerName)
-            {
-                case "Game/Latest":
-                    lock (_gameLatest)        _gameLatest.Add(msg);
-                    break;
-
-                case "Batch/ExecuteBatch":
-                    lock (_executeBatch)      _executeBatch.Add(msg);
-                    break;
-
-                case "ImmersiveSessions/Update":
-                    lock (_immersiveSessions) _immersiveSessions.Add(msg);
-                    break;
-
-                default:
-                    // Unknown type — not stored; add a catch-all list here when needed.
-                    return;
-            }
+            // Only dispatch recognised message types; unknown types are dropped.
+            if (headerName is not ("Game/Latest" or "Batch/ExecuteBatch" or "ImmersiveSessions/Update"))
+                return;
 
             MessageReceived?.Invoke(msg);
         }
@@ -192,10 +167,6 @@ public sealed class WebSocketService : IAsyncDisposable
 
         _cts.Dispose();
         _cts = new CancellationTokenSource();
-
-        _gameLatest.Clear();
-        _executeBatch.Clear();
-        _immersiveSessions.Clear();
     }
 
     // ── Disposal ───────────────────────────────────────────────────────────────

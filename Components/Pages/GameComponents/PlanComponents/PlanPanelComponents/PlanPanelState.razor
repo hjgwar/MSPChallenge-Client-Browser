@@ -1,11 +1,11 @@
 ﻿@using MSPChallenge_Client_Browser.Utils.PlanCalculations
 @inherits GameComponentBase
-<div class="plan-message-panel plan-state-panel">
-    <div class="plan-message-panel-header">
-        <span class="plan-message-panel-title">Plan State</span>
+<div class="panel plan-message-panel plan-state-panel">
+    <div class="panel-title plan-message-panel-header">
+        <span style="flex: 1">Plan State</span>
         <button class="panel-close-btn" type="button" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
-    <div class="plan-message-panel-body plan-state-panel-body">
+    <div class="panel-content plan-message-panel-body plan-state-panel-body">
         <div class="plan-state-dropdown @(_planStateDropdownOpen ? "open" : "")">
             <button class="plan-state-dropdown-trigger" type="button"
                     disabled="@PlanStateSending"

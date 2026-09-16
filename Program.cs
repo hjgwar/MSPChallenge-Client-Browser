@@ -23,6 +23,7 @@ builder.Services.AddScoped<MspApiClient>();
 builder.Services.AddScoped<WebSocketService>();
 builder.Services.AddScoped<GameUIStateService>();
 builder.Services.AddScoped<GameSessionService>();
+builder.Services.AddBlazorBootstrap();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {

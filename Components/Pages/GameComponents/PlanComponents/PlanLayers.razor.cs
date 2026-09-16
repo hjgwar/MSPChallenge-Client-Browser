@@ -48,8 +48,7 @@ public partial class PlanLayers : GameComponentBase, IDisposable
 
     private DotNetObjectReference<PlanLayers>? _dotNetRef;
 
-    private Plan _detailPlan => Plan ?? new Plan(
-        0, "", "", Models.PlanState.DESIGN, 0, 0, 0, [], [], [], false, 0, 0, null, 0);
+    private Plan _detailPlan => Plan ?? new Plan();
 
     private List<string> _detailLayers
     {

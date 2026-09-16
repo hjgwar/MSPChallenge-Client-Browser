@@ -1,14 +1,32 @@
-﻿using System.Text.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
-using MSPChallenge_Client_Browser.Utils.PlanCalculations;
 
 namespace MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 
 public partial class MapViewPort
 {
-    public required IJSObjectReference MapJSModule;
-    
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    public IJSObjectReference? MapJSModule;
+
+    // Layers whose full geometry has already been parsed and added to OpenLayers this
+    // session; re-showing them only needs a visibility toggle, not a full rebuild.
+    private readonly HashSet<string> _materializedLayerIds = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly TaskCompletionSource _readyTcs = new();
+    /// <summary>Resolves once <see cref="MapJSModule"/> has been imported and is ready to use.</summary>
+    public Task WhenReady => _readyTcs.Task;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        MapJSModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
+        _readyTcs.SetResult();
+    }
+
     // Public method for UI components
     public Task ToggleLayerAsync(Layer entry, bool visible) 
         => ToggleLayerInternalAsync(entry, visible, skipProjection: false);
@@ -46,9 +64,19 @@ public partial class MapViewPort
         GameSessionService.NotifyChanged();
     }
 
-    private async Task EnsureLayerRenderedAsync(string layerId, bool visible)
+    // Internal so Game.razor.cs can reuse this for the initial cold-start layer load
+    // instead of duplicating the materialization logic.
+    internal async Task EnsureLayerRenderedAsync(string layerId, bool visible)
     {
         if (MapJSModule is null) return;
+
+        if (_materializedLayerIds.Contains(layerId))
+        {
+            // Already parsed/added once this session — just toggle visibility instead of
+            // re-parsing and rebuilding every feature from scratch again.
+            await MapJSModule.InvokeVoidAsync("setLayerVisible", layerId, visible);
+            return;
+        }
 
         var snapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
         if (snapshot is null) return;
@@ -68,6 +96,7 @@ public partial class MapViewPort
                     snapshot.RasterColorMap.Count > 0 ? snapshot.RasterColorMap : null,
                     snapshot.RasterMinCutoffNorm,
                     snapshot.RasterInterpolate);
+                _materializedLayerIds.Add(layerId);
             }
             return;
         }
@@ -82,6 +111,7 @@ public partial class MapViewPort
                 snapshot.TypeColors,
                 visible,
                 snapshot.LabelKey);
+            _materializedLayerIds.Add(layerId);
         }
     }
 
@@ -96,51 +126,36 @@ public partial class MapViewPort
     {
         if (MapJSModule is null) return;
 
-        // Snapshot the Plans list: the WS background thread may call _plans.Add / _plans[i] = ...
-        // via ApplyGameLatest while we iterate here.  Individual Plan / PlanLayerData /
-        // PlanGeometryItem records are immutable once constructed, so no deeper copies are needed.
-        var relevantPlans = GameSessionService.Plans
-            .Where(p => p.StartDate < planStartDate && PlanStates.IsFinalisedPlanState(p.State))
-            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId)
-            .ToList();
+        // Prior finalised plans' hide/add contributions are cached per cutoff month in
+        // GameSessionService (invalidated whenever plan data changes), so switching between
+        // already-viewed plans/cutoffs during a long session no longer re-walks the full
+        // plan history each time.
+        var projection = GameSessionService.GetFinalizedPlansProjection(planStartDate);
 
         var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var addedFeatures  = new List<object>();
 
-        // Process prior finalized plans
-        foreach (var plan in relevantPlans)
+        foreach (var (layerId, ids) in projection.HiddenByLayer)
         {
-            foreach (var planLayer in plan.Layers)
-            {
-                if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
-                if (singleLayerId is not null &&
-                    !string.Equals(planLayer.OriginalLayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
-                    continue;
+            if (singleLayerId is not null &&
+                !string.Equals(layerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
+                continue;
+            hiddenFeatures[layerId] = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+        }
 
-                if (!hiddenFeatures.TryGetValue(planLayer.OriginalLayerId, out var ids))
-                    hiddenFeatures[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var feature in projection.AddedFeatures)
+        {
+            if (singleLayerId is not null &&
+                !string.Equals(feature.LayerId, singleLayerId, StringComparison.OrdinalIgnoreCase))
+                continue;
 
-                foreach (var deletedId in planLayer.DeletedPersistentIds)
-                    ids.Add(deletedId);
-
-                var geoType = GameSessionService.LayerEntries
-                    .FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
-
-                foreach (var geo in planLayer.Geometry)
-                {
-                    if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
-                        ids.Add(geo.PersistentId);
-
-                    if (geo.Coordinates.Count > 0)
-                        addedFeatures.Add(new {
-                            layerId   = planLayer.OriginalLayerId,
-                            geoType,
-                            id        = geo.Id,
-                            typeIndex = geo.TypeIndex,
-                            coords    = geo.Coordinates.ToArray()
-                        });
-                }
-            }
+            addedFeatures.Add(new {
+                layerId   = feature.LayerId,
+                geoType   = feature.GeoType,
+                id        = feature.Id,
+                typeIndex = feature.TypeIndex,
+                coords    = feature.Coordinates.ToArray()
+            });
         }
 
         // Process current plan if provided (hide base-layer features it modifies)

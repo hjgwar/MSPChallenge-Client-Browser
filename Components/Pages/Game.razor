@@ -1,10 +1,12 @@
-@page "/game"
+﻿@page "/game"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents
 
+<NavigationLock ConfirmExternalNavigation="true" />
+
 <PageTitle>MSP Challenge</PageTitle>
 
-@if (_isLoading || _loadingFading)
+@if (!GameSessionService.IsGameDataLoaded && (_isLoading || _loadingFading))
 {
     <GameLoading IsFading="@_loadingFading" LoadingStatus="@_loadingStatus" />
 }
@@ -55,8 +57,8 @@
 <MapProperties IsVisible="_popupVisible" 
                X="_popupX" 
                Y="_popupY" 
-               LayerName="_popupLayerName" 
-               Properties="_popupProps" 
+               LayerName="@_popupLayerName" 
+               Properties="@_popupProps" 
                OnClose="ClosePopup" />
 
 @if (GameUIStateService.TimeManagerOpen) {

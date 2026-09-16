@@ -1,9 +1,9 @@
 @inherits GameComponentBase
 @using MSPChallenge_Client_Browser.Components.Pages.GameComponents.PlanComponents
-
-<div class="plan-detail-panel">
-    <div class="plan-detail-panel-title">
-        @(GameUIStateService.EditMode ? "EDIT PLAN" : "ACTIVE PLAN")
+<ConfirmDialog @ref="cancelDialog" />
+<div class="panel plan-detail-panel">
+    <div class="panel-title plan-detail-panel-title">
+        <span style="flex: 1">@(GameUIStateService.EditMode ? "Edit Plan" : "Active Plan")</span>
         <button class="panel-close-btn" title="Close" @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
     </div>
     <div class="plan-detail-header">
@@ -26,13 +26,13 @@
                            ConstructionTime="@GetConstructionTime()"
                            StartMonthChanged="@OnStartMonthChanged"
                            StartYearChanged="@OnStartYearChanged" />
-            <PlanState @ref="PlanStateInstance" Plan="@_detailPlan" SelectedPlanIssues="@_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
+            <PlanState @ref="PlanStateInstance" Plan="@_detailPlan" SelectedPlanApprovalRequired="_selectedPlanApprovalRequired" SelectedPlanIssues="@_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
         </div>
     </details>
     <details class="plan-detail-section plan-detail-section--communication" open>
         <summary class="plan-detail-section-hdr">Communication</summary>
         <div class="plan-detail-section-body">
-            <PlanApproval @ref="PlanApprovalInstance" OnSubPanelOpening="CloseAllSubPanels" />
+            <PlanApproval @ref="PlanApprovalInstance" @bind-SelectedPlanApprovalRequired="_selectedPlanApprovalRequired" OnSubPanelOpening="CloseAllSubPanels" />
             <PlanMessages @ref="PlanMessagesInstance" OnSubPanelOpening="CloseAllSubPanels" />
             <PlanIssues @ref="PlanIssuesInstance" Map="@Map" @bind-SelectedPlanIssues="_selectedPlanIssues" OnSubPanelOpening="CloseAllSubPanels" />
         </div>

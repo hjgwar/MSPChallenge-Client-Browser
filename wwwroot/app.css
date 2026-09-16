@@ -1,5 +1,10 @@
-html, body {
+﻿html, body {
     font-family: 'Cabin', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 13px;
+}
+
+.toast-container {
+    z-index: 3000;
 }
 
 .map-viewport {
@@ -24,13 +29,11 @@ html, body {
     border-radius: 0.375rem;
     max-width: 90vw;
     text-align: center;
-    font-size: 0.875rem;
 }
 
 .map-error-detail {
     margin-top: 0.5rem;
     text-align: left;
-    font-size: 0.75rem;
     white-space: pre-wrap;
     word-break: break-word;
     max-height: 40vh;
@@ -40,7 +43,7 @@ html, body {
     border-radius: 0.25rem;
 }
 
-/* ── Dev WebSocket console bar ──────────────────────────────────────────── */
+/* Dev WebSocket console bar */
 .ws-console {
     position: fixed;
     bottom: 0;
@@ -57,7 +60,6 @@ html, body {
     display: flex;
     flex-direction: column;
     font-family: 'Consolas', 'SFMono-Regular', monospace;
-    font-size: 0.7rem;
 }
 
 .ws-console-header {
@@ -72,14 +74,11 @@ html, body {
 .ws-console-title {
     font-weight: 600;
     color: #74c0fc;
-    text-transform: uppercase;
     letter-spacing: 0.06em;
-    font-size: 0.65rem;
 }
 
 .ws-console-count {
     color: #6c757d;
-    font-size: 0.65rem;
     flex: 1;
 }
 
@@ -87,7 +86,7 @@ html, body {
     background: none;
     border: 1px solid rgba(255,255,255,0.15);
     color: #6c757d;
-    font-size: 0.65rem;
+    
     padding: 1px 6px;
     border-radius: 3px;
     cursor: pointer;
@@ -100,7 +99,7 @@ html, body {
 }
 
 .ws-copy-confirm {
-    font-size: 0.65rem;
+    
     color: #6fcf97;
     font-style: italic;
 }
@@ -112,7 +111,6 @@ html, body {
     background: rgba(30,30,30,0.85);
     border: 1px solid rgba(255,255,255,0.15);
     color: #6c757d;
-    font-size: 0.65rem;
     font-family: inherit;
     padding: 2px 8px;
     border-radius: 3px;
@@ -196,8 +194,6 @@ html, body {
 }
 
 .ws-detail-label {
-    font-size: 0.62rem;
-    text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #74c0fc;
     flex: 1;
@@ -210,11 +206,10 @@ html, body {
     flex: 1;
     color: #e9ecef;
     white-space: pre;
-    font-size: 0.68rem;
     line-height: 1.45;
 }
 
-/* ── Full-screen splash / loading overlay ───────────────────────────────── */
+/* â”€â”€ Full-screen splash / loading overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .splash-overlay {
     position: fixed;
     inset: 0;
@@ -280,7 +275,6 @@ html, body {
 .splash-tagline {
     font-size: clamp(0.65rem, 1.4vw, 0.8rem);
     letter-spacing: 0.3em;
-    text-transform: uppercase;
     color: rgba(255, 255, 255, 0.42);
     margin-top: -0.25rem;
 }
@@ -308,12 +302,12 @@ html, body {
 }
 
 .splash-status {
-    font-size: 0.72rem;
+    
     letter-spacing: 0.1em;
     color: rgba(255, 255, 255, 0.28);
 }
 
-/* ── Left-edge icon sidebar ─────────────────────────────────────────────── */
+/* Left-edge icon sidebar */
 .map-sidebar {
     position: fixed;
     left: 0;
@@ -321,14 +315,14 @@ html, body {
     width: 44px;
     height: 100vh;
     z-index: 9100;
-    background: rgba(22, 27, 34, 0.92);
-    backdrop-filter: blur(6px);
+    background: var(--glass-bg-dark);
+    backdrop-filter: var(--glass-blur);
     box-shadow: 2px 0 10px rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 0.5rem 0;
-    gap: 0.25rem;
+    gap: 0.8rem;
 }
 
 .sidebar-btn {
@@ -336,7 +330,7 @@ html, body {
     height: 34px;
     border: none;
     background: none;
-    color: #6c757d;
+    color: white;
     border-radius: 0.375rem;
     cursor: pointer;
     display: flex;
@@ -353,24 +347,23 @@ html, body {
 }
 
 .sidebar-btn:hover {
-    background: rgba(255,255,255,0.1);
-    color: #dee2e6;
+    background: grey;
+    color: white;
 }
 
 .sidebar-btn--active {
     background: rgba(116, 192, 252, 0.15);
-    color: #74c0fc;
+    color: #f7a02b;
 }
 
 .sidebar-btn--active:hover {
-    background: rgba(116, 192, 252, 0.25);
-    color: #a5d8ff;
+    background: grey;
+    color: white;
 }
 
 .sidebar-separator {
     width: 26px;
-    height: 1px;
-    background: rgba(255,255,255,0.12);
+    height: 10px;
     margin: 0.2rem 0;
     flex-shrink: 0;
 }
@@ -378,9 +371,9 @@ html, body {
 /* Container for panels that float to the right of the sidebar */
 .map-sidebar-panels {
     position: fixed;
-    left: 48px;
+    left: 58px;
     top: 1rem;
-    z-index: 9000;
+    z-index: 2000;
     display: block;
     overflow-y: auto;
     max-height: calc(100vh - 2rem);
@@ -410,7 +403,7 @@ html, body {
     pointer-events: auto;
 }
 
-/* Plan detail / create-plan panels — fixed to bottom-right, grow upward */
+/* Plan detail / create-plan panels â€” fixed to bottom-right, grow upward */
 .map-plan-panels {
     position: fixed;
     bottom: 0.75rem;
@@ -420,59 +413,14 @@ html, body {
     pointer-events: none;
 }
 
-/* Shared text baseline for all panels */
-.layer-panel,
-.legend-panel,
-.users-panel,
-.plans-panel {
-    font-size: 0.8125rem;
-}
-
 /* Online users panel */
 .users-panel {
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
     width: 100%;
     box-sizing: border-box;
     height: 15vh;
     min-height: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: vertical;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
     margin-bottom: 0.5rem;
-}
-
-.users-panel-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.4rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    flex-shrink: 0;
-}
-
-.users-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
-}
-
-.users-panel-title {
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    flex: 1;
 }
 
 .users-refresh-btn {
@@ -496,27 +444,6 @@ html, body {
 .users-refresh-btn svg {
     width: 12px;
     height: 12px;
-}
-
-.panel-close-btn {
-    background: none;
-    border: none;
-    color: #adb5bd;
-    cursor: pointer;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-left: 0.25rem;
-}
-
-.panel-close-btn:hover {
-    color: #dee2e6;
-    background: rgba(255,255,255,0.08);
 }
 
 .user-row {
@@ -544,7 +471,6 @@ html, body {
 
 .users-status {
     color: #adb5bd;
-    font-size: 0.75rem;
     padding: 0.2rem 0;
 }
 
@@ -558,33 +484,23 @@ html, body {
     gap: 0.4rem;
     padding: 0.25rem 0.75rem 0.4rem;
     border-bottom: 1px solid rgba(255,255,255,0.08);
-    font-size: 0.75rem;
     color: #adb5bd;
 }
 
-/* Plans panel — free-floating, centred by default, draggable via header */
+/* Plans panel â€” free-floating, centred by default, draggable via header */
 .plans-panel {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    z-index: 9600;
+    z-index: 2010;
     width: 340px;
     height: 50vh;
     min-height: 120px;
     min-width: 240px;
     max-height: 80vh;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: both;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     box-shadow: 0 4px 24px rgba(0,0,0,0.60);
 }
 
@@ -602,38 +518,7 @@ html, body {
     cursor: grabbing;
 }
 
-.plans-panel-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.4rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    flex-shrink: 0;
-}
-
-.plans-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
-}
-
-.plans-panel-title {
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    flex: 1;
-}
-
 .plans-panel-count {
-    font-size: 0.7rem;
     background: rgba(255,255,255,0.12);
     color: #adb5bd;
     border-radius: 9px;
@@ -695,16 +580,13 @@ html, body {
 
 .plan-date {
     flex-shrink: 0;
-    font-size: 0.7rem;
     color: #adb5bd;
     white-space: nowrap;
 }
 
 .plan-state {
     flex-shrink: 0;
-    font-size: 0.68rem;
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 0.1rem 0.35rem;
     border-radius: 3px;
@@ -719,7 +601,6 @@ html, body {
 
 .plans-status {
     color: #adb5bd;
-    font-size: 0.75rem;
     padding: 0.2rem 0;
 }
 
@@ -731,8 +612,6 @@ html, body {
     cursor: pointer;
     user-select: none;
     font-weight: 600;
-    font-size: 0.7rem;
-    text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #adb5bd;
     padding: 0.15rem 0;
@@ -742,18 +621,25 @@ html, body {
     gap: 0.3rem;
 }
 
-.plan-group-header::-webkit-details-marker { display: none; }
+.plan-group-header::-webkit-details-marker {
+    display: none; 
+}
+
 .plan-group-header::before {
     content: '\25BC';
-    font-size: 0.55rem;
     transition: transform 0.15s;
 }
-.plan-group[open] > .plan-group-header::before { transform: rotate(0deg); }
-.plan-group:not([open]) > .plan-group-header::before { transform: rotate(-90deg); }
+
+.plan-group[open] > .plan-group-header::before {
+    transform: rotate(0deg); 
+}
+
+.plan-group:not([open]) > .plan-group-header::before {
+    transform: rotate(-90deg); 
+}
 
 .plan-group-count {
     margin-left: auto;
-    font-size: 0.68rem;
     background: rgba(255,255,255,0.10);
     color: #adb5bd;
     border-radius: 8px;
@@ -767,52 +653,18 @@ html, body {
 
 .plans-empty-state {
     padding: 0.15rem 0.6rem 0.25rem;
-    font-size: 0.68rem;
     color: #adb5bd;
     font-style: italic;
 }
 
 /* Layer selection panel */
 .layer-panel {
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
     width: 100%;
     box-sizing: border-box;
     height: 45vh;
     min-height: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: vertical;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
     margin-bottom: 0.5rem;
-}
-
-.layer-panel-title {
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    margin-bottom: 0.4rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.layer-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
 }
 
 .layer-search {
@@ -822,14 +674,13 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.78rem;
     padding: 0.2rem 0.45rem;
     margin-bottom: 0.4rem;
     outline: none;
 }
 
 .layer-search::placeholder {
-    color: #6c757d;
+    font-style: italic;
 }
 
 .layer-search:focus {
@@ -876,8 +727,6 @@ html, body {
     cursor: pointer;
     user-select: none;
     font-weight: 600;
-    font-size: 0.7rem;
-    text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #adb5bd;
     padding: 0.15rem 0;
@@ -889,7 +738,6 @@ html, body {
 
 .layer-cat-header::before {
     content: '\25BC';
-    font-size: 0.55rem;
     transition: transform 0.15s;
 }
 
@@ -898,14 +746,12 @@ html, body {
 
 .layer-sub-header {
     font-weight: 500;
-    font-size: 0.68rem;
     color: #adb5bd;
     padding-left: 0.5rem;
 }
 
 .layer-sub-header::before {
     content: '\25B8';
-    font-size: 0.55rem;
     transition: transform 0.15s;
 }
 
@@ -914,46 +760,13 @@ html, body {
 /* Tooltip on hover */
 
 
-/* Legend panel – sits below the layer panel inside .map-panel-stack */
+/* Legend panel â€“ sits below the layer panel inside .map-panel-stack */
 .legend-panel {
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem 0.6rem;
     width: 100%;
     box-sizing: border-box;
     height: 30vh;
     min-height: 2.5rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
     resize: vertical;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-}
-
-.legend-panel-title {
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #adb5bd;
-    margin-bottom: 0.35rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.legend-panel-content {
-    overflow-y: auto;
-    scrollbar-gutter: stable both-edges;
-    box-sizing: border-box;
-    padding-right: 0.65rem;
-    flex: 1;
-    min-height: 0;
 }
 
 .legend-layer {
@@ -1014,7 +827,6 @@ html, body {
     background: none;
     border: none;
     color: #adb5bd;
-    font-size: 0.75rem;
     line-height: 1;
     padding: 4px 6px;
     border-radius: 3px;
@@ -1027,11 +839,10 @@ html, body {
     color: #ff6b6b;
 }
 
-/* ⓘ wiki info link — used in layer panel rows and legend rows/headers */
+/* â“˜ wiki info link â€” used in layer panel rows and legend rows/headers */
 .info-icon-link {
     flex-shrink: 0;
     color: #74c0fc;
-    font-size: 0.95rem;
     line-height: 1;
     text-decoration: none;
     opacity: 0.6;
@@ -1068,21 +879,12 @@ html, body {
     white-space: nowrap;
 }
 
-/* Map properties popup – bottom-right floating card */
+/* Map properties popup â€“ bottom-right floating card */
 .map-popup {
     position: fixed;
-    z-index: 9100;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border-radius: 0.5rem;
+    z-index: 2000;
     width: 260px;
     max-height: 60vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    backdrop-filter: blur(4px);
-    font-size: 0.8125rem;
-    overflow: hidden;
 }
 
 .map-popup-header {
@@ -1096,8 +898,6 @@ html, body {
 
 .map-popup-title {
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #adb5bd;
     flex: 1;
@@ -1111,7 +911,6 @@ html, body {
     background: none;
     border: none;
     color: #adb5bd;
-    font-size: 0.65rem;
     line-height: 1;
     padding: 2px 4px;
     border-radius: 3px;
@@ -1164,17 +963,10 @@ html, body {
     border-top: 1px solid rgba(255,255,255,0.06);
 }
 
-/* ── Game state bar ──────────────────────────────────────────────────────── */
+/* Game state bar */
 .game-bar {
-    display: flex;
-    flex-direction: column;
     gap: 0;
-    background: rgba(33, 37, 41, 0.65);
-    backdrop-filter: blur(4px);
-    border-radius: 0.5rem;
     padding: 0.45rem 0.9rem 0.45rem 0.65rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    color: #f8f9fa;
     flex-shrink: 0;
     user-select: none;
 }
@@ -1212,15 +1004,12 @@ html, body {
 }
 
 .game-bar-plan-time-label {
-    font-size: 0.72rem;
     font-weight: 600;
     color: #adb5bd;
-    text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 
 .game-bar-plan-time-date {
-    font-size: 0.88rem;
     font-weight: 700;
     color: #FFD700;
     letter-spacing: 0.02em;
@@ -1244,9 +1033,7 @@ html, body {
     border-radius: 0.35rem;
     color: #adb5bd;
     cursor: pointer;
-    font-size: 0.59rem;
     line-height: 1;
-    text-transform: uppercase;
     letter-spacing: 0.04em;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
     white-space: nowrap;
@@ -1292,7 +1079,6 @@ html, body {
 }
 
 .game-bar-date {
-    font-size: 0.85rem;
     font-weight: 600;
     color: #f8f9fa;
     text-align: center;
@@ -1306,7 +1092,6 @@ html, body {
 }
 
 .game-bar-year {
-    font-size: 0.68rem;
     color: #adb5bd;
     flex-shrink: 0;
 }
@@ -1359,15 +1144,13 @@ html, body {
 }
 
 .game-bar-state-label {
-    font-size: 0.72rem;
     font-weight: 600;
-    text-transform: uppercase;
+    
     letter-spacing: 0.06em;
     color: #adb5bd;
 }
 
 .game-bar-timeleft {
-    font-size: 0.82rem;
     font-weight: 600;
     color: #f8f9fa;
     font-variant-numeric: tabular-nums;
@@ -1394,23 +1177,21 @@ html, body {
     background: rgba(255, 255, 255, 0.08);
 }
 
-/* ── Plan detail panel ───────────────────────────────────────────────────── */
+/* Plan detail panel */
 .plan-detail-panel {
     background: transparent; /* ::before provides background + blur */
+    backdrop-filter: none;     /* ::before handles blur; don't create backdrop root here */
+    -webkit-backdrop-filter: none;
+    border: none;              /* visual chrome comes from ::before */
+    box-shadow: none;
     position: relative;
     isolation: isolate;      /* stacking context without backdrop root */
     pointer-events: none;    /* pass map pan/zoom events through the panel body */
-    color: #f8f9fa;
-    border-radius: 0.5rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    font-size: 0.8125rem;
-    display: flex;
-    flex-direction: column;
     overflow: visible;
     max-height: 80vh;
 }
 
-/* Blurred background layer — sits behind all content but does NOT make
+/* Blurred background layer â€” sits behind all content but does NOT make
    plan-detail-panel a backdrop root, so child panels blur the map correctly. */
 .plan-detail-panel::before {
     content: '';
@@ -1442,10 +1223,7 @@ html, body {
     align-items: center;
     justify-content: space-between;
     font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #adb5bd;
     padding: 0.4rem 0.55rem 0.3rem 0.75rem;
     border-bottom: 1px solid rgba(255,255,255,0.12);
     border-radius: 0.5rem 0.5rem 0 0;
@@ -1471,7 +1249,6 @@ html, body {
 
 .plan-detail-title {
     font-weight: 600;
-    font-size: 0.875rem;
     color: #f8f9fa;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1488,7 +1265,6 @@ html, body {
     display: flex;
     align-items: flex-start;
     gap: 0.2rem;
-    font-size: 0.72rem;
     color: #adb5bd;
     line-height: 1.35;
 }
@@ -1548,31 +1324,32 @@ html, body {
 .plan-detail-section-hdr {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 0.32rem 0.75rem;
-    font-size: 0.7rem;
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #adb5bd;
     background: rgba(255,255,255,0.055);
     cursor: pointer;
     user-select: none;
     list-style: none;
+    gap: 0.3rem;
 }
 
-.plan-detail-section-hdr::-webkit-details-marker { display: none; }
-
-.plan-detail-section[open] > .plan-detail-section-hdr::after {
-    content: '▲';
-    font-size: 0.55rem;
-    opacity: 0.6;
+.plan-detail-section-hdr::-webkit-details-marker { 
+    display: none; 
 }
 
-.plan-detail-section:not([open]) > .plan-detail-section-hdr::after {
-    content: '▼';
-    font-size: 0.55rem;
-    opacity: 0.6;
+.plan-detail-section-hdr::before {
+    content: '\25BC';
+    transition: transform 0.15s;
+}
+
+.plan-detail-section[open] > .plan-detail-section-hdr::before {
+    transform: rotate(0deg);
+}
+
+.plan-detail-section:not([open]) > .plan-detail-section-hdr::before {
+    transform: rotate(-90deg);
 }
 
 .plan-detail-section-body {
@@ -1597,7 +1374,7 @@ html, body {
     overflow: visible;
 }
 
-/* Plan state row — clickable info-row variant */
+/* Plan state row â€” clickable info-row variant */
 .plan-detail-section--state {
     overflow: visible;
 }
@@ -1653,7 +1430,6 @@ html, body {
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: 0.35rem;
     color: #f8f9fa;
-    font-size: 0.8rem;
     padding: 0.3rem 0.5rem;
     cursor: pointer;
     text-align: left;
@@ -1701,7 +1477,6 @@ html, body {
     display: block;
     width: 100%;
     padding: 0.3rem 0.55rem;
-    font-size: 0.8rem;
     color: #ced4da;
     background: transparent;
     border: none;
@@ -1731,7 +1506,6 @@ html, body {
     padding: 0.3rem 0;
     border-radius: 0.35rem;
     border: none;
-    font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.12s;
@@ -1784,7 +1558,6 @@ html, body {
 
 .plan-approval-country {
     flex: 1;
-    font-size: 0.8rem;
     font-weight: 500;
     color: #e9ecef;
 }
@@ -1796,7 +1569,6 @@ html, body {
 }
 
 .plan-approval-th {
-    font-size: 0.68rem;
     color: #ced4da;
     font-weight: 600;
     text-align: center;
@@ -1819,7 +1591,7 @@ html, body {
 }
 
 .plan-approval-td--name {
-    font-size: 0.78rem;
+    
     color: #e9ecef;
     white-space: nowrap;
     padding-right: 0.5rem !important;
@@ -1888,7 +1660,6 @@ html, body {
     padding: 0;
     list-style: disc;
     color: #adb5bd;
-    font-size: 0.72rem;
     line-height: 1.45;
 }
 
@@ -1902,15 +1673,6 @@ html, body {
     bottom: -0.25rem;
     width: 320px;
     max-width: min(320px, calc(100vw - 5rem));
-    display: flex;
-    flex-direction: column;
-    border-radius: 0.5rem;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     overflow: visible;
     z-index: 9650;
 }
@@ -1942,10 +1704,8 @@ html, body {
 .plan-message-panel-title {
     flex: 1;
     text-align: left;
-    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: #adb5bd;
 }
 
@@ -1963,7 +1723,6 @@ html, body {
 
 .plan-message-empty {
     color: #adb5bd;
-    font-size: 0.76rem;
     padding: 0.2rem 0.15rem;
 }
 
@@ -2019,10 +1778,9 @@ html, body {
     min-width: 3.75rem;
     border-radius: 999px;
     padding: 0.05rem 0.35rem;
-    font-size: 0.62rem;
     font-weight: 700;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
+    
 }
 
 .plan-issue-severity--info {
@@ -2043,7 +1801,6 @@ html, body {
 .plan-issue-layers {
     margin-top: 0.2rem;
     color: #5c636a;
-    font-size: 0.66rem;
     line-height: 1.25;
 }
 
@@ -2052,7 +1809,6 @@ html, body {
     align-items: baseline;
     gap: 0.35rem;
     margin-bottom: 0.1rem;
-    font-size: 0.66rem;
     line-height: 1.2;
 }
 
@@ -2073,7 +1829,7 @@ html, body {
 }
 
 .plan-message-text {
-    font-size: 0.78rem;
+    
     line-height: 1.35;
     word-break: break-word;
     white-space: pre-wrap;
@@ -2087,7 +1843,7 @@ html, body {
     background: rgba(255,255,255,0.02);
 }
 
-/* ── Common input textbox style ──────────────────────────────────────────── */
+/* — Common input textbox style — */
 .app-input {
     width: 100%;
     box-sizing: border-box;
@@ -2095,7 +1851,6 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.78rem;
     padding: 0.2rem 0.45rem;
     outline: none;
     font: inherit;
@@ -2122,7 +1877,6 @@ html, body {
     border-radius: 0.35rem;
     padding: 0.4rem 0.75rem;
     font: inherit;
-    font-size: 0.8rem;
     font-weight: 500;
     color: #dee2e6;
     background: rgba(255,255,255,0.07);
@@ -2148,7 +1902,6 @@ html, body {
 
 .plan-message-send-error {
     color: #ff8787;
-    font-size: 0.7rem;
     padding: 0 0.55rem 0.35rem;
 }
 
@@ -2172,7 +1925,6 @@ html, body {
     align-items: center;
     gap: 0.45rem;
     color: #dee2e6;
-    font-size: 0.8rem;
     line-height: 1.35;
 }
 
@@ -2183,7 +1935,7 @@ html, body {
     color: #adb5bd;
 }
 
-/* ── Time Manager ─────────────────────────────────────────────────── */
+/* — Time Manager — */
 .time-manager-overlay {
     position: fixed;
     top: 0;
@@ -2199,12 +1951,8 @@ html, body {
 
 .time-manager-panel {
     width: 520px;
-    background: linear-gradient(135deg, #3e4c4f 0%, #2d3639 100%);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    display: flex;
-    flex-direction: column;
 }
 
 .time-manager-header {
@@ -2218,7 +1966,7 @@ html, body {
 }
 
 .time-manager-title {
-    font-size: 1rem;
+    
     font-weight: 600;
     color: #f8f9fa;
 }
@@ -2257,7 +2005,6 @@ html, body {
 }
 
 .time-manager-section-title {
-    font-size: 0.8rem;
     color: #adb5bd;
     font-weight: 500;
 }
@@ -2274,7 +2021,6 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     text-align: center;
-    font-size: 0.85rem;
     font-weight: 600;
     color: #f8f9fa;
     font-family: 'Courier New', monospace;
@@ -2298,7 +2044,6 @@ html, body {
     border-radius: 2px;
     color: #f8f9fa;
     font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
     font-weight: 600;
     text-align: center;
     padding: 0.2rem;
@@ -2319,7 +2064,6 @@ html, body {
 .time-manager-timeline-years {
     display: flex;
     justify-content: space-between;
-    font-size: 0.75rem;
     color: #adb5bd;
     padding: 0 0.2rem;
 }
@@ -2392,7 +2136,6 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.35rem;
     color: #dee2e6;
-    font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;
     text-align: center;
@@ -2421,7 +2164,7 @@ html, body {
     box-sizing: border-box;
 }
 
-/* ── Plan edit mode inputs ──────────────────────────────────────────────── */
+/* — Plan edit mode inputs — */
 .plan-edit-input,
 .plan-edit-textarea {
     width: 100%;
@@ -2430,7 +2173,6 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.8rem;
     padding: 0.3rem 0.45rem;
     font-family: inherit;
     outline: none;
@@ -2474,7 +2216,6 @@ html, body {
     border: 1px solid rgba(255,255,255,0.18);
     border-radius: 0.3rem;
     color: #f8f9fa;
-    font-size: 0.78rem;
     padding: 0.28rem 0.4rem;
     font-family: inherit;
     outline: none;
@@ -2503,7 +2244,6 @@ html, body {
 
 .plan-edit-date-hint {
     display: block;
-    font-size: 0.72rem;
     color: #868e96;
     margin-top: 0.1rem;
 }
@@ -2512,7 +2252,7 @@ html, body {
     color: #ff8080;
 }
 
-/* "Add or remove …" button inside sections */
+/* "Add or remove â€¦" button inside sections */
 .plan-edit-add-btn {
     display: block;
     width: 100%;
@@ -2522,7 +2262,6 @@ html, body {
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: 0.3rem;
     color: #ced4da;
-    font-size: 0.78rem;
     font-family: inherit;
     text-align: center;
     cursor: pointer;
@@ -2543,18 +2282,16 @@ html, body {
 /* Error message */
 .plan-edit-error {
     margin: 0.3rem 0.75rem 0;
-    font-size: 0.75rem;
     color: #ff8080;
 }
 
 .plan-edit-status {
     margin: 0.3rem 0.75rem 0;
-    font-size: 0.75rem;
     color: #adb5bd;
     text-align: center;
 }
 
-/* ── Geometry Tool Panel ─────────────────────────────────────────────────────── */
+/* — Geometry Tool Panel — */
 .geometry-tool-panel {
     position: absolute;
     right: calc(100% + var(--right-panel-gap) + var(--panel-connector-protrusion));
@@ -2563,15 +2300,6 @@ html, body {
     width: 240px;
     max-width: min(240px, calc(100vw - 5rem));
     max-height: 60vh;
-    display: flex;
-    flex-direction: column;
-    border-radius: 0.5rem;
-    background: rgba(33, 37, 41, 0.65);
-    color: #f8f9fa;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     overflow: visible;
     z-index: 9650;
     pointer-events: auto;
@@ -2597,8 +2325,6 @@ html, body {
 }
 
 .geometry-tool-section-title {
-    font-size: 0.68rem;
-    text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #adb5bd;
     margin-bottom: 0.35rem;
@@ -2609,7 +2335,6 @@ html, body {
     align-items: center;
     gap: 0.45rem;
     padding: 0.22rem 0.2rem;
-    font-size: 0.82rem;
     color: #c9d1d9;
     cursor: pointer;
     border-radius: 0.25rem;
@@ -2646,7 +2371,6 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 0.35rem;
     color: #c9d1d9;
-    font-size: 0.68rem;
     font-family: inherit;
     cursor: pointer;
     transition: background 0.12s, color 0.12s;
@@ -2720,7 +2444,6 @@ html, body {
     flex: 1;
     padding: 0.4rem 0;
     border-radius: 0.35rem;
-    font-size: 0.8rem;
     font-family: inherit;
     font-weight: 500;
     cursor: pointer;
@@ -2755,7 +2478,7 @@ html, body {
     border-color: rgba(40,167,69,0.5);
 }
 
-/* ── Create plan form ───────────────────────────────────────────────── */
+/* Create plan form */
 .create-plan-form {
     display: flex;
     flex-direction: column;
@@ -2769,12 +2492,11 @@ html, body {
     gap: 0.2rem;
 }
 
-.create-plan-label {
-    font-size: 0.72rem;
+.create-plan-label {    
     font-weight: 600;
     letter-spacing: 0.02em;
     color: #adb5bd;
-    text-transform: uppercase;
+    
 }
 
 .create-plan-optional {
@@ -2782,7 +2504,7 @@ html, body {
     text-transform: none;
     opacity: 0.7;
 }
- ───────────────────────────────────────────── */
+ 
 .plan-lock-icon,
 .plan-row-indicator {
     flex-shrink: 0;
@@ -2809,7 +2531,7 @@ button.plan-lock-icon:hover {
     filter: brightness(1.4);
 }
 
-/* ── Policy row (wrapper giving absolute-panel a position:relative anchor) */
+/* — Policy row (wrapper giving absolute-panel a position:relative anchor) */
 .plan-detail-policy-row {
     position: relative;
     overflow: visible;
@@ -2837,7 +2559,7 @@ button.plan-lock-icon:hover {
     overflow: visible;
 }
 
-/* Scrollable list of selected layer names — keeps the section from growing unbounded */
+/* Scrollable list of selected layer names â€” keeps the section from growing unbounded */
 .plan-detail-layers-list {
     max-height: 4rem;
     overflow-y: auto;
@@ -2847,7 +2569,7 @@ button.plan-lock-icon:hover {
     pointer-events: auto;
 }
 
-/* ── Policy picker panel ────────────────────────────────────────────────── */
+/* — Policy picker panel — */
 .plan-policy-picker-body {
     padding: 0.35rem 0.55rem 0.5rem;
     display: flex;
@@ -2855,7 +2577,7 @@ button.plan-lock-icon:hover {
     gap: 0.12rem;
 }
 
-/* ── Layer picker panel (same positioning as other side panels) ─────────── */
+/* — Layer picker panel (same positioning as other side panels) — */
 .plan-layer-picker-panel {
     /* wider than policy picker to fit layer names with category tree */
     width: 340px;
@@ -2913,11 +2635,10 @@ button.plan-lock-icon:hover {
 }
 
 .plan-policy-name {
-    font-size: 0.8rem;
     color: #dee2e6;
 }
 
-/* ── Dependencies page ────────────────────────────────────────────────────── */
+/* — Dependencies page — */
 .dep-graph {
     position: fixed;
     inset: 0;
@@ -2931,7 +2652,6 @@ button.plan-lock-icon:hover {
     left: 50%;
     transform: translateX(-50%);
     color: rgba(180,210,230,0.55);
-    font-size: 0.78rem;
     pointer-events: none;
     white-space: nowrap;
     letter-spacing: 0.02em;
@@ -2945,7 +2665,6 @@ button.plan-lock-icon:hover {
     border: 1px solid rgba(116,185,214,0.3);
     border-radius: 6px;
     color: #74b9d6;
-    font-size: 0.8rem;
     padding: 0.4rem 0.85rem;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
@@ -2968,7 +2687,6 @@ button.plan-lock-icon:hover {
     gap: 1rem;
     background: #07141e;
     color: #74b9d6;
-    font-size: 1rem;
 }
 
 .dep-no-data p { margin: 0; color: #aed6ea; }
@@ -3009,9 +2727,9 @@ h1:focus {
     color: white;
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
@@ -3025,4 +2743,3 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
-

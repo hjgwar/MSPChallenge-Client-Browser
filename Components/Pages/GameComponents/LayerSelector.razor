@@ -1,11 +1,11 @@
 ﻿@inherits GameComponentBase
 
-<div class="layer-panel">
-    <div class="layer-panel-title">
+<div class="panel layer-panel">
+    <div class="panel-title layer-panel-title">
         <span style="flex:1">Layers</span>
         <button class="panel-close-btn" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
-    <div class="layer-panel-content">
+    <div class="panel-content layer-panel-content">
     <input class="layer-search" type="search" placeholder="Search layers…" @bind="_layerSearch" @bind:event="oninput" />
     @foreach (IGrouping<string, Layer> cat in GameSessionService.LayerEntries
         .Where(e => !e.IsBaseLayer && e.IsToggleable &&

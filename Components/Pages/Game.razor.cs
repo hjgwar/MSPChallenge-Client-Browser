@@ -1,7 +1,6 @@
 ﻿using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Globalization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 using MSPChallenge_Client_Browser.Models;
@@ -12,7 +11,6 @@ namespace MSPChallenge_Client_Browser.Components.Pages;
 public partial class Game : IAsyncDisposable
 {
     [Inject] NavigationManager NavigationManager { get; set; } = null!;
-    [Inject] IJSRuntime JS { get; set; } = null!;
     [Inject] IHostEnvironment HostEnvironment { get; set; } = null!;
     [Inject] UserSessionService SessionState { get; set; } = null!;
     [Inject] MspApiClient ApiClient { get; set; } = null!;
@@ -29,11 +27,6 @@ public partial class Game : IAsyncDisposable
     private IJSObjectReference? _mapModule;
     private DotNetObjectReference<Game>? _dotNetRef;
 
-    // ── Aliases to shared session state ──────────────────────────────────────
-    private IReadOnlyList<Plan>       _plans        => GameSessionService.Plans;
-    private List<Layer>               _layerEntries => GameSessionService.LayerEntries;
-    private bool   IsAdmin           => SessionState.User.Country.Id == 1 || SessionState.User.Country.Id == 2;
-
     // ── Loading & UI state ────────────────────────────────────────────────────
     private bool    _isLoading     = true;
     private bool    _loadingFading = false;
@@ -47,6 +40,16 @@ public partial class Game : IAsyncDisposable
     private double                 _popupY;
     private string?                _popupLayerName;
     private List<(string, string)> _popupProps = [];
+
+     // ── WebSocket log ─────────────────────────────────────────────────────────
+    private const int WsLogMaxEntries = 100;
+    private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = [];
+    private bool _wsLogVisible;
+
+    protected override void OnInitialized()
+    {
+        GameSessionService.Changed += OnGameSessionServiceChanged;
+    }
 
     private void ClosePopup()
     {
@@ -79,7 +82,7 @@ public partial class Game : IAsyncDisposable
         foreach (string? name in new[] { sourceDisplayName, targetDisplayName })
         {
             if (string.IsNullOrWhiteSpace(name)) continue;
-            var le = _layerEntries.FirstOrDefault(e =>
+            var le = GameSessionService.LayerEntries.FirstOrDefault(e =>
                 string.Equals(e.DisplayName, name, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(e.LayerName, name, StringComparison.OrdinalIgnoreCase));
             if (le is null || le.Visible) continue;
@@ -88,11 +91,6 @@ public partial class Game : IAsyncDisposable
         }
         if (changed) StateHasChanged();
     }
-
-    // ── WebSocket log ─────────────────────────────────────────────────────────
-    private const int WsLogMaxEntries = 100;
-    private readonly List<(string HeaderName, string Raw, DateTime ReceivedAt)> _wsLog = [];
-    private bool _wsLogVisible;
 
     private void CloseWsLog()
     {
@@ -109,11 +107,6 @@ public partial class Game : IAsyncDisposable
         StateHasChanged();
     }
 
-    protected override void OnInitialized()
-    {
-        GameSessionService.Changed += OnGameSessionServiceChanged;
-    }
-
     private void OnGameSessionServiceChanged()
     {
         InvokeAsync(StateHasChanged);
@@ -127,11 +120,12 @@ public partial class Game : IAsyncDisposable
         // Capture cold-start status before async work so warm returns can skip map refit.
         var isColdStart = _isLoading;
 
-        Map.MapJSModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/map.js");
-        _mapModule = Map.MapJSModule;
+        // Wait for MapViewPort to import map.js in its own OnAfterRenderAsync.
+        await Map.WhenReady;
+        _mapModule = Map.MapJSModule!;
 
-        // Default view centred on North Sea – will be replaced once _PLAYAREA bounds are known
-        await _mapModule.InvokeVoidAsync("initMap", "map", 54.5, 3.5, 6);
+        // initMap sets an EPSG:3035 placeholder view that is replaced immediately below.
+        await _mapModule.InvokeVoidAsync("initMap", "map");
 
         // On warm return, restore saved camera immediately for instant visual feedback.
         if (!isColdStart && GameUIStateService.HasSavedMapView)
@@ -203,17 +197,17 @@ public partial class Game : IAsyncDisposable
         if (_mapModule is null) return;
 
         // Always materialize the base layer first (needed for fitToPlayArea and z-index reference).
-        var baseLayer = _layerEntries.FirstOrDefault(e => e.IsBaseLayer);
+        var baseLayer = GameSessionService.LayerEntries.FirstOrDefault(e => e.IsBaseLayer);
         if (baseLayer is not null)
         {
             var baseSnapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == baseLayer.LayerId);
             if (baseSnapshot is not null)
-                await EnsureLayerRenderedAsync(baseLayer.LayerId, visible: true);
+                await Map.EnsureLayerRenderedAsync(baseLayer.LayerId, visible: true);
         }
 
         foreach (var snapshot in GameSessionService.MapLayerSnapshots)
         {
-            var entry = _layerEntries.FirstOrDefault(e => e.LayerId == snapshot.LayerId);
+            var entry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == snapshot.LayerId);
             if (entry?.IsBaseLayer == true) continue;  // Already materialized above.
 
             var visible = entry?.Visible ?? snapshot.Visible;
@@ -221,7 +215,7 @@ public partial class Game : IAsyncDisposable
             // Warm navigation: only materialize currently visible layers for faster return.
             if (!visible) continue;
 
-            await EnsureLayerRenderedAsync(snapshot.LayerId, visible: true);
+            await Map.EnsureLayerRenderedAsync(snapshot.LayerId, visible: true);
         }
 
         if (Map is not null)
@@ -235,44 +229,6 @@ public partial class Game : IAsyncDisposable
         }
     }
 
-    private async Task EnsureLayerRenderedAsync(string layerId, bool visible)
-    {
-        if (_mapModule is null) return;
-
-        var snapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
-        if (snapshot is null) return;
-
-        var entry = _layerEntries.FirstOrDefault(e => e.LayerId == layerId);
-        if (entry?.IsRaster == true)
-        {
-            if (snapshot.RasterImageData is not null && snapshot.RasterProjBounds is not null)
-            {
-                await _mapModule.InvokeVoidAsync(
-                    "addRasterLayer",
-                    snapshot.LayerId,
-                    snapshot.RasterImageData,
-                    snapshot.RasterProjBounds,
-                    0.9,
-                    visible,
-                    snapshot.RasterColorMap.Count > 0 ? snapshot.RasterColorMap : null,
-                    snapshot.RasterMinCutoffNorm,
-                    snapshot.RasterInterpolate);
-            }
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(snapshot.VectorGeometriesJson))
-        {
-            await _mapModule.InvokeVoidAsync(
-                "addVectorLayer",
-                snapshot.LayerId,
-                snapshot.VectorGeometriesJson,
-                snapshot.GeoType,
-                snapshot.TypeColors,
-                visible,
-                snapshot.LabelKey);
-        }
-    }
 
     // ── Legend reorder (called from JS via _dotNetRef) ────────────────────────
 
@@ -309,11 +265,11 @@ public partial class Game : IAsyncDisposable
                 resolvedLayerId = origLid.GetString() ?? layerId;
             }
 
-            var entry   = _layerEntries.FirstOrDefault(e => e.LayerId == resolvedLayerId);
+            var entry   = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == resolvedLayerId);
 
             _popupX = root.TryGetProperty("clientX", out var cx) && cx.ValueKind == JsonValueKind.Number ? cx.GetDouble() : 0;
             _popupY = root.TryGetProperty("clientY", out var cy) && cy.ValueKind == JsonValueKind.Number ? cy.GetDouble() : 0;
-            _popupLayerName = entry?.DisplayName ?? resolvedLayerId;
+            _popupLayerName = entry?.DisplayName ?? "Planned geometry";
             _popupProps.Clear();
 
             if (root.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object)
