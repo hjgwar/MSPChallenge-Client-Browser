@@ -1,5 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Net;
+using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using MSPChallenge_Client_Browser.Services;
 using Xunit;
 
@@ -7,11 +9,27 @@ namespace MSPChallenge.Tests.UnitTests;
 
 public class GameSessionServiceEraTests
 {
+    // No-op HTTP stack so MspApiClient.LogOff() (called by ResetAsync) never hits the network.
+    private sealed class StubHttpMessageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
+    }
+
+    private sealed class StubHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(new StubHttpMessageHandler());
+    }
+
     private GameSessionService CreateTestState()
     {
         // Use a real WebSocket service instance; no connection is established in unit tests.
         var ws = new WebSocketService();
-        return new GameSessionService(ws, new GameUIStateService(null!, null!));
+        var apiClient = new MspApiClient(
+            new StubHttpClientFactory(),
+            new ConfigurationManager(),
+            new UserSessionService { GameServerAddress = "http://localhost" });
+        return new GameSessionService(apiClient, ws, new GameUIStateService(null!, null!));
     }
 
     [Theory]

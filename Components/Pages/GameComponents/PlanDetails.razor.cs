@@ -389,6 +389,9 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         if (_lastDisplayedPlanId.HasValue && (plan is null || _lastDisplayedPlanId != plan.PlanId))
         {
             await Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
+            // Undo the previous plan's applyPlanProjection ghost features/hidden flags on base
+            // layers before the new plan (re)applies its own — otherwise they pile up forever.
+            await Map.MapJSModule.InvokeVoidAsync("clearPlanProjection");
             await DeactivatePlanLayersAsync();
             await Map.MapJSModule.InvokeVoidAsync("clearPlanOverlay");
             _lastDisplayedPlanId = null;

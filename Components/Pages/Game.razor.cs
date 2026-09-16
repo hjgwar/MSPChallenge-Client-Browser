@@ -202,7 +202,7 @@ public partial class Game : IAsyncDisposable
         {
             var baseSnapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == baseLayer.LayerId);
             if (baseSnapshot is not null)
-                await EnsureLayerRenderedAsync(baseLayer.LayerId, visible: true);
+                await Map.EnsureLayerRenderedAsync(baseLayer.LayerId, visible: true);
         }
 
         foreach (var snapshot in GameSessionService.MapLayerSnapshots)
@@ -215,7 +215,7 @@ public partial class Game : IAsyncDisposable
             // Warm navigation: only materialize currently visible layers for faster return.
             if (!visible) continue;
 
-            await EnsureLayerRenderedAsync(snapshot.LayerId, visible: true);
+            await Map.EnsureLayerRenderedAsync(snapshot.LayerId, visible: true);
         }
 
         if (Map is not null)
@@ -229,44 +229,6 @@ public partial class Game : IAsyncDisposable
         }
     }
 
-    private async Task EnsureLayerRenderedAsync(string layerId, bool visible)
-    {
-        if (_mapModule is null) return;
-
-        var snapshot = GameSessionService.MapLayerSnapshots.FirstOrDefault(s => s.LayerId == layerId);
-        if (snapshot is null) return;
-
-        var entry = GameSessionService.LayerEntries.FirstOrDefault(e => e.LayerId == layerId);
-        if (entry?.IsRaster == true)
-        {
-            if (snapshot.RasterImageData is not null && snapshot.RasterProjBounds is not null)
-            {
-                await _mapModule.InvokeVoidAsync(
-                    "addRasterLayer",
-                    snapshot.LayerId,
-                    snapshot.RasterImageData,
-                    snapshot.RasterProjBounds,
-                    0.9,
-                    visible,
-                    snapshot.RasterColorMap.Count > 0 ? snapshot.RasterColorMap : null,
-                    snapshot.RasterMinCutoffNorm,
-                    snapshot.RasterInterpolate);
-            }
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(snapshot.VectorGeometriesJson))
-        {
-            await _mapModule.InvokeVoidAsync(
-                "addVectorLayer",
-                snapshot.LayerId,
-                snapshot.VectorGeometriesJson,
-                snapshot.GeoType,
-                snapshot.TypeColors,
-                visible,
-                snapshot.LabelKey);
-        }
-    }
 
     // ── Legend reorder (called from JS via _dotNetRef) ────────────────────────
 

@@ -1317,6 +1317,12 @@ export function applyPlanProjection(projectionJson) {
         const coords = item.coords;
         if (!coords || coords.length === 0) continue;
 
+        // Skip if this projected feature is already present (e.g. a layer was toggled off
+        // and back on for the same plan view, without an intervening clearPlanProjection call).
+        if (layer.getSource().getFeatures().some(f => f.get('_projAdded') && String(f.get('mspId')) === String(item.id))) {
+            continue;
+        }
+
         let olGeom;
         if (gt === 'polygon' || gt === 'polygons') {
             olGeom = new ol.geom.Polygon([coords]);

@@ -351,6 +351,9 @@ public sealed partial class GameSessionService : IAsyncDisposable
                 _plans.Add(entry);
         }
 
+        // Plan data changed — any cached geometry/finalised-plan projection may now be stale.
+        ClearGeometryCaches();
+
         _plans.Sort((a, b) =>
         {
             var sp = a.State.CompareTo(b.State);
@@ -471,6 +474,7 @@ public sealed partial class GameSessionService : IAsyncDisposable
     // ── Geometry caches for plan calculations ──────────────────────────────────
     private readonly Dictionary<string, List<ParsedLayerGeometry>> _parsedLayerGeometryCache   = [];
     private readonly Dictionary<string, List<ParsedLayerGeometry>> _projectedGeometryCache     = [];
+    private readonly Dictionary<int, PlanProjection> _finalizedPlanProjectionCache = [];
 
     /// <summary>
     /// Parses and caches layer geometry from MapLayerSnapshots.
@@ -587,11 +591,60 @@ public sealed partial class GameSessionService : IAsyncDisposable
         return projected;
     }
 
+    /// <summary>
+    /// Returns the aggregated hide/add projection contributed by every finalised plan that started
+    /// before <paramref name="cutoffMonth"/>, across all layers those plans touch. Used to render
+    /// prior plans' world-state impact when a later plan is selected on the map.
+    /// Cached per cutoff month; invalidated whenever plan data changes (see <see cref="ApplyGameLatest"/>).
+    /// </summary>
+    public PlanProjection GetFinalizedPlansProjection(int cutoffMonth)
+    {
+        if (_finalizedPlanProjectionCache.TryGetValue(cutoffMonth, out var cached))
+            return cached;
+
+        var hidden = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var added  = new List<PlanProjectionFeature>();
+
+        var relevantPlans = _plans
+            .Where(p => p.StartDate < cutoffMonth && Utils.PlanCalculations.PlanStates.IsFinalisedPlanState(p.State))
+            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId);
+
+        foreach (var plan in relevantPlans)
+        {
+            foreach (var planLayer in plan.Layers)
+            {
+                if (string.IsNullOrEmpty(planLayer.OriginalLayerId)) continue;
+
+                if (!hidden.TryGetValue(planLayer.OriginalLayerId, out var ids))
+                    hidden[planLayer.OriginalLayerId] = ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var deletedId in planLayer.DeletedPersistentIds)
+                    ids.Add(deletedId);
+
+                var geoType = LayerEntries.FirstOrDefault(e => e.LayerId == planLayer.OriginalLayerId)?.GeoType ?? "";
+
+                foreach (var geo in planLayer.Geometry)
+                {
+                    if (!string.IsNullOrEmpty(geo.PersistentId) && geo.PersistentId != geo.Id)
+                        ids.Add(geo.PersistentId);
+
+                    if (geo.Coordinates.Count > 0)
+                        added.Add(new PlanProjectionFeature(planLayer.OriginalLayerId, geoType, geo.Id, geo.TypeIndex, geo.Coordinates));
+                }
+            }
+        }
+
+        var projection = new PlanProjection(hidden, added);
+        _finalizedPlanProjectionCache[cutoffMonth] = projection;
+        return projection;
+    }
+
     /// <summary>Clears geometry caches. Call when layer data is updated to force re-parsing.</summary>
     public void ClearGeometryCaches()
     {
         _parsedLayerGeometryCache.Clear();
         _projectedGeometryCache.Clear();
+        _finalizedPlanProjectionCache.Clear();
     }
 
     // ── Disposal ───────────────────────────────────────────────────────────────
