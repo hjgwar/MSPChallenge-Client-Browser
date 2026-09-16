@@ -27,6 +27,11 @@ WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:5261
 EXPOSE 5261
 
+# Optional: override the default target server address (server.mspchallenge.info)
+# by setting this environment variable, e.g.:
+#   docker run --rm -d -p 5261:5261 -e TARGET_SERVER_ADDRESS=prod-docker.mspchallenge.info docker-hub.mspchallenge.info/cradlewebmaster/mspchallenge-client-browser:dev
+ENV TARGET_SERVER_ADDRESS=""
+
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "MSPChallenge-Client-Browser.dll"]
 
