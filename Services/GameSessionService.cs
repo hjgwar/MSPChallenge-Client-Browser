@@ -196,6 +196,9 @@ public sealed partial class GameSessionService : IAsyncDisposable
                 MergePlanMessages(kvp.Key, kvp.Value);
         }
 
+        // KPI values (Ecology/Shipping/Other; Energy/CEL skipped) — independent of "plan" being present.
+        ApplyKpiSimulationUpdates(payload);
+
         if (!payload.TryGetProperty("plan", out var plansEl) ||
             plansEl.ValueKind != JsonValueKind.Array)
             return;

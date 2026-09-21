@@ -82,6 +82,22 @@ public static partial class ConversionUtils
     }
 
     /// <summary>
+    /// Gets a double property from a JSON element by name (case-insensitive).
+    /// Returns 0 if the property is not found or cannot be parsed.
+    /// </summary>
+    public static double GetDoubleProp(JsonElement el, string name)
+    {
+        foreach (var prop in el.EnumerateObject())
+        {
+            if (!string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+            if (prop.Value.ValueKind == JsonValueKind.Number) return prop.Value.GetDouble();
+            if (prop.Value.ValueKind == JsonValueKind.String &&
+                double.TryParse(prop.Value.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var v)) return v;
+        }
+        return 0;
+    }
+
+    /// <summary>
     /// Gets a string property from a JSON element by name (case-insensitive).
     /// Returns null if the property is not found.
     /// </summary>

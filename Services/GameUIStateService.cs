@@ -75,6 +75,35 @@ public sealed class GameUIStateService
     /// </summary>
     public List<string> LegendOrderLayerIds { get; } = new();
 
+    // ── KPI Dashboard widget state (per-circuit only; not persisted across reconnects) ─
+    public List<KpiWidgetInstance> EcologyWidgets   { get; } = new();
+    public List<KpiWidgetInstance> ShippingWidgets   { get; } = new();
+    public List<KpiWidgetInstance> OtherWidgets      { get; } = new();
+    public List<KpiWidgetInstance> FavouriteWidgets  { get; } = new();
+
+    /// <summary>Shared per-tab country selector; null = viewer's own country. No Ecology equivalent (global-only KPIs).</summary>
+    public int? SelectedShippingCountryId   { get; set; }
+    public int? SelectedOtherCountryId      { get; set; }
+    public int? SelectedFavouritesCountryId { get; set; }
+
+    /// <summary>
+    /// Populates <paramref name="widgets"/> with one instance per catalog category, laid out in a simple
+    /// left-to-right grid, the first time its tab is visited (list still empty, catalog already loaded).
+    /// Never called for Favourites, which always starts empty by design.
+    /// </summary>
+    public static void EnsureKpiWidgetsPopulated(
+        List<KpiWidgetInstance> widgets, IReadOnlyList<KpiCategoryState> catalog, int columns = 3)
+    {
+        if (widgets.Count > 0 || catalog.Count == 0) return;
+        for (var i = 0; i < catalog.Count; i++)
+        {
+            widgets.Add(new KpiWidgetInstance(catalog[i].CategoryKey)
+            {
+                Position = new KpiWidgetLayout { X = (i % columns) * 2, Y = (i / columns) * 2 }
+            });
+        }
+    }
+
     public void SaveMapView(double lat, double lng, double zoom)
     {
         MapLat  = lat;
@@ -202,5 +231,12 @@ public sealed class GameUIStateService
         PendingNewPlanStartMonth  = 1;
         MapLat = MapLng = MapZoom = null;
         LegendOrderLayerIds.Clear();
+        EcologyWidgets.Clear();
+        ShippingWidgets.Clear();
+        OtherWidgets.Clear();
+        FavouriteWidgets.Clear();
+        SelectedShippingCountryId   = null;
+        SelectedOtherCountryId      = null;
+        SelectedFavouritesCountryId = null;
     }
 }

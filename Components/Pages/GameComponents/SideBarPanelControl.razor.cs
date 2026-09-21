@@ -29,6 +29,12 @@ public partial class SideBarPanelControl : IDisposable
         NavigationManager.NavigateTo("/game/dependencies");
     }
 
+    public void OpenKpiDashboardPage()
+    {
+        if (IsNavigationPrevented()) return;
+        NavigationManager.NavigateTo("/game/kpi-dashboard");
+    }
+
     public async Task OpenHomePage()
     {
         if (IsNavigationPrevented()) return;

@@ -99,3 +99,155 @@
 .panel-close-btn:hover {
     background: rgba(255, 255, 255, 0.08);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KPI Dashboard widgets
+   ═══════════════════════════════════════════════════════════════════════════ */
+.kpi-dashboard-grid {
+    display:               grid;
+    grid-auto-rows:        110px;
+    gap:                   0.75rem;
+    padding:               0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+.kpi-widget {
+    min-width: 0;
+    min-height: 0;
+}
+
+.kpi-widget-title {
+    justify-content: flex-start;
+}
+
+.kpi-widget-title-text {
+    flex:          1;
+    overflow:      hidden;
+    text-overflow: ellipsis;
+    white-space:   nowrap;
+    text-align:    left;
+}
+
+.kpi-widget-fav-btn,
+.kpi-widget-options-btn {
+    background:  none;
+    border:      none;
+    color:       var(--ui-text-muted);
+    cursor:      pointer;
+    padding:     2px 4px;
+    font-size:   0.8rem;
+    line-height: 1;
+}
+
+.kpi-widget-fav-btn--active {
+    color: var(--accent-gold);
+}
+
+.kpi-widget-options {
+    padding:       0.35rem 0.65rem;
+    border-bottom: var(--glass-sep-faint);
+    font-size:     0.8rem;
+}
+
+.kpi-widget-content {
+    display:        flex;
+    flex-direction: column;
+    padding:        0.25rem 0.4rem 0.4rem;
+}
+
+.kpi-widget-chart {
+    flex: 1;
+    min-height: 0;
+}
+
+.kpi-widget-slider {
+    height:      22px;
+    flex-shrink: 0;
+}
+
+.kpi-country-selector {
+    display:      flex;
+    align-items:  center;
+    gap:          0.4rem;
+    padding:      0.5rem 0.75rem;
+}
+
+.kpi-dashboard-bg {
+    position:   fixed;
+    inset:      0;
+    z-index:    -1;
+    background: radial-gradient(ellipse at center, #0d2233 0%, #07141e 100%);
+}
+
+.kpi-back-btn {
+    background:    rgba(15, 30, 45, 0.82);
+    border:        1px solid rgba(116, 185, 214, 0.3);
+    border-radius: 6px;
+    color:         #74b9d6;
+    padding:       0.35rem 0.75rem;
+    cursor:        pointer;
+}
+
+.kpi-back-btn:hover {
+    background:  rgba(20, 45, 65, 0.92);
+    border-color: rgba(116, 185, 214, 0.6);
+    color:       #a5d8f0;
+}
+
+.kpi-dashboard-tabs {
+    display:       flex;
+    align-items:   center;
+    gap:           0.4rem;
+    padding:       0.6rem 0.75rem 0;
+}
+
+.kpi-tab {
+    background:    var(--glass-bg-title);
+    border:        var(--glass-border);
+    color:         var(--ui-text-title);
+    border-radius: var(--glass-radius);
+    padding:       0.35rem 0.75rem;
+    font-weight:   600;
+    cursor:        pointer;
+}
+
+.kpi-tab--active {
+    background: var(--ui-text-title);
+    color:      var(--ui-text);
+}
+
+.kpi-add-widgets-btn {
+    margin:        0.5rem 0.75rem;
+    background:    var(--glass-bg-title);
+    border:        var(--glass-border);
+    color:         var(--ui-text-title);
+    border-radius: var(--glass-radius);
+    padding:       0.3rem 0.7rem;
+    cursor:        pointer;
+}
+
+.kpi-add-widgets-popup {
+    margin:        0 0.75rem 0.5rem;
+    padding:       0.4rem;
+    background:    var(--glass-bg);
+    border:        var(--glass-border);
+    border-radius: var(--glass-radius);
+    display:       flex;
+    flex-wrap:     wrap;
+    gap:           0.35rem;
+}
+
+.kpi-add-widgets-item {
+    background:    var(--glass-bg-title);
+    border:        none;
+    color:         var(--ui-text-title);
+    border-radius: 0.35rem;
+    padding:       0.25rem 0.6rem;
+    cursor:        pointer;
+}
+
+.kpi-add-widgets-empty {
+    color:     var(--ui-text-muted);
+    font-size: 0.85rem;
+    padding:   0.25rem;
+}

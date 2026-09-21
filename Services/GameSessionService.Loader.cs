@@ -27,8 +27,9 @@ public sealed partial class GameSessionService
         if (reportStatus is not null)
             await reportStatus("Loading game settings…");
 
-        // 1) Policy and simulation settings (currently fetched for completeness)
-        await apiClient.GetAsync("Game/PolicySimSettings");
+        // 1) Policy and simulation settings — includes the KPI category catalog (Ecology/Shipping/Other; Energy/CEL skipped).
+        var policySimRoot = await apiClient.GetAsync("Game/PolicySimSettings");
+        ParseKpiCatalog(ConversionUtils.GetPayload(policySimRoot));
 
         // 2) Global game config
         var configRoot = await apiClient.GetAsync("Game/Config");
