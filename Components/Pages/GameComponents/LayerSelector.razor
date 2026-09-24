@@ -10,6 +10,7 @@
     @foreach (IGrouping<string, Layer> cat in GameSessionService.LayerEntries
         .Where(e => !e.IsBaseLayer && e.IsToggleable &&
             (string.IsNullOrWhiteSpace(_layerSearch) ||
+                e.Tooltip.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase) ||
                 e.DisplayName.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase) ||
                 e.Category.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase) ||
                 e.Subcategory.Contains(_layerSearch, StringComparison.OrdinalIgnoreCase)))
