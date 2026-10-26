@@ -134,11 +134,40 @@ public partial class KpiDashboard : ComponentBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Explicitly placed grid items overlap instead of reflowing, so after a widget was moved or resized
+    /// every widget it now overlaps is pushed down to just below it, cascading as needed.
+    /// </summary>
+    private void ResolveOverlaps(KpiWidgetInstance anchor)
+    {
+        var widgets = ActiveWidgets;
+        var pending = new Queue<KpiWidgetInstance>();
+        pending.Enqueue(anchor);
+
+        while (pending.Count > 0)
+        {
+            var pusher = pending.Dequeue().Position;
+            foreach (var other in widgets)
+            {
+                var o = other.Position;
+                if (ReferenceEquals(o, pusher) || !Overlaps(pusher, o)) continue;
+                o.Y = pusher.Y + pusher.H;
+                pending.Enqueue(other);
+            }
+        }
+    }
+
+    private static bool Overlaps(KpiWidgetLayout a, KpiWidgetLayout b) =>
+        a.X < b.X + b.W && b.X < a.X + a.W && a.Y < b.Y + b.H && b.Y < a.Y + a.H;
+
+    /// <summary>First default slot that no existing widget in <paramref name="list"/> occupies.</summary>
     private static KpiWidgetLayout NextPosition(List<KpiWidgetInstance> list)
     {
-        const int columns = 3;
-        var index = list.Count;
-        return new KpiWidgetLayout { X = (index % columns) * 2, Y = (index / columns) * 2 };
+        for (var index = 0; ; index++)
+        {
+            var candidate = KpiWidgetLayout.ForIndex(index);
+            if (!list.Any(w => Overlaps(candidate, w.Position))) return candidate;
+        }
     }
 
     // ── Country selector (Shipping/Other/Favourites only; Ecology KPIs are global-only) ──

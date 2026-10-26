@@ -1,6 +1,8 @@
 // MSP Challenge OpenLayers interop module
 // Requires: ol (OpenLayers global) and proj4 (global) loaded before this module.
 
+import { makeDraggable } from './draggable.js';
+
 // Register EPSG:3035 (ETRS89 / LAEA Europe) with proj4 and tell OpenLayers about it.
 proj4.defs('EPSG:3035',
     '+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 ' +
@@ -109,6 +111,8 @@ export function addVectorLayer(layerId, geometriesJson, geoType, typeColors, vis
 
     if (features.length === 0) return;
 
+    const labelFontPx = fontSizePx('--font-size-small');
+
     const styleFunction = (feature, resolution) => {
         if (feature.get('_projHidden')) return null;
         const idx = feature.get('mspType') ?? 0;
@@ -124,7 +128,7 @@ export function addVectorLayer(layerId, geometriesJson, geoType, typeColors, vis
             }),
             text: label ? new ol.style.Text({
                 text: label,
-                font: '11px/1 sans-serif',
+                font: `${labelFontPx}px/1 sans-serif`,
                 fill:   new ol.style.Fill({ color: '#ffffff' }),
                 stroke: new ol.style.Stroke({ color: '#333333', width: 2.5 }),
                 offsetY: -14,
@@ -559,6 +563,16 @@ export function initLegendDrag(dotNetRef) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Canvas text can't use CSS variables, so resolve a font-size design token (see tokens.css) to pixels.
+function fontSizePx(cssVar) {
+    const probe = document.createElement('span');
+    probe.style.cssText = `position:absolute;visibility:hidden;font-size:var(${cssVar})`;
+    document.body.appendChild(probe);
+    const px = parseFloat(getComputedStyle(probe).fontSize);
+    probe.remove();
+    return px;
+}
 
 function hexToRgba(hex, alpha) {
     if (!hex || !hex.startsWith('#')) return `rgba(51,136,255,${alpha ?? 1})`;
@@ -1485,40 +1499,28 @@ function initPanelDrag(panel) {
     const handle = panel.querySelector('.plans-panel-drag-handle');
     if (!handle) return;
 
-    let startX, startY, startLeft, startTop;
+    let startLeft, startTop;
 
-    handle.addEventListener('pointerdown', e => {
-        // Only primary button
-        if (e.button !== 0) return;
-        // Don't swallow clicks on interactive children (close button, etc.)
-        if (e.target.closest('button, a, input, select')) return;
-        e.preventDefault();
-        handle.setPointerCapture(e.pointerId);
-
-        // Resolve current position: if still using CSS transform centering,
-        // switch to explicit left/top so dragging works predictably.
-        const rect = panel.getBoundingClientRect();
-        panel.style.left      = rect.left + 'px';
-        panel.style.top       = rect.top  + 'px';
-        panel.style.transform = 'none';
-        panel.classList.add('plans-panel--dragged');
-
-        startX    = e.clientX;
-        startY    = e.clientY;
-        startLeft = rect.left;
-        startTop  = rect.top;
-    });
-
-    handle.addEventListener('pointermove', e => {
-        if (e.buttons !== 1) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        // Clamp inside the viewport with a small margin
-        const margin = 8;
-        const newLeft = Math.max(margin, Math.min(window.innerWidth  - panel.offsetWidth  - margin, startLeft + dx));
-        const newTop  = Math.max(margin, Math.min(window.innerHeight - panel.offsetHeight - margin, startTop  + dy));
-        panel.style.left = newLeft + 'px';
-        panel.style.top  = newTop  + 'px';
+    makeDraggable(handle, {
+        onStart: () => {
+            // Resolve current position: if still using CSS transform centering,
+            // switch to explicit left/top so dragging works predictably.
+            const rect = panel.getBoundingClientRect();
+            panel.style.left      = rect.left + 'px';
+            panel.style.top       = rect.top  + 'px';
+            panel.style.transform = 'none';
+            panel.classList.add('plans-panel--dragged');
+            startLeft = rect.left;
+            startTop  = rect.top;
+        },
+        onMove: (dx, dy) => {
+            // Clamp inside the viewport with a small margin
+            const margin = 8;
+            const newLeft = Math.max(margin, Math.min(window.innerWidth  - panel.offsetWidth  - margin, startLeft + dx));
+            const newTop  = Math.max(margin, Math.min(window.innerHeight - panel.offsetHeight - margin, startTop  + dy));
+            panel.style.left = newLeft + 'px';
+            panel.style.top  = newTop  + 'px';
+        },
     });
 }
 

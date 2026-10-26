@@ -6,13 +6,23 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 if (builder.Environment.IsDevelopment())
 {
+    // Log levels are in appsettings.Development.json; this only makes each entry more informative.
+    builder.Logging.AddSimpleConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.SingleLine = false;
+        options.TimestampFormat = "HH:mm:ss.fff ";
+    });
+
     // Allow plain HTTP and self-signed HTTPS certs when targeting a local game server.
+    builder.Services.AddTransient<HttpTrafficLoggingHandler>();
     builder.Services.AddHttpClient(string.Empty)
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         {
             ServerCertificateCustomValidationCallback =
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        });
+        })
+        .AddHttpMessageHandler<HttpTrafficLoggingHandler>();
 }
 else
 {
@@ -28,10 +38,13 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
         options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(2);
+        // Send full exception messages to the browser console instead of a generic error.
+        options.DetailedErrors = builder.Environment.IsDevelopment();
     });
 builder.Services.AddSignalR(options =>
 {
     options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
 
 var app = builder.Build();

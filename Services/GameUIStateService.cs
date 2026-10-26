@@ -92,14 +92,14 @@ public sealed class GameUIStateService
     /// Never called for Favourites, which always starts empty by design.
     /// </summary>
     public static void EnsureKpiWidgetsPopulated(
-        List<KpiWidgetInstance> widgets, IReadOnlyList<KpiCategoryState> catalog, int columns = 3)
+        List<KpiWidgetInstance> widgets, IReadOnlyList<KpiCategoryState> catalog)
     {
         if (widgets.Count > 0 || catalog.Count == 0) return;
         for (var i = 0; i < catalog.Count; i++)
         {
             widgets.Add(new KpiWidgetInstance(catalog[i].CategoryKey)
             {
-                Position = new KpiWidgetLayout { X = (i % columns) * 2, Y = (i / columns) * 2 }
+                Position = KpiWidgetLayout.ForIndex(i)
             });
         }
     }

@@ -1,6 +1,27 @@
 ﻿html, body {
     font-family: 'Cabin', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 13px;
+}
+
+/* Root size: every rem in the app (and in Bootstrap) scales from this. Sizes live in tokens.css (--font-size-*). */
+html {
+    font-size: var(--font-size);
+}
+
+body {
+    font-size: var(--font-size-base);
+}
+
+/* Bootstrap defaults that would introduce their own sizes for normal text. */
+small, .small {
+    font-size: var(--font-size-small);
+}
+
+.btn-sm {
+    --bs-btn-font-size: var(--font-size-small);
+}
+
+.toast {
+    --bs-toast-font-size: var(--font-size-base);
 }
 
 .toast-container {

@@ -1,0 +1,49 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design tokens
+   Single source of truth for colours, glass surfaces and font sizes. Loaded BEFORE
+   every other stylesheet of the app (see App.razor), so these custom properties are
+   available throughout the cascade. Add new shared values here, not in components.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+    /* Glass surface */
+    --glass-bg:           rgba(33, 37, 41, 0.65);
+    --glass-bg-dark:      rgba(22, 27, 34, 0.65);   /* sidebar variant */
+    --glass-bg-title:     rgba(245, 245, 245, 0.85);   /* panel title bar */
+    --glass-blur:         blur(6px);
+    --glass-shadow:       0 2px 10px rgba(0, 0, 0, 0.45);
+    --glass-shadow-lg:    0 4px 24px rgba(0, 0, 0, 0.60);
+    --glass-radius:       0.5rem;
+    --glass-radius-title: 0.5rem 0.5rem 0 0;  /* top corners only */
+    --glass-border:       1px solid rgba(255, 255, 255, 0.08);
+    --glass-sep:          1px solid rgba(255, 255, 255, 0.12);
+    --glass-sep-faint:    1px solid rgba(255, 255, 255, 0.07);
+
+    /* Connector arrow used by absolutely-positioned side-panels */
+    --panel-arrow-bg:     rgba(33, 37, 41, 0.65);
+    --panel-arrow-border: rgba(255, 255, 255, 0.08);
+
+    /* Typography */
+    --ui-text:            #f8f9fa;
+    --ui-text-secondary:  #dee2e6;
+    --ui-text-muted:      #adb5bd;
+    --ui-text-dim:        #6c757d;
+    --ui-text-title:      #037c7c;
+
+    /* Font sizes: the only sizes normal (non-header) text may use. Headings keep Bootstrap's
+       heading sizes. Components must not set their own font-size; use one of these instead. */
+    --font-size:          15px;
+    --font-size-base:     1rem;
+    --font-size-small:    0.85rem;
+
+    /* KPI range slider */
+    --slider-track:       rgba(255, 255, 255, 0.18);
+    --slider-selection:   #4dc7c2;
+    --slider-handle:      var(--ui-text-title);
+    --slider-handle-edge: var(--ui-text);
+
+    /* Accent colours */
+    --accent-blue:        #74c0fc;
+    --accent-gold:        #FFD700;
+    --accent-green:       #69db7c;
+    --accent-red:         #ff8080;
+}

@@ -1,0 +1,65 @@
+@using MSPChallenge_Client_Browser.Models
+<div id="@_widgetId" class="panel kpi-widget" style="@PositionStyle">
+    <div class="panel-title kpi-widget-title">
+        <button class="kpi-widget-fav-btn @(Instance.IsFavourite ? "kpi-widget-fav-btn--active" : "")"
+                type="button" title="@(Instance.IsFavourite ? "Remove from favourites" : "Add to favourites")"
+                @onclick="ToggleFavouriteAsync">★</button>
+        <span class="kpi-widget-title-text">@(Category.Definition.CategoryDisplayName ?? Category.Definition.CategoryName)</span>
+        <button class="kpi-widget-options-btn" type="button" title="Options" @onclick="ToggleOptions">⚙</button>
+        <button class="panel-close-btn" type="button" title="Remove widget" @onclick="RemoveAsync">&#10005;</button>
+    </div>
+    @if (_optionsOpen)
+    {
+        <div class="kpi-widget-options">
+            <label>
+                <input type="checkbox" checked="@Instance.Stacked" @onchange="OnStackedChangedAsync" />
+                Stacked
+            </label>
+        </div>
+    }
+    <div class="panel-content kpi-widget-content">
+        @if (Category.Values.Count > 1)
+        {
+            <div class="kpi-widget-seriesbar">
+                <button id="@_filterButtonId" type="button" class="kpi-series-filter-btn" title="Choose which bars to show"
+                        @onclick="ToggleFilterAsync">
+                    <span>@FilterSummary</span>
+                    <span class="kpi-series-filter-chevron"></span>
+                </button>
+                <div class="kpi-widget-legend">
+                    @foreach (var value in VisibleValues)
+                    {
+                        var name = SeriesName(value);
+                        <span class="kpi-widget-legend-item" title="@name">
+                            <span class="kpi-widget-legend-swatch" style="background:@value.Definition.ValueColor"></span>
+                            <span class="kpi-widget-legend-label">@name</span>
+                        </span>
+                    }
+                </div>
+            </div>
+        }
+        <div id="@_chartContainerId" class="kpi-widget-chart"></div>
+        <div id="@_sliderContainerId" class="kpi-widget-slider"></div>
+    </div>
+</div>
+@* Outside the panel on purpose: the panel clips its content, and the list must be able to extend past the widget. *@
+@if (_filterOpen)
+{
+    <div class="kpi-series-filter-backdrop" @onclick="CloseFilter"></div>
+    <div class="kpi-series-filter-popup" style="@FilterPopupStyle">
+        <div class="kpi-series-filter-actions">
+            <button type="button" class="kpi-series-filter-action" @onclick="ShowAllSeriesAsync">All</button>
+            <button type="button" class="kpi-series-filter-action" @onclick="HideAllSeriesAsync">None</button>
+        </div>
+        @foreach (var value in Category.Values)
+        {
+            var current = value;
+            <label class="kpi-series-filter-item">
+                <input type="checkbox" checked="@IsVisible(current)"
+                       @onchange="@(e => SetSeriesVisibleAsync(current, e.Value is true))" />
+                <span class="kpi-widget-legend-swatch" style="background:@current.Definition.ValueColor"></span>
+                <span>@SeriesName(current)</span>
+            </label>
+        }
+    </div>
+}

@@ -74,10 +74,22 @@ public sealed class KpiCategoryState
 /// <summary>Grid position/size of a KPI widget on its dashboard tab, in cell units.</summary>
 public sealed class KpiWidgetLayout
 {
+    // Wide enough for a legend of four entries per row; tall enough for chart + up to three legend rows.
+    public const int DefaultWidth = 4;
+    public const int DefaultHeight = 3;
+    public const int DefaultWidgetsPerRow = 2;
+
     public int X { get; set; }
     public int Y { get; set; }
-    public int W { get; set; } = 2;
-    public int H { get; set; } = 2;
+    public int W { get; set; } = DefaultWidth;
+    public int H { get; set; } = DefaultHeight;
+
+    /// <summary>Default left-to-right, top-to-bottom placement of the widget at <paramref name="index"/>.</summary>
+    public static KpiWidgetLayout ForIndex(int index) => new()
+    {
+        X = (index % DefaultWidgetsPerRow) * DefaultWidth,
+        Y = (index / DefaultWidgetsPerRow) * DefaultHeight,
+    };
 }
 
 /// <summary>
@@ -96,6 +108,9 @@ public sealed class KpiWidgetInstance
     public int? SelectedStartMonth { get; set; }
     public int? SelectedEndMonth { get; set; }
     public bool Stacked { get; set; }
+
+    /// <summary>ValueNames of the bars the player filtered out; empty means every bar is shown.</summary>
+    public HashSet<string> HiddenValueNames { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public KpiWidgetInstance(string categoryKey)
     {

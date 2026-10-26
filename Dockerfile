@@ -1,5 +1,7 @@
 # To build and run this Dockerfile, use the following commands:
 #   docker build -t mspchallenge-client-browser .
+# To build in another configuration (default is Release), e.g. Debug:
+#   docker build --build-arg BUILD_CONFIGURATION=Debug -t mspchallenge-client-browser .
 # Or, for MSP hub:
 #   docker build -t docker-hub.mspchallenge.info/cradlewebmaster/mspchallenge-client-browser:dev .
 # To run the container, use:
@@ -9,6 +11,7 @@
 
 # Multi-stage build for ASP.NET Core Blazor Server app (.NET 10)
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 # Copy project file first to leverage Docker layer caching for restore
@@ -17,7 +20,7 @@ RUN dotnet restore "MSPChallenge-Client-Browser.csproj"
 
 # Copy the remaining source and publish
 COPY . .
-RUN dotnet publish "MSPChallenge-Client-Browser.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "MSPChallenge-Client-Browser.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 # Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
