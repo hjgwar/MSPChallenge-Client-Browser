@@ -19,65 +19,66 @@
 }
 else
 {
-    <div class="kpi-dashboard-bg"></div>
-    <div class="kpi-dashboard">
-        <div class="kpi-dashboard-tabs">
-            <button class="kpi-back-btn" @onclick="@(() => NavigationManager.NavigateTo("/game"))">← Game</button>
-            <button class="kpi-tab @(_activeTab == KpiTab.Ecology ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Ecology))">Ecology</button>
-            <button class="kpi-tab @(_activeTab == KpiTab.Shipping ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Shipping))">Shipping</button>
-            <button class="kpi-tab @(_activeTab == KpiTab.Other ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Other))">Other</button>
-            <button class="kpi-tab @(_activeTab == KpiTab.Favourites ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Favourites))">Favourites</button>
-        </div>
-
-        @if (_activeTab != KpiTab.Ecology)
-        {
-            <div class="kpi-country-selector">
-                <label for="kpi-country-select">Country:</label>
-                <select id="kpi-country-select" value="@SelectedCountryIdString" @onchange="OnCountryChanged">
-                    <option value="own">@OwnCountryName (you)</option>
-                    @foreach (var country in GameState.Countries.Where(c => c.Id != OwnCountryId))
-                    {
-                        <option value="@country.Id">@country.Name</option>
-                    }
-                </select>
+    <div class="kpi-dashboard-bg">
+        <div class="kpi-dashboard">
+            <div class="kpi-dashboard-tabs">
+                <button class="kpi-back-btn" @onclick="@(() => NavigationManager.NavigateTo("/game"))">← Game</button>
+                <button class="kpi-tab @(_activeTab == KpiTab.Ecology ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Ecology))">Ecology</button>
+                <button class="kpi-tab @(_activeTab == KpiTab.Shipping ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Shipping))">Shipping</button>
+                <button class="kpi-tab @(_activeTab == KpiTab.Other ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Other))">Other</button>
+                <button class="kpi-tab @(_activeTab == KpiTab.Favourites ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Favourites))">Favourites</button>
             </div>
-        }
 
-        @if (_activeTab != KpiTab.Favourites)
-        {
-            <button class="kpi-add-widgets-btn" type="button" @onclick="ToggleAddWidgetsPopup">+ Add widgets</button>
-            @if (_addWidgetsOpen)
+            @if (_activeTab != KpiTab.Ecology)
             {
-                <div class="kpi-add-widgets-popup">
-                    @foreach (var category in AvailableToAdd())
-                    {
-                        <button class="kpi-add-widgets-item" type="button" @onclick="@(() => AddWidget(category))">
-                            @(category.Definition.CategoryDisplayName ?? category.Definition.CategoryName)
-                        </button>
-                    }
-                    @if (!AvailableToAdd().Any())
-                    {
-                        <div class="kpi-add-widgets-empty">All widgets are already shown.</div>
-                    }
+                <div class="kpi-country-selector">
+                    <label for="kpi-country-select">Country:</label>
+                    <select id="kpi-country-select" value="@SelectedCountryIdString" @onchange="OnCountryChanged">
+                        <option value="own">@OwnCountryName (you)</option>
+                        @foreach (var country in GameState.Countries.Where(c => c.Id != OwnCountryId))
+                        {
+                            <option value="@country.Id">@country.Name</option>
+                        }
+                    </select>
                 </div>
             }
-        }
 
-        <div class="kpi-dashboard-grid">
-            @foreach (var instance in ActiveWidgets)
+            @if (_activeTab != KpiTab.Favourites)
             {
-                var category = FindCategory(instance.CategoryKey);
-                if (category is not null)
+                <button class="kpi-add-widgets-btn" type="button" @onclick="ToggleAddWidgetsPopup">+ Add widgets</button>
+                @if (_addWidgetsOpen)
                 {
-                    <KpiWidget @key="instance"
-                               Category="category"
-                               Instance="instance"
-                               ViewingCountryId="ViewingCountryId"
-                               OnRemove="RemoveWidget"
-                               OnLayoutChanged="ResolveOverlaps"
-                               OnFavouriteToggle="ToggleFavourite" />
+                    <div class="kpi-add-widgets-popup">
+                        @foreach (var category in AvailableToAdd())
+                        {
+                            <button class="kpi-add-widgets-item" type="button" @onclick="@(() => AddWidget(category))">
+                                @(category.Definition.CategoryDisplayName ?? category.Definition.CategoryName)
+                            </button>
+                        }
+                        @if (!AvailableToAdd().Any())
+                        {
+                            <div class="kpi-add-widgets-empty">All widgets are already shown.</div>
+                        }
+                    </div>
                 }
             }
+
+            <div class="kpi-dashboard-grid">
+                @foreach (var instance in ActiveWidgets)
+                {
+                    var category = FindCategory(instance.CategoryKey);
+                    if (category is not null)
+                    {
+                        <KpiWidget @key="instance"
+                                Category="category"
+                                Instance="instance"
+                                ViewingCountryId="ViewingCountryId"
+                                OnRemove="RemoveWidget"
+                                OnLayoutChanged="ResolveOverlaps"
+                                OnFavouriteToggle="ToggleFavourite" />
+                    }
+                }
+            </div>
         </div>
     </div>
 }

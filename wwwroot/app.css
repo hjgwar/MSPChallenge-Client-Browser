@@ -2664,7 +2664,7 @@ button.plan-lock-icon:hover {
     position: fixed;
     inset: 0;
     overflow: visible;
-    background: radial-gradient(ellipse at center, #0d2233 0%, #07141e 100%);
+    background: url("img/splash.jpg") center/cover no-repeat;
 }
 
 .dep-hint {

@@ -51,7 +51,6 @@
     cursor:          pointer;
     padding:         2px 5px;
     border-radius:   3px;
-    font-size:       var(--font-size-small);
     line-height:     1;
     display:         flex;
     align-items:     center;
@@ -112,7 +111,6 @@
     color:       var(--ui-text-muted);
     cursor:      pointer;
     padding:     2px 4px;
-    font-size:   var(--font-size-small);
     line-height: 1;
 }
 
@@ -309,11 +307,18 @@
     padding:      0.5rem 0.75rem;
 }
 
+/* No negative z-index: that would put this layer behind the layout's <main>/<article>,
+   which would then swallow every click. */
 .kpi-dashboard-bg {
     position:   fixed;
     inset:      0;
-    z-index:    -1;
-    background: radial-gradient(ellipse at center, #0d2233 0%, #07141e 100%);
+    overflow:   auto;
+    background: url("img/splash.jpg") center/cover no-repeat;
+}
+
+.kpi-dashboard {
+    min-height:      100%;
+    backdrop-filter: blur(10px);
 }
 
 .kpi-back-btn {

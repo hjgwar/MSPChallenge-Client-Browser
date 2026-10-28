@@ -78,7 +78,9 @@ function render(data) {
         .attr('width',   W)
         .attr('height',  H)
         .attr('overflow','visible')   // let labels render beyond SVG bounds into container
-        .style('display','block');
+        .style('display','block')
+        .style('backdrop-filter', 'blur(10px)')
+        .style('min-height', '100%');
 
     // Arrow marker â€” fill inherits the path's stroke colour via SVG 2 context-stroke
     svg.append('defs').append('marker')
