@@ -1,0 +1,169 @@
+/* Plans panel â€" free-floating, centred by default, draggable via header */
+.plans-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2010;
+    width: 340px;
+    height: 50vh;
+    min-height: 120px;
+    min-width: 240px;
+    max-height: 80vh;
+    box-sizing: border-box;
+    resize: both;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.60);
+}
+
+/* Once the panel has been dragged, JS removes transform and sets explicit left/top */
+.plans-panel--dragged {
+    transform: none;
+}
+
+.plans-panel-drag-handle {
+    cursor: grab;
+    user-select: none;
+}
+
+.plans-panel-drag-handle:active {
+    cursor: grabbing;
+}
+
+.plans-panel-count {
+    background: rgba(255,255,255,0.12);
+    color: #adb5bd;
+    border-radius: 9px;
+    padding: 0.05rem 0.4rem;
+}
+
+.plan-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.22rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    cursor: pointer;
+}
+
+.plan-row:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.plan-row--selected {
+    background: rgba(255, 215, 0, 0.12);
+}
+
+.plan-row--selected .plan-name {
+    color: #FFD700;
+}
+
+.plan-row:last-child {
+    border-bottom: none;
+}
+
+/* Issue badge in plans-panel rows */
+.plan-issue-badge {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 2px;
+}
+
+.plan-issue-badge-icon {
+    width: 100%;
+    height: 100%;
+}
+
+.plan-issue-badge--error   { color: #ff6b6b; }
+.plan-issue-badge--warning { color: #FFD700; }
+.plan-issue-badge--info    { color: #74c0fc; }
+
+.plan-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #dee2e6;
+}
+
+.plan-date {
+    flex-shrink: 0;
+    color: #adb5bd;
+    white-space: nowrap;
+}
+
+.plan-state {
+    flex-shrink: 0;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.12);
+    color: #adb5bd;
+}
+.plan-state--design      { background: rgba(13,110,253,0.25); color: #74b8ff; }
+.plan-state--approval    { background: rgba(255,193,7,0.25);  color: #ffe08a; }
+.plan-state--approved    { background: rgba(25,135,84,0.25);  color: #75d4a0; }
+.plan-state--implemented { background: rgba(25,135,84,0.45);  color: #a8efca; }
+.plan-state--rejected    { background: rgba(220,53,69,0.25);  color: #f08080; }
+
+.plans-status {
+    color: #adb5bd;
+    padding: 0.2rem 0;
+}
+
+.plan-group {
+    margin-top: 0.25rem;
+}
+
+.plan-group-header {
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: #adb5bd;
+    padding: 0.15rem 0;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.plan-group-header::-webkit-details-marker {
+    display: none; 
+}
+
+.plan-group-header::before {
+    content: '\25BC';
+    transition: transform 0.15s;
+}
+
+.plan-group[open] > .plan-group-header::before {
+    transform: rotate(0deg); 
+}
+
+.plan-group:not([open]) > .plan-group-header::before {
+    transform: rotate(-90deg); 
+}
+
+.plan-group-count {
+    margin-left: auto;
+    background: rgba(255,255,255,0.10);
+    color: #adb5bd;
+    border-radius: 8px;
+    padding: 0.05rem 0.35rem;
+    font-weight: 400;
+}
+
+.plan-group > .plan-row {
+    padding-left: 0.6rem;
+}
+
+.plans-empty-state {
+    padding: 0.15rem 0.6rem 0.25rem;
+    color: #adb5bd;
+    font-style: italic;
+}

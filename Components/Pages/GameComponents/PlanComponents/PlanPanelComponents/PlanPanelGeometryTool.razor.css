@@ -1,0 +1,116 @@
+/* â€" Geometry Tool Panel â€" */
+.geometry-tool-panel {
+    position: absolute;
+    right: calc(100% + var(--right-panel-gap) + var(--panel-connector-protrusion));
+    top: auto;
+    bottom: 0;
+    width: 240px;
+    max-width: min(240px, calc(100vw - 5rem));
+    max-height: 60vh;
+    overflow: visible;
+    z-index: 9650;
+    pointer-events: auto;
+}
+
+.geometry-tool-panel::after {
+    content: '';
+    position: absolute;
+    right: -7px;
+    bottom: 0.8rem;
+    width: 12px;
+    height: 12px;
+    background: rgba(33, 37, 41, 0.65);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.geometry-tool-section {
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.geometry-tool-section-title {
+    letter-spacing: 0.06em;
+    color: #adb5bd;
+    margin-bottom: 0.35rem;
+}
+
+.geometry-type-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.22rem 0.2rem;
+    color: #c9d1d9;
+    cursor: pointer;
+    border-radius: 0.25rem;
+}
+
+.geometry-type-row:hover { background: rgba(255, 255, 255, 0.05); }
+
+.geometry-type-row--active { color: #fff; font-weight: 600; }
+
+.geometry-type-row input[type="radio"],
+.geometry-type-row input[type="checkbox"] { accent-color: #0d6efd; cursor: pointer; }
+
+.geometry-type-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.geometry-tool-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.35rem;
+    padding: 0.55rem;
+}
+
+.geometry-tool-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.4rem 0.2rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.35rem;
+    color: #c9d1d9;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    pointer-events: auto;
+}
+
+.geometry-tool-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.geometry-tool-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.geometry-tool-btn--active {
+    background: rgba(253, 126, 20, 0.22);
+    border-color: rgba(253, 126, 20, 0.55);
+    color: #fd7e14;
+}
+
+.geometry-tool-btn--active:hover:not(:disabled) { background: rgba(253, 126, 20, 0.32); }
+
+.geometry-tool-btn--danger:not(:disabled) { color: #ff8080; }
+
+.geometry-tool-btn--danger:hover:not(:disabled) {
+    background: rgba(220, 53, 69, 0.15);
+    border-color: rgba(220, 53, 69, 0.4);
+}
+
+.geometry-tool-btn--success:not(:disabled) { color: #80c080; }
+
+.geometry-tool-btn--success:hover:not(:disabled) {
+    background: rgba(40, 167, 69, 0.15);
+    border-color: rgba(40, 167, 69, 0.4);
+}
+
+.geometry-tool-btn svg { width: 18px; height: 18px; }

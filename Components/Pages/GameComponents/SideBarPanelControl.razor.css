@@ -1,0 +1,105 @@
+/* Left-edge icon sidebar */
+.map-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 44px;
+    height: 100vh;
+    z-index: 9100;
+    background: var(--glass-bg-dark);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem 0;
+    gap: 0.8rem;
+}
+
+.sidebar-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: none;
+    color: white;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+}
+
+.sidebar-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.sidebar-btn:hover {
+    background: grey;
+    color: white;
+}
+
+.sidebar-btn--active {
+    background: rgba(116, 192, 252, 0.15);
+    color: #f7a02b;
+}
+
+.sidebar-btn--active:hover {
+    background: grey;
+    color: white;
+}
+
+.sidebar-separator {
+    width: 26px;
+    height: 10px;
+    margin: 0.2rem 0;
+    flex-shrink: 0;
+}
+
+/* Container for panels that float to the right of the sidebar */
+.map-sidebar-panels {
+    position: fixed;
+    left: 58px;
+    top: 1rem;
+    z-index: 2000;
+    display: block;
+    overflow-y: auto;
+    max-height: calc(100vh - 2rem);
+    width: 260px;
+}
+
+/* Container for panels that float on the right edge */
+.map-right-panels {
+    position: fixed;
+    right: 0.75rem;
+    top: 0.6rem;
+    z-index: 9000;
+    width: 360px;
+    max-height: calc(100vh - 1.2rem);
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    --right-panel-gap: 0.5rem;
+    --panel-connector-protrusion: 9px;
+    gap: var(--right-panel-gap);
+    pointer-events: none;
+}
+
+/* Restore interactivity on everything inside the container;
+   only the container's own empty areas remain click-through. */
+.map-right-panels > * {
+    pointer-events: auto;
+}
+
+/* Plan detail / create-plan panels â€" fixed to bottom-right, grow upward */
+.map-plan-panels {
+    position: fixed;
+    bottom: 0.75rem;
+    right: 0.75rem;
+    width: 295px;
+    z-index: 9000;
+    pointer-events: none;
+}

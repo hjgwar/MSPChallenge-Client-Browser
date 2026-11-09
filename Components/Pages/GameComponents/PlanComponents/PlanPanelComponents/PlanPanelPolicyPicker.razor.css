@@ -1,0 +1,40 @@
+/* â€" Policy picker panel â€" */
+.plan-policy-picker-body {
+    padding: 0.35rem 0.55rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+}
+
+.plan-policy-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.28rem 0.4rem;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+
+.plan-policy-item:hover:not(.plan-policy-item--disabled) {
+    background: rgba(255,255,255,0.07);
+}
+
+.plan-policy-item--disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.plan-policy-toggle {
+    accent-color: #74c0fc;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    pointer-events: none;
+    cursor: default;
+}
+
+.plan-policy-name {
+    color: #dee2e6;
+}

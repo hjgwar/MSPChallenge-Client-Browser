@@ -1,0 +1,83 @@
+/* Map properties popup â€" bottom-right floating card */
+.map-popup {
+    position: fixed;
+    z-index: 2000;
+    width: 260px;
+    max-height: 60vh;
+}
+
+.map-popup-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem 0.4rem;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    flex-shrink: 0;
+}
+
+.map-popup-title {
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: #adb5bd;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.map-popup-close {
+    background: none;
+    border: none;
+    color: #adb5bd;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.map-popup-close:hover {
+    background: rgba(220, 53, 69, 0.25);
+    color: #ff6b6b;
+}
+
+.map-popup-body {
+    overflow-y: auto;
+    padding: 0.4rem 0.65rem 0.5rem;
+}
+
+.map-popup-empty {
+    color: #adb5bd;
+    font-style: italic;
+    padding: 0.25rem 0;
+}
+
+.map-popup-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.map-popup-table th,
+.map-popup-table td {
+    padding: 0.18rem 0.3rem;
+    vertical-align: top;
+    word-break: break-word;
+}
+
+.map-popup-table th {
+    color: #adb5bd;
+    font-weight: 500;
+    white-space: nowrap;
+    padding-right: 0.6rem;
+    width: 1%;
+}
+
+.map-popup-table td {
+    color: #f8f9fa;
+}
+
+.map-popup-table tr + tr th,
+.map-popup-table tr + tr td {
+    border-top: 1px solid rgba(255,255,255,0.06);
+}

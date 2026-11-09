@@ -1,0 +1,97 @@
+/* â"€â"€ Full-screen splash / loading overlay â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */
+.splash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    background: #080d14 url('/img/splash.jpg') center / cover no-repeat;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: splash-in 0.7s ease both;
+}
+
+.splash-overlay--out {
+    animation: splash-out 0.65s ease forwards;
+}
+
+@keyframes splash-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes splash-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+
+.splash-vignette {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to top,
+        rgba(8, 13, 20, 0.97) 0%,
+        rgba(8, 13, 20, 0.55) 30%,
+        rgba(8, 13, 20, 0.08) 65%,
+        transparent 100%
+    );
+}
+
+.splash-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0 2rem 7vh;
+    text-align: center;
+}
+
+.splash-logo {
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #fff;
+    text-shadow: 0 4px 40px rgba(0, 0, 0, 0.65);
+    line-height: 1;
+}
+
+.splash-logo em {
+    color: #0d6e6b;
+    font-style: normal;
+}
+
+.splash-tagline {
+    font-size: clamp(0.65rem, 1.4vw, 0.8rem);
+    letter-spacing: 0.3em;
+    color: rgba(255, 255, 255, 0.42);
+    margin-top: -0.25rem;
+}
+
+.splash-bar-wrap {
+    width: clamp(180px, 28vw, 280px);
+    height: 2px;
+    background: rgba(255, 255, 255, 0.10);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 1rem;
+}
+
+.splash-bar {
+    height: 100%;
+    width: 50%;
+    background: linear-gradient(90deg, transparent, #74c0fc, transparent);
+    border-radius: 2px;
+    animation: splash-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes splash-sweep {
+    0%   { transform: translateX(-200%); }
+    100% { transform: translateX(400%); }
+}
+
+.splash-status {
+    
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.28);
+}

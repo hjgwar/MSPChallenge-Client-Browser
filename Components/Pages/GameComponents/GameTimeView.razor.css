@@ -1,0 +1,213 @@
+/* Game state bar */
+.game-bar {
+    gap: 0;
+    padding: 0.45rem 0.9rem 0.45rem 0.65rem;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.game-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.game-bar-plan-view {
+    border-top: 1px solid rgba(255,255,255,0.10);
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.game-bar-plan-time {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    justify-content: center;
+}
+
+.game-bar-plan-eye {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    color: #FFD700;
+    opacity: 0.9;
+}
+
+.game-bar-plan-time-label {
+    font-weight: 600;
+    color: #adb5bd;
+    letter-spacing: 0.05em;
+}
+
+.game-bar-plan-time-date {
+    font-weight: 700;
+    color: #FFD700;
+    letter-spacing: 0.02em;
+}
+
+.game-bar-plan-modes {
+    display: flex;
+    gap: 0.35rem;
+    width: 100%;
+}
+
+.plan-mode-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.3rem 0.3rem 0.28rem;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.35rem;
+    color: #adb5bd;
+    cursor: pointer;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.plan-mode-btn svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.plan-mode-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #dee2e6;
+    border-color: rgba(255,255,255,0.22);
+}
+
+.plan-mode-btn--active {
+    background: rgba(255, 215, 0, 0.14);
+    border-color: rgba(255, 215, 0, 0.45);
+    color: #FFD700;
+}
+
+.game-bar-clock {
+    flex-shrink: 0;
+    color: #adb5bd;
+    display: flex;
+    align-items: center;
+}
+
+.game-bar-clock svg {
+    width: 28px;
+    height: 28px;
+}
+
+.game-bar-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.game-bar-date {
+    font-weight: 600;
+    color: #f8f9fa;
+    text-align: center;
+    letter-spacing: 0.01em;
+}
+
+.game-bar-timeline {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.game-bar-year {
+    color: #adb5bd;
+    flex-shrink: 0;
+}
+
+.game-bar-track {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 2px;
+    position: relative;
+}
+
+.game-bar-fill {
+    height: 100%;
+    background: rgba(116,192,252,0.6);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.game-bar-needle {
+    position: absolute;
+    top: -4px;
+    width: 2px;
+    height: 12px;
+    background: #74c0fc;
+    border-radius: 1px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.game-bar-plan-needle {
+    position: absolute;
+    top: -5px;
+    width: 2px;
+    height: 14px;
+    background: #FFD700;
+    border-radius: 1px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.6);
+}
+
+.game-bar-state {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    min-width: 4.5rem;
+}
+
+.game-bar-state-label {
+    font-weight: 600;
+    
+    letter-spacing: 0.06em;
+    color: #adb5bd;
+}
+
+.game-bar-timeleft {
+    font-weight: 600;
+    color: #f8f9fa;
+    font-variant-numeric: tabular-nums;
+}
+
+.game-bar-state--clickable {
+    cursor: pointer;
+    transition: background 0.12s;
+    padding: 0.3rem 0.5rem;
+    margin: -0.3rem -0.5rem;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+}
+
+.game-bar-state--clickable:focus-visible {
+    outline: 2px solid rgba(116, 192, 252, 0.9);
+    outline-offset: 2px;
+}
+
+.game-bar-state--clickable:hover {
+    background: rgba(255, 255, 255, 0.08);
+}

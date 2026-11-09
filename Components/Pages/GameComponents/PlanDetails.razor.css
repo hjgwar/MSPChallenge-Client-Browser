@@ -1,0 +1,556 @@
+/* Plan detail panel */
+.plan-detail-panel {
+    background: transparent; /* ::before provides background + blur */
+    backdrop-filter: none;     /* ::before handles blur; don't create backdrop root here */
+    -webkit-backdrop-filter: none;
+    border: none;              /* visual chrome comes from ::before */
+    box-shadow: none;
+    position: relative;
+    isolation: isolate;      /* stacking context without backdrop root */
+    pointer-events: none;    /* pass map pan/zoom events through the panel body */
+    overflow: visible;
+    max-height: 80vh;
+}
+
+/* Blurred background layer â€" sits behind all content but does NOT make
+   plan-detail-panel a backdrop root, so child panels blur the map correctly. */
+.plan-detail-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(33, 37, 41, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 0.5rem;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* Restore pointer events for all interactive content inside the panel */
+.plan-detail-panel button,
+.plan-detail-panel input,
+.plan-detail-panel select,
+.plan-detail-panel textarea,
+.plan-detail-panel summary,
+.plan-detail-panel .plan-detail-action-row,
+.plan-detail-panel .plan-detail-info-row--clickable,
+.plan-detail-panel .plan-detail-state-row,
+.plan-message-panel {
+    pointer-events: auto;
+}
+
+.plan-detail-panel-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 0.4rem 0.55rem 0.3rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.5rem 0.5rem 0 0;
+    flex-shrink: 0;
+}
+
+.plan-detail-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 0.5rem 0.55rem 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    flex-shrink: 0;
+}
+
+.plan-detail-header-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.plan-detail-title {
+    font-weight: 600;
+    color: #f8f9fa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Description: single-line truncated by default, expands via Blazor toggle */
+.plan-detail-header .user-dot {
+    align-self: flex-start;
+    margin-top: 3px;
+}
+
+.plan-detail-desc {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.2rem;
+    color: #adb5bd;
+    line-height: 1.35;
+}
+
+.plan-detail-desc-text {
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+}
+
+.plan-detail-desc-text--expanded {
+    display: block;
+    overflow: visible;
+}
+
+.plan-detail-desc-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    background: none;
+    border: 1px solid rgba(116,192,252,0.4);
+    border-radius: 3px;
+    color: #74c0fc;
+    cursor: pointer;
+    padding: 1px 3px;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+.plan-detail-desc-btn svg {
+    width: 10px;
+    height: 10px;
+}
+
+.plan-detail-desc-btn:hover {
+    background: rgba(116,192,252,0.12);
+    border-color: rgba(116,192,252,0.7);
+}
+
+.plan-detail-section {
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    overflow: hidden;
+}
+
+.plan-detail-section--communication {
+    overflow: visible;
+}
+
+.plan-detail-section:last-of-type {
+    border-bottom: none;
+}
+
+.plan-detail-section-hdr {
+    display: flex;
+    align-items: center;
+    padding: 0.32rem 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #adb5bd;
+    background: rgba(255,255,255,0.055);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    gap: 0.3rem;
+}
+
+.plan-detail-section-hdr::-webkit-details-marker { 
+    display: none; 
+}
+
+.plan-detail-section-hdr::before {
+    content: '\25BC';
+    transition: transform 0.15s;
+}
+
+.plan-detail-section[open] > .plan-detail-section-hdr::before {
+    transform: rotate(0deg);
+}
+
+.plan-detail-section:not([open]) > .plan-detail-section-hdr::before {
+    transform: rotate(-90deg);
+}
+
+.plan-detail-section-body {
+    padding: 0.35rem 0.75rem 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+}
+
+.plan-detail-chat-row {
+    position: relative;
+    overflow: visible;
+}
+
+.plan-detail-issues-row {
+    position: relative;
+    overflow: visible;
+}
+
+.plan-detail-approval-row {
+    position: relative;
+    overflow: visible;
+}
+
+/* Plan state row â€" clickable info-row variant */
+.plan-detail-section--state {
+    overflow: visible;
+}
+
+.plan-detail-state-row {
+    position: relative;
+    overflow: visible;
+}
+
+.plan-detail-info-row--clickable {
+    cursor: pointer;
+    border-radius: 0.25rem;
+    transition: background 0.12s;
+}
+
+.plan-detail-info-row--clickable:hover {
+    background: rgba(255,255,255,0.07);
+}
+
+.plan-state-chevron {
+    margin-left: auto;
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+.plan-detail-panel > .plan-edit-btn {
+    display: block;
+    width: calc(100% - 1.5rem);
+    margin: 0.55rem 0.75rem;
+    padding: 0.45rem 0;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.35rem;
+    color: #dee2e6;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+
+.plan-detail-panel > .plan-edit-btn:hover {
+    background: rgba(255,255,255,0.13);
+    border-color: rgba(255,255,255,0.28);
+    color: #f8f9fa;
+}
+
+.plan-detail-scroll {
+    flex: 1;
+    overflow-x: visible;
+    /*
+     * The margin-left + padding-left trick extends the overflow clipping rect
+     * 340 px to the left so absolutely-positioned side panels (chat, approval,
+     * issues, policy picker) that appear to the left of the detail panel are
+     * not clipped by this scroll container.
+     */
+    margin-left: -340px;
+    padding-left: 340px;
+    width: calc(100% + 340px);
+    box-sizing: border-box;
+}
+
+/* â€" Plan edit mode inputs â€" */
+.plan-edit-input,
+.plan-edit-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.3rem;
+    color: #f8f9fa;
+    padding: 0.3rem 0.45rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.12s;
+}
+
+.plan-edit-input:focus,
+.plan-edit-textarea:focus {
+    border-color: rgba(116,192,252,0.6);
+}
+
+.plan-edit-input:disabled,
+.plan-edit-textarea:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.plan-edit-textarea {
+    resize: vertical;
+    min-height: 3rem;
+    line-height: 1.4;
+}
+
+/* Year + Month dropdowns */
+.plan-edit-date-row {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.plan-edit-date-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.plan-edit-select {
+    flex: 1;
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.3rem;
+    color: #f8f9fa;
+    padding: 0.28rem 0.4rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    color-scheme: dark;
+    transition: border-color 0.12s;
+}
+
+.plan-edit-select option {
+    background: #2b2d31;
+    color: #f8f9fa;
+}
+
+.plan-edit-select:focus {
+    border-color: rgba(116,192,252,0.6);
+}
+
+.plan-edit-select:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.plan-edit-select--invalid {
+    border-color: rgba(255,100,100,0.55);
+}
+
+.plan-edit-date-hint {
+    display: block;
+    color: #868e96;
+    margin-top: 0.1rem;
+}
+
+.plan-edit-date-hint--error {
+    color: #ff8080;
+}
+
+/* "Add or remove â€¦" button inside sections */
+.plan-edit-add-btn {
+    display: block;
+    width: 100%;
+    margin-top: 0.3rem;
+    padding: 0.3rem 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 0.3rem;
+    color: #ced4da;
+    font-family: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.plan-edit-add-btn:hover:not(:disabled) {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.25);
+    color: #f8f9fa;
+}
+
+.plan-edit-add-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* Error message */
+.plan-edit-error {
+    margin: 0.3rem 0.75rem 0;
+    color: #ff8080;
+}
+
+.plan-edit-status {
+    margin: 0.3rem 0.75rem 0;
+    color: #adb5bd;
+    text-align: center;
+}
+
+/* Selectable layer rows in edit mode */
+.plan-detail-item-row--selectable {
+    cursor: pointer;
+    border-radius: 0.3rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.plan-detail-item-row--selectable:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.plan-detail-item-row--active {
+    background: rgba(253, 126, 20, 0.15) !important;
+    border-color: rgba(253, 126, 20, 0.45) !important;
+}
+
+/* Cancel / Accept footer */
+.plan-edit-footer {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    flex-shrink: 0;
+}
+
+.plan-edit-footer-btn {
+    flex: 1;
+    padding: 0.4rem 0;
+    border-radius: 0.35rem;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.plan-edit-footer-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.plan-edit-footer-btn--cancel {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #dee2e6;
+}
+
+.plan-edit-footer-btn--cancel:hover:not(:disabled) {
+    background: rgba(255,255,255,0.13);
+    border-color: rgba(255,255,255,0.28);
+    color: #f8f9fa;
+}
+
+.plan-edit-footer-btn--accept {
+    background: rgba(40,167,69,0.2);
+    border: 1px solid rgba(40,167,69,0.35);
+    color: #69db7c;
+}
+
+.plan-edit-footer-btn--accept:hover:not(:disabled) {
+    background: rgba(40,167,69,0.35);
+    border-color: rgba(40,167,69,0.5);
+}
+
+.plan-detail-action-row {
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+}
+
+.plan-detail-action-row:hover {
+    color: #f8f9fa;
+}
+
+.plan-detail-info-row,
+.plan-detail-item-row,
+.plan-detail-action-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: #dee2e6;
+    line-height: 1.35;
+}
+
+.plan-detail-icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    color: #adb5bd;
+}
+
+/* â€" Policy row (wrapper giving absolute-panel a position:relative anchor) */
+.plan-detail-policy-row {
+    position: relative;
+    overflow: visible;
+}
+
+/* Picker panels anchored to their triggering button row, growing upward */
+.plan-detail-policy-row .plan-message-panel,
+.plan-detail-layers-row .plan-message-panel {
+    top: auto;
+    bottom: 0;
+}
+
+.plan-detail-policy-row .plan-message-panel::after,
+.plan-detail-layers-row .plan-message-panel::after {
+    top: auto;
+    bottom: 0.8rem;
+}
+
+/* The policies section must not clip its side-panel when picker is open */
+.plan-detail-section--policies-picker {
+    overflow: visible;
+}
+
+.plan-detail-section--layers-picker {
+    overflow: visible;
+}
+
+/* Scrollable list of selected layer names â€" keeps the section from growing unbounded */
+.plan-detail-layers-list {
+    max-height: 4rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    pointer-events: auto;
+}
+
+/* rows anchoring the picker panel's toggle button */
+.plan-detail-layers-row {
+    position: relative;
+    overflow: visible;
+}
+
+.plan-lock-icon,
+.plan-row-indicator {
+    flex-shrink: 0;
+    width: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.plan-lock-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+button.plan-lock-icon {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+button.plan-lock-icon:hover {
+    filter: brightness(1.4);
+}

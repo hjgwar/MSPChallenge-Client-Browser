@@ -1,0 +1,73 @@
+/* Online users panel */
+.users-panel {
+    width: 100%;
+    box-sizing: border-box;
+    height: 15vh;
+    min-height: 2.5rem;
+    resize: vertical;
+    margin-bottom: 0.5rem;
+}
+
+.users-refresh-btn {
+    background: none;
+    border: none;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 3px 4px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.users-refresh-btn:hover {
+    color: #dee2e6;
+    background: rgba(255,255,255,0.08);
+}
+
+.users-refresh-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+.user-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.18rem 0;
+}
+
+.user-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.user-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #dee2e6;
+}
+
+.users-status {
+    color: #adb5bd;
+    padding: 0.2rem 0;
+}
+
+.users-status--error {
+    color: #ff6b6b;
+}
+
+.users-my-country {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.75rem 0.4rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    color: #adb5bd;
+}

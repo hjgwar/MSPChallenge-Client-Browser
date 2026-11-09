@@ -12,40 +12,68 @@
     padding-top: 200px;
 }
 
-.shepherd-backbutton, .shepherd-nextbutton, .shepherd-nextpartbutton, .shepherd-prevpartbutton {
-    font-size: 2.0rem;
+.shepherd-backbutton, .shepherd-nextbutton {
+    position: absolute;
+    bottom: 0px;
+    font-size: 5.0rem;
 }
 
-.shepherd-fullscreen .shepherd-backbutton {
-    position: absolute;
-    bottom: 20px;
+.shepherd-backbutton {
     left: 20px;
 }
 
-.shepherd-fullscreen .shepherd-nextbutton {
-    position: absolute;
-    bottom: 20px;
+.shepherd-nextbutton {
     right: 20px;
 }
 
-.shepherd-fullscreen .shepherd-prevpartbutton {
+.shepherd-prevpartbutton, .shepherd-nextpartbutton, .shepherd-cancel-icon {
     position: absolute;
-    top: 20px;
-    left: 20px;
+    top: 5px;
 }
 
-.shepherd-fullscreen .shepherd-nextpartbutton {
-    position: absolute;
-    top: 20px;
-    right: 20px;
+.shepherd-cancel-icon {
+    right: 10px;
+}
+
+.shepherd-prevpartbutton {
+    left: 50px;
+}
+
+.shepherd-nextpartbutton {
+    right: 50px;
+}
+
+.shepherd-bottomscreen {
+    position: fixed !important;
+    bottom: 0 !important;
+    top: 100% !important;
+    width: 100%;
+    z-index: 10000;
 }
 
 .shepherd-title {
     text-transform: uppercase;
+}
+
+.shepherd-fullscreen .shepherd-title {
     font-size: 5.5rem;
 }
 
 .shepherd-text {
-    font-size: 1.2rem;
+    font-size: 1.4rem;
+}
+
+.shepherd-fullscreen .shepherd-text {
     padding: 50px;
+}
+
+.shepherd-bottomscreen .shepherd-text {
+    padding: 20px;
+}
+
+.shepherd-button, .shepherd-cancel-icon {
+    margin: 0px 10px;
+    border: 0;
+    background: transparent;
+    color: white;
 }

@@ -1,0 +1,96 @@
+/* — Layer picker panel (same positioning as other side panels) — */
+.plan-layer-picker-panel {
+    /* wider than policy picker to fit layer names with category tree */
+    width: 340px;
+    max-width: min(340px, calc(100vw - 5rem));
+    max-height: 50vh;
+}
+
+.plan-layer-picker-body {
+    padding: 0.35rem 0.55rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+}
+
+/* category/sub headers inside picker inherit layer-cat/sub styles;
+   reduce left-padding so they fit in the narrower panel body */
+.plan-layer-picker-body .layer-panel-row {
+    padding-left: 0.5rem;
+}
+
+/* Hierarchical category/subcategory groups */
+.layer-cat,
+.layer-sub {
+    margin-top: 0.25rem;
+}
+
+.layer-cat-header,
+.layer-sub-header {
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: #adb5bd;
+    padding: 0.15rem 0;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.layer-cat-header::before {
+    content: '\25BC';
+    transition: transform 0.15s;
+}
+
+.layer-cat[open] > .layer-cat-header::before { transform: rotate(0deg); }
+.layer-cat:not([open]) > .layer-cat-header::before { transform: rotate(-90deg); }
+
+.layer-sub-header {
+    font-weight: 500;
+    color: #adb5bd;
+    padding-left: 0.5rem;
+}
+
+.layer-sub-header::before {
+    content: '\25B8';
+    transition: transform 0.15s;
+}
+
+.layer-sub[open] > .layer-sub-header::before { content: '\25BE'; }
+
+.plan-policy-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.28rem 0.4rem;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+
+.plan-policy-item:hover:not(.plan-policy-item--disabled) {
+    background: rgba(255,255,255,0.07);
+}
+
+.plan-policy-item--disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.plan-policy-toggle {
+    accent-color: #74c0fc;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    pointer-events: none;
+    cursor: default;
+}
+
+.plan-policy-name {
+    color: #dee2e6;
+}
+

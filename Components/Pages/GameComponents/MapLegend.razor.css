@@ -1,0 +1,101 @@
+/* Legend panel â€" sits below the layer panel inside .map-panel-stack */
+.legend-panel {
+    width: 100%;
+    box-sizing: border-box;
+    height: 30vh;
+    min-height: 2.5rem;
+    resize: vertical;
+}
+
+.legend-layer {
+    margin-top: 0.35rem;
+    user-select: none;
+}
+
+.legend-layer:first-of-type {
+    margin-top: 0;
+}
+
+.legend-layer-header {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.15rem;
+}
+
+.legend-name-group {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.legend-layer-name {
+    color: #adb5bd;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.legend-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    color: #6c757d;
+    flex-shrink: 0;
+    opacity: 0.4;
+    transition: opacity 0.15s;
+    padding: 4px 3px;
+    margin: -4px -3px;
+}
+
+.legend-drag-handle svg {
+    width: 10px;
+    height: 14px;
+}
+
+.legend-layer:hover .legend-drag-handle {
+    opacity: 0.8;
+}
+
+.legend-hide-btn {
+    background: none;
+    border: none;
+    color: #adb5bd;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.legend-hide-btn:hover {
+    background: rgba(220, 53, 69, 0.25);
+    color: #ff6b6b;
+}
+
+.legend-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.1rem 0 0.1rem 1rem;
+}
+
+.legend-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.legend-label {
+    color: #dee2e6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

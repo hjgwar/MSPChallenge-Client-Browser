@@ -1,0 +1,106 @@
+.plan-message-row {
+    display: flex;
+}
+
+.plan-message-row--own {
+    justify-content: flex-end;
+}
+
+.plan-message-row--other {
+    justify-content: flex-start;
+}
+
+.plan-message-bubble {
+    max-width: 82%;
+    border-radius: 0.7rem;
+    padding: 0.45rem 0.55rem 0.4rem;
+    background: rgba(248,249,250,0.95);
+    color: #212529;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.14);
+}
+
+.plan-message-row--own .plan-message-bubble {
+    background: rgba(248,249,250,0.96);
+}
+
+.plan-message-row--other .plan-message-bubble {
+    background: rgba(234,242,255,0.98);
+}
+
+.plan-message-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin-bottom: 0.1rem;
+    line-height: 1.2;
+}
+
+.plan-message-dot {
+    width: 8px;
+    height: 8px;
+    align-self: center;
+}
+
+.plan-message-sender {
+    font-weight: 700;
+    color: #0d6e6b;
+}
+
+.plan-message-time {
+    color: #6c757d;
+    white-space: nowrap;
+}
+
+.plan-message-text {
+    
+    line-height: 1.35;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.plan-message-panel-composer {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.45rem 0.55rem;
+    border-top: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.02);
+}
+
+.plan-message-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+}
+
+.plan-message-send {
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    font: inherit;
+    font-weight: 500;
+    color: #dee2e6;
+    background: rgba(255,255,255,0.07);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.plan-message-send:hover {
+    background: rgba(255,255,255,0.13);
+    border-color: rgba(255,255,255,0.28);
+    color: #f8f9fa;
+}
+
+.plan-message-panel .panel-close-btn:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.plan-message-send:disabled,
+.plan-message-input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.plan-message-send-error {
+    color: #ff8787;
+    padding: 0 0.55rem 0.35rem;
+}

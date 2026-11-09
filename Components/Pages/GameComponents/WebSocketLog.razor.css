@@ -1,0 +1,165 @@
+/* Dev WebSocket console bar */
+.ws-console {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9200;
+    height: 18vh;
+    min-height: 80px;
+    max-height: 50vh;
+    resize: vertical;
+    overflow: hidden;
+    background: rgba(13, 17, 23, 0.96);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    font-family: 'Consolas', 'SFMono-Regular', monospace;
+}
+
+.ws-console-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.2rem 0.6rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+
+.ws-console-title {
+    font-weight: 600;
+    color: #74c0fc;
+    letter-spacing: 0.06em;
+}
+
+.ws-console-count {
+    color: #6c757d;
+    flex: 1;
+}
+
+.ws-console-clear {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #6c757d;
+    
+    padding: 1px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.ws-console-clear:hover {
+    color: #dee2e6;
+    border-color: rgba(255,255,255,0.3);
+}
+
+.ws-copy-confirm {
+    
+    color: #6fcf97;
+    font-style: italic;
+}
+
+.ws-console-show-btn {
+    position: fixed;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    background: rgba(30,30,30,0.85);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #6c757d;
+    font-family: inherit;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    z-index: 1100;
+}
+
+.ws-console-show-btn:hover {
+    color: #dee2e6;
+    border-color: rgba(255,255,255,0.3);
+}
+
+.ws-console-body {
+    overflow-y: auto;
+    flex: 1;
+}
+
+.ws-log-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.1rem 0.6rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.ws-log-row:hover {
+    background: rgba(255,255,255,0.04);
+}
+
+.ws-log-row--selected {
+    background: rgba(116, 192, 252, 0.12);
+}
+
+.ws-log-row--selected:hover {
+    background: rgba(116, 192, 252, 0.18);
+}
+
+.ws-log-row:last-child {
+    border-bottom: none;
+}
+
+.ws-log-time {
+    color: #6c757d;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.ws-log-header {
+    color: #63e6be;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 12em;
+}
+
+.ws-log-raw {
+    color: #adb5bd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ws-detail-pane {
+    display: flex;
+    flex-direction: column;
+    height: 40%;
+    min-height: 60px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+    background: rgba(22, 27, 34, 0.98);
+}
+
+.ws-detail-header {
+    display: flex;
+    align-items: center;
+    padding: 0.15rem 0.6rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+    gap: 0.5rem;
+}
+
+.ws-detail-label {
+    letter-spacing: 0.06em;
+    color: #74c0fc;
+    flex: 1;
+}
+
+.ws-detail-body {
+    margin: 0;
+    padding: 0.4rem 0.6rem;
+    overflow: auto;
+    flex: 1;
+    color: #e9ecef;
+    white-space: pre;
+    line-height: 1.45;
+}
