@@ -23,11 +23,11 @@ else
         <div class="kpi-dashboard">
             <div class="kpi-dashboard-tabs">
                 <button class="kpi-back-btn" @onclick="@(() => NavigationManager.NavigateTo("/game"))">← Game</button>
+                <button class="kpi-tab @(_activeTab == KpiTab.Favourites ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Favourites))">Favourites</button>
                 <button class="kpi-tab @(_activeTab == KpiTab.Ecology ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Ecology))">Ecology</button>
                 <button class="kpi-tab @(_activeTab == KpiTab.Shipping ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Shipping))">Shipping</button>
-                <button class="kpi-tab @(_activeTab == KpiTab.Other ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Other))">Other</button>
                 <button class="kpi-tab @(_activeTab == KpiTab.Energy ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Energy))">Energy</button>
-                <button class="kpi-tab @(_activeTab == KpiTab.Favourites ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Favourites))">Favourites</button>
+                <button class="kpi-tab @(_activeTab == KpiTab.Other ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Other))">Other</button>
             </div>
 
             @if (_activeTab != KpiTab.Ecology && _activeTab != KpiTab.Energy)
