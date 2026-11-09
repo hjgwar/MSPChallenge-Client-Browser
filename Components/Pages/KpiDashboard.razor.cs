@@ -8,7 +8,7 @@ public partial class KpiDashboard : ComponentBase, IDisposable
 {
     [Parameter] public string? Category { get; set; }
 
-    private enum KpiTab { Ecology, Shipping, Other, Favourites }
+    private enum KpiTab { Ecology, Shipping, Other, Energy, Favourites }
 
     private KpiTab _activeTab = KpiTab.Ecology;
     private bool _addWidgetsOpen;
@@ -16,7 +16,8 @@ public partial class KpiDashboard : ComponentBase, IDisposable
     private bool HasAnyCatalog =>
         GameState.EcologyKpiCategories.Count > 0 ||
         GameState.ShippingKpiCategories.Count > 0 ||
-        GameState.OtherKpiCategories.Count > 0;
+        GameState.OtherKpiCategories.Count > 0 ||
+        GameState.EnergyKpiCategories.Count > 0;
 
     private int OwnCountryId => UserSessionService.User.Country.Id;
     private string OwnCountryName => UserSessionService.User.Country.Name;
@@ -27,6 +28,7 @@ public partial class KpiDashboard : ComponentBase, IDisposable
         {
             "shipping"   => KpiTab.Shipping,
             "other"      => KpiTab.Other,
+            "energy"     => KpiTab.Energy,
             "favourites" => KpiTab.Favourites,
             _            => KpiTab.Ecology,
         };
@@ -61,6 +63,9 @@ public partial class KpiDashboard : ComponentBase, IDisposable
             case KpiTab.Other:
                 GameUIStateService.EnsureKpiWidgetsPopulated(UiState.OtherWidgets, GameState.OtherKpiCategories);
                 break;
+            case KpiTab.Energy:
+                GameUIStateService.EnsureKpiWidgetsPopulated(UiState.EnergyWidgets, GameState.EnergyKpiCategories);
+                break;
         }
     }
 
@@ -69,6 +74,7 @@ public partial class KpiDashboard : ComponentBase, IDisposable
         KpiTab.Ecology    => UiState.EcologyWidgets,
         KpiTab.Shipping   => UiState.ShippingWidgets,
         KpiTab.Other      => UiState.OtherWidgets,
+        KpiTab.Energy     => UiState.EnergyWidgets,
         KpiTab.Favourites => UiState.FavouriteWidgets,
         _                 => UiState.EcologyWidgets,
     };
@@ -78,13 +84,15 @@ public partial class KpiDashboard : ComponentBase, IDisposable
         KpiTab.Ecology  => GameState.EcologyKpiCategories,
         KpiTab.Shipping => GameState.ShippingKpiCategories,
         KpiTab.Other    => GameState.OtherKpiCategories,
+        KpiTab.Energy   => GameState.EnergyKpiCategories,
         _               => [], // Favourites has no catalogue of its own — widgets are pinned from other tabs.
     };
 
     private KpiCategoryState? FindCategory(string categoryKey) =>
         GameState.EcologyKpiCategories.FirstOrDefault(c => c.CategoryKey == categoryKey) ??
         GameState.ShippingKpiCategories.FirstOrDefault(c => c.CategoryKey == categoryKey) ??
-        GameState.OtherKpiCategories.FirstOrDefault(c => c.CategoryKey == categoryKey);
+        GameState.OtherKpiCategories.FirstOrDefault(c => c.CategoryKey == categoryKey) ??
+        GameState.EnergyKpiCategories.FirstOrDefault(c => c.CategoryKey == categoryKey);
 
     private IEnumerable<KpiCategoryState> AvailableToAdd()
     {
@@ -111,7 +119,7 @@ public partial class KpiDashboard : ComponentBase, IDisposable
         var isFavourite = instance.IsFavourite;
 
         foreach (var w in UiState.EcologyWidgets.Concat(UiState.ShippingWidgets)
-                     .Concat(UiState.OtherWidgets).Concat(UiState.FavouriteWidgets)
+                     .Concat(UiState.OtherWidgets).Concat(UiState.EnergyWidgets).Concat(UiState.FavouriteWidgets)
                      .Where(w => w.CategoryKey == categoryKey))
         {
             w.IsFavourite = isFavourite;
@@ -170,7 +178,8 @@ public partial class KpiDashboard : ComponentBase, IDisposable
         }
     }
 
-    // ── Country selector (Shipping/Other/Favourites only; Ecology KPIs are global-only) ──
+    // ── Country selector (Shipping/Other/Favourites only; Ecology and Energy KPIs are global-only —
+    // Energy Output already shows one series per country, so there's nothing to filter by) ──
     private int? ActiveSelectedCountryId
     {
         get => _activeTab switch

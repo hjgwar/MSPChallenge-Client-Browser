@@ -26,10 +26,11 @@ else
                 <button class="kpi-tab @(_activeTab == KpiTab.Ecology ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Ecology))">Ecology</button>
                 <button class="kpi-tab @(_activeTab == KpiTab.Shipping ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Shipping))">Shipping</button>
                 <button class="kpi-tab @(_activeTab == KpiTab.Other ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Other))">Other</button>
+                <button class="kpi-tab @(_activeTab == KpiTab.Energy ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Energy))">Energy</button>
                 <button class="kpi-tab @(_activeTab == KpiTab.Favourites ? "kpi-tab--active" : "")" @onclick="@(() => SetTab(KpiTab.Favourites))">Favourites</button>
             </div>
 
-            @if (_activeTab != KpiTab.Ecology)
+            @if (_activeTab != KpiTab.Ecology && _activeTab != KpiTab.Energy)
             {
                 <div class="kpi-country-selector">
                     <label for="kpi-country-select">Country:</label>

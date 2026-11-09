@@ -8,30 +8,32 @@ public sealed record KpiValueDefinition(
     string? Unit = null,
     int ValueDependentCountry = -1);
 
-/// <summary>One KPI category definition (one dashboard widget's data source), from the Game/PolicySimSettings catalog.</summary>
+/// <summary>
+/// One KPI category definition (one dashboard widget's data source), from the Game/PolicySimSettings catalog.
+/// </summary>
+/// <param name="UseSiUnitScaling">
+/// When true, the chart auto-scales <see cref="Unit"/>-denominated values with metric prefixes
+/// (k/M/G) instead of showing the raw number. Used for Energy Output (raw Watts), left false
+/// (default) for every catalog-driven category so their existing display is unaffected.
+/// </param>
 public sealed record KpiCategoryDefinition(
     string CategoryName,
     string? CategoryDisplayName = null,
     string CategoryColor = "#3388ff",
     string CategoryValueType = "Sum",
     string? Unit = null,
-    IReadOnlyList<KpiValueDefinition>? ValueDefinitions = null)
+    IReadOnlyList<KpiValueDefinition>? ValueDefinitions = null,
+    bool UseSiUnitScaling = false)
 {
     public IReadOnlyList<KpiValueDefinition> ValueDefinitions { get; init; } = ValueDefinitions ?? [];
 }
 
-/// <summary>Accumulates per-(month, country) values received over the WebSocket for one KPI value definition.</summary>
-public sealed class KpiValueState
+/// <summary>Accumulates per-(month, country) numeric values over time, with global (-1) fallback resolution.</summary>
+public sealed class MonthlyCountrySeries
 {
-    public KpiValueDefinition Definition { get; }
     private readonly Dictionary<(int Month, int Country), double> _values = new();
 
     public int MostRecentMonth { get; private set; } = -1;
-
-    public KpiValueState(KpiValueDefinition definition)
-    {
-        Definition = definition;
-    }
 
     public void SetValue(int month, int country, double value)
     {
@@ -48,6 +50,25 @@ public sealed class KpiValueState
     }
 }
 
+/// <summary>Accumulates per-(month, country) values received over the WebSocket for one KPI value definition.</summary>
+public sealed class KpiValueState
+{
+    public KpiValueDefinition Definition { get; }
+    private readonly MonthlyCountrySeries _series = new();
+
+    public int MostRecentMonth => _series.MostRecentMonth;
+
+    public KpiValueState(KpiValueDefinition definition)
+    {
+        Definition = definition;
+    }
+
+    public void SetValue(int month, int country, double value) => _series.SetValue(month, country, value);
+
+    /// <summary>Resolves the value for a month/country, falling back to the global (country -1) value if none exists.</summary>
+    public double? GetValue(int month, int countryId) => _series.GetValue(month, countryId);
+}
+
 /// <summary>One KPI category's live state: its definition plus the accumulated state of each child value.</summary>
 public sealed class KpiCategoryState
 {
@@ -55,7 +76,16 @@ public sealed class KpiCategoryState
 
     /// <summary>The simulation_type this category came from (e.g. "MEL", "SEL", or a custom external name).</summary>
     public string OwningSimulationType { get; }
-    public IReadOnlyList<KpiValueState> Values { get; }
+
+    private readonly List<KpiValueState> _values;
+
+    /// <summary>
+    /// Every value series currently known for this category. For catalog-driven categories
+    /// (Ecology/Shipping/Other) this is fixed at construction. Energy Output instead grows this
+    /// list at runtime via <see cref="GetOrAddValue"/> as new countries gain implemented grids,
+    /// since its "catalog" is discovered from plan data rather than fixed in session config.
+    /// </summary>
+    public IReadOnlyList<KpiValueState> Values => _values;
 
     /// <summary>Stable identity for this category, used to reference it from KpiWidgetInstance without holding a direct object reference.</summary>
     public string CategoryKey => $"{OwningSimulationType}:{Definition.CategoryName}";
@@ -64,11 +94,26 @@ public sealed class KpiCategoryState
     {
         Definition = definition;
         OwningSimulationType = owningSimulationType;
-        Values = definition.ValueDefinitions.Select(v => new KpiValueState(v)).ToList();
+        _values = definition.ValueDefinitions.Select(v => new KpiValueState(v)).ToList();
     }
 
     public KpiValueState? FindValue(string valueName) =>
         Values.FirstOrDefault(v => string.Equals(v.Definition.ValueName, valueName, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Returns the existing value series matching <paramref name="definition"/>'s ValueName, or
+    /// creates and appends a new one. Used by Energy Output to add a country's series the first
+    /// time it gains an implemented grid.
+    /// </summary>
+    public KpiValueState GetOrAddValue(KpiValueDefinition definition)
+    {
+        var existing = FindValue(definition.ValueName);
+        if (existing is not null) return existing;
+
+        var created = new KpiValueState(definition);
+        _values.Add(created);
+        return created;
+    }
 }
 
 /// <summary>Grid position/size of a KPI widget on its dashboard tab, in cell units.</summary>

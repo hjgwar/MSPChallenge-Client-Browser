@@ -196,174 +196,184 @@ public sealed partial class GameSessionService : IAsyncDisposable
                 MergePlanMessages(kvp.Key, kvp.Value);
         }
 
-        // KPI values (Ecology/Shipping/Other; Energy/CEL skipped) — independent of "plan" being present.
+        // KPI values (Ecology/Shipping/Other; Energy/CEL has its own dedicated pipeline — see
+        // GameSessionService.Energy.cs) — independent of "plan" being present.
         ApplyKpiSimulationUpdates(payload);
 
-        if (!payload.TryGetProperty("plan", out var plansEl) ||
-            plansEl.ValueKind != JsonValueKind.Array)
-            return;
-
-        foreach (var p in plansEl.EnumerateArray())
+        var hasPlanUpdates = payload.TryGetProperty("plan", out var plansEl) &&
+                              plansEl.ValueKind == JsonValueKind.Array;
+        if (hasPlanUpdates)
         {
-            var id          = ConversionUtils.GetIntProp(p, "id");
-            var name        = ConversionUtils.GetStringProp(p, "name")        ?? $"Plan {id}";
-            var description = ConversionUtils.GetStringProp(p, "description") ?? "";
-            var state       = ConversionUtils.GetStringProp(p, "state")       ?? "";
-            var country     = ConversionUtils.GetIntProp(p, "country");
-            var startdate   = ConversionUtils.GetIntProp(p, "startdate");
-
-            var planLayers = new List<PlanLayerData>();
-            if (p.TryGetProperty("layers", out var layersEl) && layersEl.ValueKind == JsonValueKind.Array)
+            foreach (var p in plansEl.EnumerateArray())
             {
-                foreach (var l in layersEl.EnumerateArray())
+                var id          = ConversionUtils.GetIntProp(p, "id");
+                var name        = ConversionUtils.GetStringProp(p, "name")        ?? $"Plan {id}";
+                var description = ConversionUtils.GetStringProp(p, "description") ?? "";
+                var state       = ConversionUtils.GetStringProp(p, "state")       ?? "";
+                var country     = ConversionUtils.GetIntProp(p, "country");
+                var startdate   = ConversionUtils.GetIntProp(p, "startdate");
+
+                var planLayers = new List<PlanLayerData>();
+                if (p.TryGetProperty("layers", out var layersEl) && layersEl.ValueKind == JsonValueKind.Array)
                 {
-                    var planLayerId = ConversionUtils.GetStringProp(l, "layerid") ?? "";
-                    var originalId  = ConversionUtils.GetStringProp(l, "original") ?? "";
-                    var layerState  = ConversionUtils.GetStringProp(l, "state") ?? "";
-                    var geometries  = new List<PlanGeometryItem>();
-
-                    if (l.TryGetProperty("geometry", out var geoArr) && geoArr.ValueKind == JsonValueKind.Array)
+                    foreach (var l in layersEl.EnumerateArray())
                     {
-                        foreach (var g in geoArr.EnumerateArray())
-                        {
-                            var activeStr = ConversionUtils.GetStringProp(g, "active") ?? "1";
-                            if (activeStr == "0") continue;
+                        var planLayerId = ConversionUtils.GetStringProp(l, "layerid") ?? "";
+                        var originalId  = ConversionUtils.GetStringProp(l, "original") ?? "";
+                        var layerState  = ConversionUtils.GetStringProp(l, "state") ?? "";
+                        var geometries  = new List<PlanGeometryItem>();
 
-                            if (g.TryGetProperty("geometry", out var coords) && coords.ValueKind == JsonValueKind.Array)
+                        if (l.TryGetProperty("geometry", out var geoArr) && geoArr.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var g in geoArr.EnumerateArray())
                             {
-                                var pts = new List<double[]>();
-                                foreach (var pt in coords.EnumerateArray())
+                                var activeStr = ConversionUtils.GetStringProp(g, "active") ?? "1";
+                                if (activeStr == "0") continue;
+
+                                if (g.TryGetProperty("geometry", out var coords) && coords.ValueKind == JsonValueKind.Array)
                                 {
-                                    if (pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() >= 2)
-                                        pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
-                                }
-                                if (pts.Count > 0)
-                                {
-                                    var geoId   = ConversionUtils.GetStringProp(g, "id")         ?? "";
-                                    var persId  = ConversionUtils.GetStringProp(g, "persistent") ?? "";
-                                    var typeStr = ConversionUtils.GetStringProp(g, "type")       ?? "0";
-                                    var typeIdx = int.TryParse(typeStr, out var ti) ? ti : 0;
-                                    geometries.Add(new PlanGeometryItem(pts, geoId, persId, typeIdx));
+                                    var pts = new List<double[]>();
+                                    foreach (var pt in coords.EnumerateArray())
+                                    {
+                                        if (pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() >= 2)
+                                            pts.Add([pt[0].GetDouble(), pt[1].GetDouble()]);
+                                    }
+                                    if (pts.Count > 0)
+                                    {
+                                        var geoId   = ConversionUtils.GetStringProp(g, "id")         ?? "";
+                                        var persId  = ConversionUtils.GetStringProp(g, "persistent") ?? "";
+                                        var typeStr = ConversionUtils.GetStringProp(g, "type")       ?? "0";
+                                        var typeIdx = int.TryParse(typeStr, out var ti) ? ti : 0;
+                                        geometries.Add(new PlanGeometryItem(pts, geoId, persId, typeIdx));
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    var deletedIds = new List<string>();
-                    if (l.TryGetProperty("deleted", out var deletedEl) && deletedEl.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var d in deletedEl.EnumerateArray())
+                        var deletedIds = new List<string>();
+                        if (l.TryGetProperty("deleted", out var deletedEl) && deletedEl.ValueKind == JsonValueKind.Array)
                         {
-                            var dId = d.ValueKind == JsonValueKind.String ? d.GetString() : d.ToString();
-                            if (!string.IsNullOrEmpty(dId)) deletedIds.Add(dId);
+                            foreach (var d in deletedEl.EnumerateArray())
+                            {
+                                var dId = d.ValueKind == JsonValueKind.String ? d.GetString() : d.ToString();
+                                if (!string.IsNullOrEmpty(dId)) deletedIds.Add(dId);
+                            }
                         }
-                    }
 
-                    planLayers.Add(new PlanLayerData(planLayerId, originalId, layerState, geometries, deletedIds));
-                }
-            }
-
-            var constructionTime = planLayers
-                .Select(l => LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.AssemblyTime ?? 0)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            var policyNames = new List<string>();
-            var policyTypes = new List<string>();
-            if (p.TryGetProperty("policies", out var polEl) && polEl.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var pol in polEl.EnumerateArray())
-                {
-                    var ptype = ConversionUtils.GetStringProp(pol, "policy_type")?.ToLowerInvariant();
-                    var display = ptype switch
-                    {
-                        "fishing"  => "Fishing Effort",
-                        "energy"   => "Energy Distribution",
-                        "shipping" => "Shipping Safety Zones",
-                        _          => null
-                    };
-                    if (display is not null && !policyNames.Contains(display))
-                    {
-                        policyNames.Add(display);
-                        policyTypes.Add(ptype!);
+                        planLayers.Add(new PlanLayerData(planLayerId, originalId, layerState, geometries, deletedIds));
                     }
                 }
-            }
 
-            Dictionary<int, int>? votes = null;
-            if (p.TryGetProperty("votes", out var votesEl) && votesEl.ValueKind == JsonValueKind.Array)
-            {
-                votes = new Dictionary<int, int>();
-                foreach (var v in votesEl.EnumerateArray())
+                var constructionTime = planLayers
+                    .Select(l => LayerEntries.FirstOrDefault(e => e.LayerId == l.OriginalLayerId)?.AssemblyTime ?? 0)
+                    .DefaultIfEmpty(0)
+                    .Max();
+
+                var policyNames = new List<string>();
+                var policyTypes = new List<string>();
+                var energyGrids = new List<EnergyGridDefinition>();
+                if (p.TryGetProperty("policies", out var polEl) && polEl.ValueKind == JsonValueKind.Array)
                 {
-                    var cidEl2 = v.TryGetProperty("country", out var cidEl) ? cidEl : default;
-                    var vEl2   = v.TryGetProperty("vote",    out var vEl)    ? vEl    : default;
-                    var cid = cidEl2.ValueKind == JsonValueKind.Number ? cidEl2.GetInt32()
-                            : cidEl2.ValueKind == JsonValueKind.String && int.TryParse(cidEl2.GetString(), out var ci) ? ci : 0;
-                    var voteVal = vEl2.ValueKind == JsonValueKind.Number ? vEl2.GetInt32()
-                                : vEl2.ValueKind == JsonValueKind.String && int.TryParse(vEl2.GetString(), out var vi) ? vi : -1;
-                    if (cid > 0) votes[cid] = voteVal;
-                }
-            }
+                    foreach (var pol in polEl.EnumerateArray())
+                    {
+                        var ptype = ConversionUtils.GetStringProp(pol, "policy_type")?.ToLowerInvariant();
+                        var display = ptype switch
+                        {
+                            "fishing"  => "Fishing Effort",
+                            "energy"   => "Energy Distribution",
+                            "shipping" => "Shipping Safety Zones",
+                            _          => null
+                        };
+                        if (display is not null && !policyNames.Contains(display))
+                        {
+                            policyNames.Add(display);
+                            policyTypes.Add(ptype!);
+                        }
 
-            if (p.TryGetProperty("planmessages", out var planPmEl) && planPmEl.ValueKind == JsonValueKind.Array)
-            {
-                var nestedMessages = new List<PlanMessage>();
-                foreach (var pm in planPmEl.EnumerateArray())
+                        if (ptype == "energy")
+                            energyGrids.AddRange(ParseEnergyGrids(pol));
+                    }
+                }
+
+                Dictionary<int, int>? votes = null;
+                if (p.TryGetProperty("votes", out var votesEl) && votesEl.ValueKind == JsonValueKind.Array)
                 {
-                    var message = ConversionUtils.ParsePlanMessage(pm, id, _nextPlanMessageSequence++);
-                    if (message is not null)
-                        nestedMessages.Add(message);
+                    votes = new Dictionary<int, int>();
+                    foreach (var v in votesEl.EnumerateArray())
+                    {
+                        var cidEl2 = v.TryGetProperty("country", out var cidEl) ? cidEl : default;
+                        var vEl2   = v.TryGetProperty("vote",    out var vEl)    ? vEl    : default;
+                        var cid = cidEl2.ValueKind == JsonValueKind.Number ? cidEl2.GetInt32()
+                                : cidEl2.ValueKind == JsonValueKind.String && int.TryParse(cidEl2.GetString(), out var ci) ? ci : 0;
+                        var voteVal = vEl2.ValueKind == JsonValueKind.Number ? vEl2.GetInt32()
+                                    : vEl2.ValueKind == JsonValueKind.String && int.TryParse(vEl2.GetString(), out var vi) ? vi : -1;
+                        if (cid > 0) votes[cid] = voteVal;
+                    }
                 }
-                if (nestedMessages.Count > 0)
-                    MergePlanMessages(id, nestedMessages);
+
+                if (p.TryGetProperty("planmessages", out var planPmEl) && planPmEl.ValueKind == JsonValueKind.Array)
+                {
+                    var nestedMessages = new List<PlanMessage>();
+                    foreach (var pm in planPmEl.EnumerateArray())
+                    {
+                        var message = ConversionUtils.ParsePlanMessage(pm, id, _nextPlanMessageSequence++);
+                        if (message is not null)
+                            nestedMessages.Add(message);
+                    }
+                    if (nestedMessages.Count > 0)
+                        MergePlanMessages(id, nestedMessages);
+                }
+
+                var lockedByUserId = ConversionUtils.GetIntProp(p, "locked");
+                var storedCount = _planMessagesByPlanId.TryGetValue(id, out var storedMessages)
+                    ? storedMessages.Count : 0;
+                var payloadCount = ConversionUtils.GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
+                var msgCount = Math.Max(storedCount, payloadCount);
+
+                // Use TryParse with ignoreCase so servers that send lowercase state strings
+                // (e.g. "approved", "implemented") are handled correctly. Skip plan entries
+                // with a missing or unrecognised state to prevent an exception from aborting
+                // all remaining plan processing in this WS message.
+                if (!Enum.TryParse<PlanState>(state, ignoreCase: true, out var planState))
+                    continue;
+
+                var entry = new Plan(
+                    PlanId: id,
+                    Name: name,
+                    Description: description,
+                    State: planState,
+                    Country: country,
+                    StartDate: startdate,
+                    ConstructionTime: constructionTime,
+                    PolicyNames: policyNames,
+                    PolicyTypes: policyTypes,
+                    Layers: planLayers,
+                    MessageCount: msgCount,
+                    Votes: votes,
+                    LockedByUserId: lockedByUserId,
+                    EnergyGrids: energyGrids);
+
+                var idx = _plans.FindIndex(e => e.PlanId == id);
+                if (idx >= 0)
+                    _plans[idx] = entry;
+                else
+                    _plans.Add(entry);
             }
 
-            var lockedByUserId = ConversionUtils.GetIntProp(p, "locked");
-            var storedCount = _planMessagesByPlanId.TryGetValue(id, out var storedMessages)
-                ? storedMessages.Count : 0;
-            var payloadCount = ConversionUtils.GetNullableIntProp(p, "message_count", "messagecount", "messages") ?? 0;
-            var msgCount = Math.Max(storedCount, payloadCount);
+            // Plan data changed — any cached geometry/finalised-plan projection may now be stale.
+            ClearGeometryCaches();
+            RebuildEnergyGridRegistry();
 
-            // Use TryParse with ignoreCase so servers that send lowercase state strings
-            // (e.g. "approved", "implemented") are handled correctly. Skip plan entries
-            // with a missing or unrecognised state to prevent an exception from aborting
-            // all remaining plan processing in this WS message.
-            if (!Enum.TryParse<PlanState>(state, ignoreCase: true, out var planState))
-                continue;
-
-            var entry = new Plan(
-                PlanId: id,
-                Name: name,
-                Description: description,
-                State: planState,
-                Country: country,
-                StartDate: startdate,
-                ConstructionTime: constructionTime,
-                PolicyNames: policyNames,
-                PolicyTypes: policyTypes,
-                Layers: planLayers,
-                MessageCount: msgCount,
-                Votes: votes,
-                LockedByUserId: lockedByUserId);
-
-            var idx = _plans.FindIndex(e => e.PlanId == id);
-            if (idx >= 0)
-                _plans[idx] = entry;
-            else
-                _plans.Add(entry);
+            _plans.Sort((a, b) =>
+            {
+                var sp = a.State.CompareTo(b.State);
+                if (sp != 0) return sp;
+                var dp = a.StartDate.CompareTo(b.StartDate);
+                return dp != 0 ? dp : a.PlanId.CompareTo(b.PlanId);
+            });
         }
 
-        // Plan data changed — any cached geometry/finalised-plan projection may now be stale.
-        ClearGeometryCaches();
-
-        _plans.Sort((a, b) =>
-        {
-            var sp = a.State.CompareTo(b.State);
-            if (sp != 0) return sp;
-            var dp = a.StartDate.CompareTo(b.StartDate);
-            return dp != 0 ? dp : a.PlanId.CompareTo(b.PlanId);
-        });
+        ApplyEnergySimulationUpdates(payload);
     }
 
     private void MergePlanMessages(int planId, IEnumerable<PlanMessage> incoming)

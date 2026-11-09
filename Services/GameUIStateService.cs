@@ -79,9 +79,14 @@ public sealed class GameUIStateService
     public List<KpiWidgetInstance> EcologyWidgets   { get; } = new();
     public List<KpiWidgetInstance> ShippingWidgets   { get; } = new();
     public List<KpiWidgetInstance> OtherWidgets      { get; } = new();
+    public List<KpiWidgetInstance> EnergyWidgets     { get; } = new();
     public List<KpiWidgetInstance> FavouriteWidgets  { get; } = new();
 
-    /// <summary>Shared per-tab country selector; null = viewer's own country. No Ecology equivalent (global-only KPIs).</summary>
+    /// <summary>
+    /// Shared per-tab country selector; null = viewer's own country. No Ecology equivalent
+    /// (global-only KPIs), and no Energy equivalent either — its one "Energy Output" category
+    /// already shows every country as its own series, so there is nothing to filter by.
+    /// </summary>
     public int? SelectedShippingCountryId   { get; set; }
     public int? SelectedOtherCountryId      { get; set; }
     public int? SelectedFavouritesCountryId { get; set; }
@@ -234,6 +239,7 @@ public sealed class GameUIStateService
         EcologyWidgets.Clear();
         ShippingWidgets.Clear();
         OtherWidgets.Clear();
+        EnergyWidgets.Clear();
         FavouriteWidgets.Clear();
         SelectedShippingCountryId   = null;
         SelectedOtherCountryId      = null;

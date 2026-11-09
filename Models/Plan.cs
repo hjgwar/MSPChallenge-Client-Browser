@@ -14,12 +14,15 @@ public sealed record Plan(
     IReadOnlyList<PlanLayerData>? Layers = null,
     int MessageCount = 0,
     IReadOnlyDictionary<int, int>? Votes = null,
-    int LockedByUserId = 0)
+    int LockedByUserId = 0,
+    IReadOnlyList<EnergyGridDefinition>? EnergyGrids = null)
 {
     public IReadOnlyList<string> PolicyNames { get; init; } = PolicyNames ?? [];
     public IReadOnlyList<string> PolicyTypes { get; init; } = PolicyTypes ?? [];
     public IReadOnlyList<PlanLayerData> Layers { get; init; } = Layers ?? [];
     public IReadOnlyDictionary<int, int> Votes { get; init; } = Votes ?? new Dictionary<int, int>();
+    /// <summary>This plan's "energy" policy grids, if any. See GameSessionService.Energy.cs for how these are merged across plans.</summary>
+    public IReadOnlyList<EnergyGridDefinition> EnergyGrids { get; init; } = EnergyGrids ?? [];
 };
 
 /// <summary>A layer within a plan, containing geometry items.</summary>

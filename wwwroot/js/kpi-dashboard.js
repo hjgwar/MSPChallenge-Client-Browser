@@ -30,6 +30,29 @@ function formatValue(value) {
     return value.toLocaleString(undefined, options);
 }
 
+// Metric prefixes, largest first, so the first one whose threshold the value clears wins.
+const SI_PREFIXES = [
+    { threshold: 1e9, suffix: 'G' },
+    { threshold: 1e6, suffix: 'M' },
+    { threshold: 1e3, suffix: 'k' },
+];
+
+/**
+ * Formats a value with an auto-scaled metric prefix (k/M/G) applied to baseUnit, e.g.
+ * 2537343999 W -> "2.54 GW". Falls back to formatValue()+baseUnit below the smallest prefix.
+ * Used for Energy Output (raw Watts), opted into via KpiCategoryDefinition.UseSiUnitScaling.
+ */
+function formatSiValue(value, baseUnit) {
+    const abs = Math.abs(value);
+    for (const { threshold, suffix } of SI_PREFIXES) {
+        if (abs >= threshold) {
+            const scaled = (value / threshold).toLocaleString(undefined, { maximumFractionDigits: 2 });
+            return `${scaled} ${suffix}${baseUnit ?? ''}`;
+        }
+    }
+    return `${formatValue(value)}${baseUnit ? ' ' + baseUnit : ''}`;
+}
+
 function showTooltip(event, text) {
     if (!_tooltipEl?.isConnected) {
         _tooltipEl = document.createElement('div');
@@ -54,7 +77,7 @@ function hideTooltip() {
 /**
  * Renders a grouped/stacked bar chart for one KPI widget.
  * @param {string} containerId
- * @param {string} seriesDataJson - JSON: { unit, stacked, series: [{ name, color, points: [{ month, value }] }] }
+ * @param {string} seriesDataJson - JSON: { unit, siScale, stacked, series: [{ name, color, points: [{ month, value }] }] }
  */
 export function renderWidget(containerId, seriesDataJson) {
     const container = document.getElementById(containerId);
@@ -126,7 +149,7 @@ function renderChart(container, data) {
         .selectAll('text').attr('fill', '#f8f9fa').style('font-size', 'var(--font-size-small)');
 
     g.append('g')
-        .call(d3.axisLeft(y).ticks(4))
+        .call(d3.axisLeft(y).ticks(4).tickFormat(v => data.siScale ? formatSiValue(v, data.unit) : v))
         .attr('font-family', null)
         .selectAll('text').attr('fill', '#f8f9fa').style('font-size', 'var(--font-size-small)');
 
@@ -150,7 +173,9 @@ function renderChart(container, data) {
             .attr('height', d => Math.abs(y(d.value) - y(0)))
             .attr('fill', series.color)
             .on('mouseenter mousemove', (event, d) =>
-                showTooltip(event, `${series.name}: ${formatValue(d.value)}${data.unit ? ' ' + prettyUnit(data.unit) : ''}`))
+                showTooltip(event, `${series.name}: ${data.siScale
+                    ? formatSiValue(d.value, data.unit)
+                    : formatValue(d.value) + (data.unit ? ' ' + prettyUnit(data.unit) : '')}`))
             .on('mouseleave', hideTooltip);
     }
 

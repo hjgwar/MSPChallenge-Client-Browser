@@ -44,6 +44,11 @@ public partial class KpiWidget : ComponentBase, IAsyncDisposable
     private bool _hasRendered;
     private int  _renderedCountryId;
     private int  _renderedMostRecentMonth = int.MinValue;
+    // A category whose value series can grow at runtime (e.g. Energy Output, one series per
+    // country as new countries gain implemented grids — see KpiCategoryState.GetOrAddValue) needs
+    // its own change-detection signal, since a newly-added series wouldn't otherwise move
+    // _renderedMostRecentMonth until its first value arrives.
+    private int  _renderedValueCount = -1;
     private int? _renderedStartMonth;
     private int? _renderedEndMonth;
     private bool _renderedStacked;
@@ -97,6 +102,7 @@ public partial class KpiWidget : ComponentBase, IAsyncDisposable
         var dataChanged = !_hasRendered
             || _renderedCountryId != ViewingCountryId
             || _renderedMostRecentMonth != mostRecentMonth
+            || _renderedValueCount != Category.Values.Count
             || _renderedStartMonth != Instance.SelectedStartMonth
             || _renderedEndMonth != Instance.SelectedEndMonth
             || _renderedStacked != Instance.Stacked
@@ -130,6 +136,7 @@ public partial class KpiWidget : ComponentBase, IAsyncDisposable
         var chartPayload = JsonSerializer.Serialize(new
         {
             unit = Category.Definition.Unit,
+            siScale = Category.Definition.UseSiUnitScaling,
             stacked = Instance.Stacked,
             series,
         });
@@ -144,6 +151,7 @@ public partial class KpiWidget : ComponentBase, IAsyncDisposable
         _hasRendered = true;
         _renderedCountryId = ViewingCountryId;
         _renderedMostRecentMonth = Category.Values.Select(v => v.MostRecentMonth).DefaultIfEmpty(-1).Max();
+        _renderedValueCount = Category.Values.Count;
         _renderedStartMonth = Instance.SelectedStartMonth;
         _renderedEndMonth = Instance.SelectedEndMonth;
         _renderedStacked = Instance.Stacked;

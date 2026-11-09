@@ -7,7 +7,9 @@ namespace MSPChallenge_Client_Browser.Services;
 /// <summary>
 /// Partial class file containing KPI catalog parsing (from Game/PolicySimSettings) and incremental
 /// value updates (from Game/Latest's simulation_updates), for the KPI Dashboard feature.
-/// Energy/CEL is explicitly out of scope and skipped wherever encountered.
+/// Energy/CEL is skipped here: it has no static catalog entry in Game/PolicySimSettings and its
+/// "kpi" rows use a different shape (grid/country/actual, not name/country/value) — see
+/// GameSessionService.Energy.cs for its dedicated pipeline, which reuses <see cref="CelSimulationType"/>.
 /// </summary>
 public sealed partial class GameSessionService
 {
@@ -23,7 +25,7 @@ public sealed partial class GameSessionService
     private readonly Dictionary<string, Dictionary<string, KpiValueState>> _kpiValuesBySimType =
         new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Parses the Game/PolicySimSettings response into the KPI category catalogs. CEL is skipped entirely.</summary>
+    /// <summary>Parses the Game/PolicySimSettings response into the KPI category catalogs. CEL is skipped entirely (see above).</summary>
     private void ParseKpiCatalog(JsonElement payload)
     {
         EcologyKpiCategories = [];
@@ -41,7 +43,7 @@ public sealed partial class GameSessionService
         {
             var simType = ConversionUtils.GetStringProp(simSetting, "simulation_type");
             if (string.IsNullOrEmpty(simType) || simType.Equals(CelSimulationType, StringComparison.OrdinalIgnoreCase))
-                continue; // Energy/CEL is explicitly out of scope.
+                continue; // Energy/CEL has its own pipeline — see GameSessionService.Energy.cs.
 
             IReadOnlyList<KpiCategoryDefinition> definitions;
             if (simType.Equals(MelSimulationType, StringComparison.OrdinalIgnoreCase))
@@ -131,7 +133,7 @@ public sealed partial class GameSessionService
         return result;
     }
 
-    /// <summary>Applies incremental KPI values from a Game/Latest message's simulation_updates array. CEL is skipped.</summary>
+    /// <summary>Applies incremental KPI values from a Game/Latest message's simulation_updates array. CEL is skipped (see GameSessionService.Energy.cs).</summary>
     private void ApplyKpiSimulationUpdates(JsonElement payload)
     {
         if (!payload.TryGetProperty("simulation_updates", out var simUpdatesEl) ||
@@ -142,7 +144,7 @@ public sealed partial class GameSessionService
         {
             var simType = ConversionUtils.GetStringProp(simUpdate, "simulation_type");
             if (string.IsNullOrEmpty(simType) || simType.Equals(CelSimulationType, StringComparison.OrdinalIgnoreCase))
-                continue;
+                continue; // Energy/CEL has its own pipeline — see GameSessionService.Energy.cs.
 
             if (!_kpiValuesBySimType.TryGetValue(simType, out var lookup)) continue;
             if (!simUpdate.TryGetProperty("kpi", out var kpiArrEl) || kpiArrEl.ValueKind != JsonValueKind.Array) continue;
