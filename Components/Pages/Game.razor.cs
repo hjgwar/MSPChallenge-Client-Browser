@@ -221,6 +221,12 @@ public partial class Game : IAsyncDisposable
         if (Map is not null)
         {
             await Map.SyncZIndicesAsync();
+
+            // Default view: merge every already-implemented plan's geometry onto the layers just
+            // materialized, so it's visible by default without selecting each plan (unless a plan
+            // is already selected on a warm return, in which case PlanDetails applies its own view).
+            if (GameUIStateService.SelectedPlanId is not > 0)
+                await Map.ApplyDefaultWorldProjectionAsync();
         }
 
         if (fitToPlayArea && baseLayer is not null)

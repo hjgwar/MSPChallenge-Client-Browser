@@ -43,11 +43,18 @@ public partial class MapViewPort
 
             // If a plan is currently selected, immediately project prior-plan changes onto
             // this layer so the user sees the correct world state without re-selecting the plan.
-            if (!skipProjection && GameUIStateService.SelectedPlanId != 0)
+            // Otherwise (default view), project every already-implemented plan instead, so the
+            // layer shows the current "now" world state without requiring a plan to be selected.
+            if (!skipProjection)
             {
-                var viewedPlan = GameSessionService.Plans.FirstOrDefault(p => p.PlanId == GameUIStateService.SelectedPlanId);
+                var viewedPlan = GameUIStateService.SelectedPlanId is > 0
+                    ? GameSessionService.Plans.FirstOrDefault(p => p.PlanId == GameUIStateService.SelectedPlanId)
+                    : null;
+
                 if (viewedPlan is not null)
                     await ApplyPlanProjectionAsync(viewedPlan.StartDate, entry.LayerId, currentPlan: viewedPlan);
+                else
+                    await ApplyDefaultWorldProjectionAsync(entry.LayerId);
             }
         }
         else if (MapJSModule is not null)
@@ -101,18 +108,19 @@ public partial class MapViewPort
             return;
         }
 
-        if (!string.IsNullOrEmpty(snapshot.VectorGeometriesJson))
-        {
-            await MapJSModule.InvokeVoidAsync(
-                "addVectorLayer",
-                snapshot.LayerId,
-                snapshot.VectorGeometriesJson,
-                snapshot.GeoType,
-                snapshot.TypeColors,
-                visible,
-                snapshot.LabelKey);
-            _materializedLayerIds.Add(layerId);
-        }
+        // Always materialize vector layers, even when the base dataset has zero features (e.g. an
+        // "Energy Cables" layer that only ever contains plan-added geometry) — the (empty) OpenLayers
+        // vector layer still needs to exist so ApplyDefaultWorldProjectionAsync/ApplyPlanProjectionAsync
+        // can add implemented/viewed plans' geometry onto it afterwards.
+        await MapJSModule.InvokeVoidAsync(
+            "addVectorLayer",
+            snapshot.LayerId,
+            snapshot.VectorGeometriesJson ?? "[]",
+            snapshot.GeoType,
+            snapshot.TypeColors,
+            visible,
+            snapshot.LabelKey);
+        _materializedLayerIds.Add(layerId);
     }
 
     /// <summary>
@@ -124,13 +132,38 @@ public partial class MapViewPort
     /// </summary>
     public async Task ApplyPlanProjectionAsync(int planStartDate, string? singleLayerId = null, Plan? currentPlan = null)
     {
-        if (MapJSModule is null) return;
-
         // Prior finalised plans' hide/add contributions are cached per cutoff month in
         // GameSessionService (invalidated whenever plan data changes), so switching between
         // already-viewed plans/cutoffs during a long session no longer re-walks the full
         // plan history each time.
         var projection = GameSessionService.GetFinalizedPlansProjection(planStartDate);
+        await SendProjectionToMapAsync(projection, singleLayerId, currentPlan);
+    }
+
+    /// <summary>
+    /// Computes and sends the "now" world-state projection — every already-implemented plan's
+    /// geometry — to the map. Used for the default view (no plan selected), so plans that have
+    /// already been implemented (including starting plans implemented at the end of the Setup
+    /// phase) are visible without the player needing to select them, mirroring how
+    /// <see cref="ApplyPlanProjectionAsync"/> already does this for a specific plan's time context.
+    /// Pass <paramref name="singleLayerId"/> to restrict processing to one layer — used when the
+    /// user activates a layer from the panel while no plan is selected.
+    /// </summary>
+    public async Task ApplyDefaultWorldProjectionAsync(string? singleLayerId = null)
+    {
+        var projection = GameSessionService.GetImplementedPlansProjection();
+        await SendProjectionToMapAsync(projection, singleLayerId);
+    }
+
+    /// <summary>
+    /// Shared by <see cref="ApplyPlanProjectionAsync"/> and <see cref="ApplyDefaultWorldProjectionAsync"/>:
+    /// filters a <see cref="PlanProjection"/> down to <paramref name="singleLayerId"/> (if given),
+    /// optionally folds in <paramref name="currentPlan"/>'s own deletions/modifications, and pushes
+    /// the result to the map via the (idempotent) JS "applyPlanProjection" call.
+    /// </summary>
+    private async Task SendProjectionToMapAsync(PlanProjection projection, string? singleLayerId, Plan? currentPlan = null)
+    {
+        if (MapJSModule is null) return;
 
         var hiddenFeatures = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var addedFeatures  = new List<object>();

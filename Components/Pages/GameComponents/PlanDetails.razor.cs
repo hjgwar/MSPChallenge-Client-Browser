@@ -57,6 +57,10 @@ public partial class PlanDetails : GameComponentBase, IDisposable
     private HashSet<string> _editPolicyTypes = [];
     private string? _enterEditError;
     private int? _lastDisplayedPlanId;
+    // Tracks GameSessionService.GeometryCacheVersion as of the last time the default (no plan
+    // selected) "now" world-state projection was applied, so OnStateChanged can tell when a plan
+    // newly becoming implemented in the background needs to be reflected on the map.
+    private int _lastAppliedGeometryVersion = -1;
     private readonly HashSet<string> _planActivatedLayerIds = [];
 
     protected override void OnInitialized()
@@ -103,9 +107,14 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         //  • Plan identity changed (user switched plans) — always refresh.
         //  • Just finished editing (_wasPreviouslyEditing && !EditMode) — refresh once
         //    so new/altered geometry from the save is shown on the map.
+        //  • Default view (no plan selected) and a plan was implemented in the background since
+        //    we last applied the "now" projection — refresh so it appears without reselecting.
         //  • Routine WS ticks with same plan in view-mode — UI re-render only.
         var needsMapRefresh = _lastDisplayedPlanId != GameUIStateService.SelectedPlanId
-            || (_wasPreviouslyEditing && !GameUIStateService.EditMode);
+            || (_wasPreviouslyEditing && !GameUIStateService.EditMode)
+            || (!GameUIStateService.EditMode
+                && GameUIStateService.SelectedPlanId is null or 0
+                && GameSessionService.GeometryCacheVersion != _lastAppliedGeometryVersion);
 
         _wasPreviouslyEditing = GameUIStateService.EditMode;
 
@@ -384,29 +393,38 @@ public partial class PlanDetails : GameComponentBase, IDisposable
         if (Map?.MapJSModule is null) return;
 
         var plan = GameSessionService.SelectedPlan;
-        
-        // If switching plans, fully clear the previous plan first to avoid concurrent operations
-        if (_lastDisplayedPlanId.HasValue && (plan is null || _lastDisplayedPlanId != plan.PlanId))
+        var currentSelection = GameUIStateService.SelectedPlanId;
+
+        // Switching selection (a different plan, into/out of plan view, or into/out of new-plan
+        // drafting) — fully clear whatever was previously shown first, to avoid concurrent
+        // operations and so stale applyPlanProjection hidden/added flags (whether from a prior
+        // plan's time-cutoff view or the default "now" projection) never pile up or bleed into
+        // the next view.
+        if (_lastDisplayedPlanId != currentSelection)
         {
             await Map.MapJSModule.InvokeVoidAsync("clearIssueMarkers");
-            // Undo the previous plan's applyPlanProjection ghost features/hidden flags on base
-            // layers before the new plan (re)applies its own — otherwise they pile up forever.
             await Map.MapJSModule.InvokeVoidAsync("clearPlanProjection");
             await DeactivatePlanLayersAsync();
             await Map.MapJSModule.InvokeVoidAsync("clearPlanOverlay");
-            _lastDisplayedPlanId = null;
-            
-            // If deselecting (plan is null), we're done
-            if (plan is null) return;
         }
 
-        // At this point, plan should not be null
-        if (plan is null) return;
+        _lastDisplayedPlanId = currentSelection;
 
-        // Now display the new plan (no concurrent operations with previous plan)
-        _lastDisplayedPlanId = plan.PlanId;
+        if (plan is null)
+        {
+            // Default view (no plan selected, or a brand-new unsaved plan being drafted): show
+            // the "now" world state so every already-implemented plan's geometry (including
+            // starting plans implemented at the end of the Setup phase) is visible without the
+            // player needing to select it. Safe/cheap to reapply repeatedly — see
+            // MapViewPort.ApplyDefaultWorldProjectionAsync.
+            await Map.ApplyDefaultWorldProjectionAsync();
+            _lastAppliedGeometryVersion = GameSessionService.GeometryCacheVersion;
+            StateHasChanged();
+            return;
+        }
 
-        // Activate layers referenced by this plan
+        // Now display the new plan (activate layers it references, draw its own geometry,
+        // then project the world state as of its start date).
         await ActivatePlanLayersAsync(plan);
 
         var layersData = new List<object>();

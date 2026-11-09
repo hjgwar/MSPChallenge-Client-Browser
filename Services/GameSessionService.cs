@@ -478,6 +478,15 @@ public sealed partial class GameSessionService : IAsyncDisposable
     private readonly Dictionary<string, List<ParsedLayerGeometry>> _parsedLayerGeometryCache   = [];
     private readonly Dictionary<string, List<ParsedLayerGeometry>> _projectedGeometryCache     = [];
     private readonly Dictionary<int, PlanProjection> _finalizedPlanProjectionCache = [];
+    private PlanProjection? _implementedPlansProjectionCache;
+
+    /// <summary>
+    /// Increments every time the geometry/plan-projection caches are invalidated (see
+    /// <see cref="ClearGeometryCaches"/>). Lets map components cheaply detect that the "now"
+    /// world state (see <see cref="GetImplementedPlansProjection"/>) may have changed — e.g. a
+    /// plan just became implemented — without re-querying plan data on every WS tick.
+    /// </summary>
+    public int GeometryCacheVersion { get; private set; }
 
     /// <summary>
     /// Parses and caches layer geometry from MapLayerSnapshots.
@@ -595,24 +604,16 @@ public sealed partial class GameSessionService : IAsyncDisposable
     }
 
     /// <summary>
-    /// Returns the aggregated hide/add projection contributed by every finalised plan that started
-    /// before <paramref name="cutoffMonth"/>, across all layers those plans touch. Used to render
-    /// prior plans' world-state impact when a later plan is selected on the map.
-    /// Cached per cutoff month; invalidated whenever plan data changes (see <see cref="ApplyGameLatest"/>).
+    /// Builds the aggregated hide/add projection contributed by the given plans, across all layers
+    /// those plans touch. Shared by <see cref="GetFinalizedPlansProjection"/> (a specific plan's
+    /// time-cutoff context) and <see cref="GetImplementedPlansProjection"/> (the default "now" view).
     /// </summary>
-    public PlanProjection GetFinalizedPlansProjection(int cutoffMonth)
+    private PlanProjection BuildPlanProjection(IEnumerable<Plan> plans)
     {
-        if (_finalizedPlanProjectionCache.TryGetValue(cutoffMonth, out var cached))
-            return cached;
-
         var hidden = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var added  = new List<PlanProjectionFeature>();
 
-        var relevantPlans = _plans
-            .Where(p => p.StartDate < cutoffMonth && Utils.PlanCalculations.PlanStates.IsFinalisedPlanState(p.State))
-            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId);
-
-        foreach (var plan in relevantPlans)
+        foreach (var plan in plans)
         {
             foreach (var planLayer in plan.Layers)
             {
@@ -637,8 +638,50 @@ public sealed partial class GameSessionService : IAsyncDisposable
             }
         }
 
-        var projection = new PlanProjection(hidden, added);
+        return new PlanProjection(hidden, added);
+    }
+
+    /// <summary>
+    /// Returns the aggregated hide/add projection contributed by every finalised plan that started
+    /// before <paramref name="cutoffMonth"/>, across all layers those plans touch. Used to render
+    /// prior plans' world-state impact when a later plan is selected on the map.
+    /// Cached per cutoff month; invalidated whenever plan data changes (see <see cref="ApplyGameLatest"/>).
+    /// </summary>
+    public PlanProjection GetFinalizedPlansProjection(int cutoffMonth)
+    {
+        if (_finalizedPlanProjectionCache.TryGetValue(cutoffMonth, out var cached))
+            return cached;
+
+        var relevantPlans = _plans
+            .Where(p => p.StartDate < cutoffMonth && Utils.PlanCalculations.PlanStates.IsFinalisedPlanState(p.State))
+            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId);
+
+        var projection = BuildPlanProjection(relevantPlans);
         _finalizedPlanProjectionCache[cutoffMonth] = projection;
+        return projection;
+    }
+
+    /// <summary>
+    /// Returns the aggregated hide/add projection contributed by every already-IMPLEMENTED plan —
+    /// i.e. the "now" world state. Server-side geometry storage keeps every plan's contributions
+    /// separate forever (by design, so any point in time can be reconstructed), so the client is
+    /// responsible for merging implemented plans' geometry onto the default (no plan selected) map
+    /// view, the same way it already merges prior plans' geometry when viewing a later plan via
+    /// <see cref="GetFinalizedPlansProjection"/>. This covers starting plans implemented at the end
+    /// of the Setup phase just as much as plans implemented later during the simulation.
+    /// Cached as a single snapshot; invalidated whenever plan data changes (see <see cref="ClearGeometryCaches"/>).
+    /// </summary>
+    public PlanProjection GetImplementedPlansProjection()
+    {
+        if (_implementedPlansProjectionCache is { } cached)
+            return cached;
+
+        var relevantPlans = _plans
+            .Where(p => p.State == PlanState.IMPLEMENTED)
+            .OrderBy(p => p.StartDate).ThenBy(p => p.PlanId);
+
+        var projection = BuildPlanProjection(relevantPlans);
+        _implementedPlansProjectionCache = projection;
         return projection;
     }
 
@@ -648,6 +691,8 @@ public sealed partial class GameSessionService : IAsyncDisposable
         _parsedLayerGeometryCache.Clear();
         _projectedGeometryCache.Clear();
         _finalizedPlanProjectionCache.Clear();
+        _implementedPlansProjectionCache = null;
+        GeometryCacheVersion++;
     }
 
     // ── Disposal ───────────────────────────────────────────────────────────────

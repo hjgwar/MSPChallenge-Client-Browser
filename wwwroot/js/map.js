@@ -109,8 +109,9 @@ export function addVectorLayer(layerId, geometriesJson, geoType, typeColors, vis
         features.push(new ol.Feature({ geometry: olGeom, mspId: g.id, mspType: (parseInt(g.type, 10) || 0), mspLabel: labelVal, mspData: g.data ?? {} }));
     }
 
-    if (features.length === 0) return;
-
+    // Register the (possibly empty) layer even when the base dataset has no features yet — e.g.
+    // "Energy Cables" layers that only ever contain plan-added geometry. applyPlanProjection/
+    // showPlanGeometry need vectorLayers[layerId] to exist so they can add features onto it later.
     const labelFontPx = fontSizePx('--font-size-small');
 
     const styleFunction = (feature, resolution) => {
