@@ -17,6 +17,7 @@ public partial class Game : IAsyncDisposable
     [Inject] WebSocketService WsService { get; set; } = null!;
     [Inject] GameSessionService GameSessionService { get; set; } = null!;
     [Inject] GameUIStateService GameUIStateService { get; set; } = null!;
+    [Inject] IJSRuntime JS { get; set; } = default!;
 
     public SideBarPanelControl SideBarPanelController { get; set; } = null!;
     public GameTimeView GameTimeViewer { get; set; } = null!;
@@ -154,6 +155,9 @@ public partial class Game : IAsyncDisposable
         _dotNetRef = DotNetObjectReference.Create(this);
         await _mapModule.InvokeVoidAsync("registerClickHandler", _dotNetRef);
         await _mapModule.InvokeVoidAsync("initLegendDrag", _dotNetRef);
+
+        var tourModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/tour.js");
+        await tourModule.InvokeVoidAsync("initiateTutorial");
     }
 
     private async Task HideLoadingAsync()
