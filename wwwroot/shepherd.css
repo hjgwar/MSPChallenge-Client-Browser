@@ -12,6 +12,14 @@
     padding-top: 200px;
 }
 
+.shepherd-bottomscreen {
+    position: fixed !important;
+    bottom: 0 !important;
+    top: 100% !important;
+    width: 100%;
+    z-index: 10000;
+}
+
 .shepherd-backbutton, .shepherd-nextbutton {
     position: absolute;
     bottom: 0px;
@@ -76,4 +84,11 @@
     border: 0;
     background: transparent;
     color: white;
+}
+
+/* Glow & outline on the element highlighted by Shepherd */
+.shepherd-target-highlight,
+.shepherd-target.shepherd-enabled {
+    border: 7px solid #FFD700 !important;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.9), 0 0 30px rgba(255, 215, 0, 0.5) !important;
 }

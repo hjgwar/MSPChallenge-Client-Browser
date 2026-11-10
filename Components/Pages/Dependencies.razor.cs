@@ -30,6 +30,9 @@ public partial class Dependencies : IAsyncDisposable
         };
 
         await _module.InvokeVoidAsync("init", "dep-graph", graphData);
+
+        var tourModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/tour.js");
+        await tourModule.InvokeVoidAsync("initiateTutorial");
     }
 
     public async ValueTask DisposeAsync()

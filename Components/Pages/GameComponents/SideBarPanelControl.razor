@@ -36,7 +36,7 @@
         </svg>
     </button>
     <div class="sidebar-separator"></div>
-    <button class="sidebar-btn" title="Dependencies"
+    <button id="dependencies-button" class="sidebar-btn" title="Dependencies"
             @onclick="OpenDependenciesPage">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" xmlns="http://www.w3.org/2000/svg">
             <circle cx="8" cy="8" r="6"/>
@@ -54,7 +54,7 @@
         </svg>
     </button>
     <div class="sidebar-separator"></div>
-    <button class="sidebar-btn @(GameUIStateService.LayerPanelOpen ? "sidebar-btn--active" : "")"
+    <button id="layers-button" class="sidebar-btn @(GameUIStateService.LayerPanelOpen ? "sidebar-btn--active" : "")"
             title="Layers"
             @onclick="GameUIStateService.ToggleLayerPanel">
         <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -63,7 +63,7 @@
             <path d="M1 12l7 3.5L15 12"/>
         </svg>
     </button>
-    <button class="sidebar-btn @(GameUIStateService.LegendPanelOpen ? "sidebar-btn--active" : "")" title="Legend"
+    <button id="legend-button" class="sidebar-btn @(GameUIStateService.LegendPanelOpen ? "sidebar-btn--active" : "")" title="Legend"
             @onclick="GameUIStateService.ToggleLegendPanel">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
             <rect x="2" y="3" width="4" height="4" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/>
