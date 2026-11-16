@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Models;
 using MSPChallenge_Client_Browser.Services;
 
@@ -6,6 +7,7 @@ namespace MSPChallenge_Client_Browser.Components.Pages;
 
 public partial class KpiDashboard : ComponentBase, IDisposable
 {
+    [Inject] private IJSRuntime JS { get; set; } = null!;
     [Parameter] public string? Category { get; set; }
 
     private enum KpiTab { Ecology, Shipping, Other, Energy, Favourites }
@@ -36,6 +38,12 @@ public partial class KpiDashboard : ComponentBase, IDisposable
         // Re-render on new WS data so widgets pick up new KPI values; each KpiWidget only
         // actually redraws its chart when its own data/selection has changed (see KpiWidget).
         GameState.Changed += OnStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var tourModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/tour.js");
+        await tourModule.InvokeVoidAsync("continueTutorial");
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);

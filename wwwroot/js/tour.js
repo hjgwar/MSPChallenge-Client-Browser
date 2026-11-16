@@ -381,6 +381,96 @@ function buildTutorial() {
         }
     });
 
+    tour.addStep({
+        id: 'part4',
+        title: 'Part 4<br/>Evaluating Consequences',
+        classes: 'shepherd-fullscreen',
+        text: 'Once the simulation reaches the spatial plan\'s implementation date, you will be able to assess the impact and consequences of the changes.',
+        buttons: addButtons('part3', 'congrats'),
+    });
+
+    tour.addStep({
+        id: 'evaluating1',
+        title: 'Evaluating Consequences [1/5]',
+        classes: 'shepherd-bottomscreen',
+        text: 'A server administrator can start the simulation, after which the time will progress. The current simulated month and year are visible in the time view window in the top right corner.',
+        buttons: addButtons('part3', 'congrats')    
+    });
+
+    tour.addStep({
+        id: 'evaluating2',
+        title: 'Evaluating Consequences [2/5]',
+        classes: 'shepherd-bottomscreen',
+        text: 'Once the simulation reaches the spatial plan\'s implementation date, it will calculate the consequences.',
+        buttons: addButtons('part3', 'congrats')    
+    });
+
+    tour.addStep({
+        id: 'evaluating3',
+        title: 'Evaluating Consequences [3/5]',
+        classes: 'shepherd-bottomscreen',
+        text: 'The consequences can be reviewed by comparing the visual changes in the data layers on the map before and after the implementation date. Open the viewing time controls to freely select the time shown on the map.',
+        buttons: addButtons('part3', 'congrats')    
+    });
+
+    tour.addStep({
+        id: 'evaluating4',
+        title: 'Evaluating Consequences [4/5]',
+        classes: 'shepherd-bottomscreen',
+        text: 'Consequences are also plotted on Key Performance Indicator (KPI) graphs. You can review these graphs by opening the KPI dashboard.',
+        attachTo: {
+            element: '#kpidashboard-button'
+        },
+        highlightClass: 'shepherd-target-highlight',
+        buttons: addButtons('part3', 'congrats'),
+        when: {
+            show() {
+                const nextBtn = this.el.querySelector('.shepherd-nextbutton');
+                const kpiDashboardBtn = document.getElementById('kpidashboard-button');
+
+                disableButton(nextBtn);
+
+                const onKpiDashboardClick = () => {
+                    sessionStorage.setItem('tour_current_step', 'evaluating5');
+                    enableButton(nextBtn);
+                };
+                kpiDashboardBtn.addEventListener('click', onKpiDashboardClick, { once: true });
+
+                this._cleanup = () => {
+                    kpiDashboardBtn.removeEventListener('click', onKpiDashboardClick);
+                };
+            },
+            hide() {
+                this._cleanup?.();
+            }
+        }
+    });
+
+    tour.addStep({
+        id: 'evaluating5',
+        title: 'Evaluating Consequences [5/5]',
+        classes: 'shepherd-bottomscreen',
+        text: 'Here you can review KPI graphs organised by category: Ecology, Shipping, Energy and Other.',
+        buttons: addButtons('part3', 'congrats'),
+        
+    });
+
+    tour.addStep({
+        id: 'congrats',
+        title: 'Congratulations!',
+        classes: 'shepherd-fullscreen',
+        text: 'You have now seen the big picture: creating, implementing and evaluating spatial plans. <br/>You are now ready to get started! You can also re-open this tutorial through the main menu button if you need a refresher.',
+        buttons: addButtons('part4', ''),
+        when: {
+            show() {
+                if (document.querySelector('.kpi-back-btn')) {
+                    sessionStorage.setItem('tour_current_step', 'congrats');
+                    document.querySelector('.kpi-back-btn').click();
+                }
+            }
+        }
+    });
+
     return tour;
 }
 
