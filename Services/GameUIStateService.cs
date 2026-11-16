@@ -38,6 +38,7 @@ public sealed class GameUIStateService
     public bool PlansPanelOpen       { get; set; } = false;
     public bool CreatePlanOpen       { get; set; } = false;
     public bool TimeManagerOpen      { get; set; } = false;
+    public bool OptionsPanelOpen     { get; set; } = false;
 
     // ── Plan selection and editing ─────────────────────────────────────────────
     public int?         SelectedPlanId { get; set; } = null;
@@ -187,6 +188,12 @@ public sealed class GameUIStateService
     public void ToggleTimeManager()
     {
         TimeManagerOpen = !TimeManagerOpen;
+        NotifyChanged();
+    }
+
+    public void ToggleOptionsPanel()
+    {
+        OptionsPanelOpen = !OptionsPanelOpen;
         NotifyChanged();
     }
 

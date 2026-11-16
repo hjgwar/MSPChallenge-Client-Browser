@@ -1,8 +1,7 @@
 ﻿@inherits GameComponentBase
 <div class="panel plan-message-panel plan-policy-panel">
     <div class="panel-title plan-message-panel-header">
-        <span style="flex: 1">Policy Picker</span>
-        <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePolicyPicker">&#x2715;</button>
+        Policy Picker <button class="panel-close-btn" type="button" title="Close" @onclick="TogglePolicyPicker">&#x2715;</button>
     </div>
     <div class="panel-content plan-message-panel-body plan-policy-picker-body">
         @foreach (PolicySetting policy in GameSessionService.AvailablePolicies)

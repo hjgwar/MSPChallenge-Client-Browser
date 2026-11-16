@@ -61,6 +61,10 @@
                Properties="@_popupProps" 
                OnClose="ClosePopup" />
 
+@if (GameUIStateService.OptionsPanelOpen) {
+    <OptionsPanel OnCloseThisPanel="GameUIStateService.ToggleOptionsPanel" />
+}
+
 @if (GameUIStateService.TimeManagerOpen) {
     <TimeManager OnCloseThisPanel="GameTimeViewer.ToggleTimeManager" />
 }

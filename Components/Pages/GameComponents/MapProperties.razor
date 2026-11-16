@@ -2,8 +2,7 @@
 {
     <div class="panel map-popup" style="left:@(X)px;top:@(Y)px">
         <div class="panel-title map-popup-header">
-            <span style="flex: 1">@LayerName</span>
-            <button class="map-popup-close" @onclick="ClosePopupAsync">&#10005;</button>
+            @LayerName <button class="panel-close-btn" @onclick="ClosePopupAsync">&#10005;</button>
         </div>
         <div class="map-popup-body">
             @if (Properties.Count == 0)

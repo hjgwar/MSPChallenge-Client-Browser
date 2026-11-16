@@ -1,0 +1,28 @@
+@inherits GameComponentBase
+<div class="panel-center-overlay">
+    <div class="panel">
+        <div class="panel-title">
+            Options <button class="panel-close-btn" @onclick="OnCloseThisPanel" title="Close">&#10005;</button>
+        </div>
+        <div class="panel-content">
+            <p>
+                <button class="btn btn-primary w-100" @onclick="OnCloseThisPanel" title="Resume">Resume</button>
+            </p>
+            <p>
+                <button class="btn btn-primary w-100" 
+                    onclick="window.open('https://community.mspchallenge.info/wiki/Credits', '_blank', 'noopener,noreferrer')"
+                    title="Credits & License">
+                    Credits & License
+                </button>
+            </p>
+            <p>
+                <button class="btn btn-primary w-100" @onclick="OpenTutorialAsync" title="Tutorial">Tutorial</button>
+            </p>
+            <p>
+                <button class="btn btn-primary w-100" @onclick="@(() => NavigationManager.NavigateTo("/"))" title="Back to server login">
+                    Back to server login
+                </button>
+            </p>
+        </div>
+    </div>
+</div>

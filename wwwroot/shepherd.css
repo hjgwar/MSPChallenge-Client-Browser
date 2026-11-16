@@ -89,6 +89,5 @@
 /* Glow & outline on the element highlighted by Shepherd */
 .shepherd-target-highlight,
 .shepherd-target.shepherd-enabled {
-    border: 7px solid #FFD700 !important;
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.9), 0 0 30px rgba(255, 215, 0, 0.5) !important;
+    box-shadow: 0 0 0 5px rgba(255, 215, 0, 0.9) !important;
 }

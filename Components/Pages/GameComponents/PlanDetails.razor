@@ -3,7 +3,7 @@
 <ConfirmDialog @ref="cancelDialog" />
 <div class="panel plan-detail-panel">
     <div class="panel-title plan-detail-panel-title">
-        <span style="flex: 1">@(GameUIStateService.EditMode ? "Edit Plan" : "Active Plan")</span>
+        @(GameUIStateService.EditMode ? "Edit Plan" : "Active Plan")
         <button class="panel-close-btn" title="Close" @onclick="@(async () => await ClosePlanDetailAsync())">&#10005;</button>
     </div>
     <div class="plan-detail-header">

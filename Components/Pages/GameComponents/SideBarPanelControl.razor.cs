@@ -35,7 +35,7 @@ public partial class SideBarPanelControl : IDisposable
         NavigationManager.NavigateTo("/game/kpi-dashboard");
     }
 
-    public async Task OpenHomePage()
+    public async Task OpenSettingsPanel()
     {
         if (IsNavigationPrevented()) return;
         await GameSessionService.ResetAsync();

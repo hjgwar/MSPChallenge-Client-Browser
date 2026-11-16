@@ -63,7 +63,6 @@ small, .small {
     top: 1rem;
     z-index: 2000;
     display: block;
-    overflow-y: auto;
     max-height: calc(100vh - 2rem);
     width: 260px;
 }

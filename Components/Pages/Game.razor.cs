@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.JSInterop;
 using MSPChallenge_Client_Browser.Components.Pages.GameComponents;
 using MSPChallenge_Client_Browser.Models;
@@ -150,14 +149,14 @@ public partial class Game : IAsyncDisposable
         await InvokeAsync(StateHasChanged);
 
         if (_isLoading)
-            await HideLoadingAsync();
+            //await HideLoadingAsync();
 
         _dotNetRef = DotNetObjectReference.Create(this);
         await _mapModule.InvokeVoidAsync("registerClickHandler", _dotNetRef);
         await _mapModule.InvokeVoidAsync("initLegendDrag", _dotNetRef);
-
+        
         var tourModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/tour.js");
-        await tourModule.InvokeVoidAsync("initiateTutorial");
+        await tourModule.InvokeVoidAsync("continueTutorial");
     }
 
     private async Task HideLoadingAsync()

@@ -1,12 +1,12 @@
 import Shepherd from 'https://cdn.jsdelivr.net/npm/shepherd.js/dist/esm/shepherd.mjs';
 
-function disableNextButton(btn) {
+function disableButton(btn) {
     if (!btn) return;
     btn.disabled = true;
     btn.style.opacity = '0.2';
 }
 
-function enableNextButton(btn) {
+function enableButton(btn) {
     if (!btn) return;
     btn.disabled = false;
     btn.style.opacity = '1';
@@ -15,6 +15,10 @@ function enableNextButton(btn) {
         [{ transform: 'scale(1)' }, { transform: 'scale(1.4)' }, { transform: 'scale(1)' }],
         { duration: 400 }
     );
+    const correctConfirm = new Audio('/audio/CorrectConfirm.wav');
+    correctConfirm.play().catch(error => {
+        console.log("Audio playback blocked:", error);
+    });
 }
 
 function addButtons(prevPartId, nextPartId) {
@@ -55,7 +59,7 @@ function addButtons(prevPartId, nextPartId) {
     return buttonsVar;
 }
 
-export function initiateTutorial() {
+function buildTutorial() {
     const tour = new Shepherd.Tour({
         defaultStepOptions: {
             cancelIcon: {
@@ -144,9 +148,9 @@ export function initiateTutorial() {
                 const mapEl = document.getElementById('map');
                 if (!nextBtn || !mapEl) return;
 
-                disableNextButton(nextBtn);
+                disableButton(nextBtn);
 
-                const onWheel = () => enableNextButton(nextBtn);
+                const onWheel = () => enableButton(nextBtn);
                 const onTouch = (e) => { if (e.touches.length > 1) enable(); };
 
                 mapEl.addEventListener('wheel', onWheel, { passive: true, once: true });
@@ -198,10 +202,10 @@ export function initiateTutorial() {
                 const nextBtn = this.el.querySelector('.shepherd-nextbutton');
                 const layersBtn = document.getElementById('layers-button');
 
-                disableNextButton(nextBtn);
+                disableButton(nextBtn);
 
                 const onLayersClick = () => {
-                    enableNextButton(nextBtn);
+                    enableButton(nextBtn);
                 };
                 layersBtn.addEventListener('click', onLayersClick, { once: true });
 
@@ -230,11 +234,11 @@ export function initiateTutorial() {
                 const nextBtn = this.el.querySelector('.shepherd-nextbutton');
                 const layerPanel = document.querySelector('.layer-panel');
         
-                disableNextButton(nextBtn);
+                disableButton(nextBtn);
         
                 const onLayerChange = (e) => {
                     if (e.target && e.target.matches('.layer-panel-row input[type="checkbox"]')) {
-                        enableNextButton(nextBtn);
+                        enableButton(nextBtn);
                     }
                 };
                 layerPanel.addEventListener('change', onLayerChange);
@@ -272,10 +276,10 @@ export function initiateTutorial() {
                 const nextBtn = this.el.querySelector('.shepherd-nextbutton');
                 const legendBtn = document.getElementById('legend-button');
 
-                disableNextButton(nextBtn);
+                disableButton(nextBtn);
 
                 const onLegendClick = () => {
-                    enableNextButton(nextBtn);
+                    enableButton(nextBtn);
                 };
                 legendBtn.addEventListener('click', onLegendClick, { once: true });
 
@@ -312,11 +316,11 @@ export function initiateTutorial() {
                 const nextBtn = this.el.querySelector('.shepherd-nextbutton');
                 const dependenciesBtn = document.getElementById('dependencies-button');
 
-                disableNextButton(nextBtn);
+                disableButton(nextBtn);
 
                 const onDependenciesClick = () => {
                     sessionStorage.setItem('tour_current_step', 'accessingdata7');
-                    enableNextButton(nextBtn);
+                    enableButton(nextBtn);
                 };
                 dependenciesBtn.addEventListener('click', onDependenciesClick, { once: true });
 
@@ -338,16 +342,15 @@ export function initiateTutorial() {
         buttons: addButtons('part1', 'part3'),
         when: {
             show() {
-                const backBtn = this.el.querySelector('.shepherd-backbutton');
                 const nextBtn = this.el.querySelector('.shepherd-nextbutton');
                 const depGraphPanel = document.querySelector('.dep-graph');
         
-                disableNextButton(nextBtn);
+                disableButton(nextBtn);
                 
                 const onDepGraphClick = (e) => {
                     if (e.target && e.target.closest('.node-lbl')) {
                         sessionStorage.setItem('tour_current_step', 'part3');
-                        enableNextButton(nextBtn);
+                        enableButton(nextBtn);
                     }
                 };
                 depGraphPanel.addEventListener('click', onDepGraphClick, true);
@@ -378,14 +381,20 @@ export function initiateTutorial() {
         }
     });
 
-    // 3. Resume vs. Start logic
+    return tour;
+}
+
+export function initiateTutorial() {
+    const tour = buildTutorial();
+    tour.start();
+}
+
+export function continueTutorial() {
+    const tour = buildTutorial();
     const isTourActive = sessionStorage.getItem('tour_active') === 'true';
     const savedStepId = sessionStorage.getItem('tour_current_step');
     if (isTourActive && savedStepId && tour.getById(savedStepId)) {
         // Resume directly at the saved step for this page
         tour.show(savedStepId);
-    } else if (window.location.pathname === '/game') {
-        // Fresh start only on the game page
-        tour.start();
     }
 }

@@ -2,8 +2,7 @@
 @inherits GameComponentBase
 <div class="panel plan-message-panel plan-state-panel">
     <div class="panel-title plan-message-panel-header">
-        <span style="flex: 1">Plan State</span>
-        <button class="panel-close-btn" type="button" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
+        Plan State <button class="panel-close-btn" type="button" title="Close" @onclick="OnCloseThisPanel">&#10005;</button>
     </div>
     <div class="panel-content plan-message-panel-body plan-state-panel-body">
         <div class="plan-state-dropdown @(_planStateDropdownOpen ? "open" : "")">
